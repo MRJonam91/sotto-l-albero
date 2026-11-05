@@ -1,0 +1,18 @@
+PRAGMA foreign_keys = ON;
+CREATE TABLE users (id TEXT PRIMARY KEY,email TEXT UNIQUE NOT NULL,name TEXT NOT NULL,organizer INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE codes (email TEXT PRIMARY KEY,digest TEXT NOT NULL,name TEXT NOT NULL,expires INTEGER NOT NULL,attempts INTEGER NOT NULL DEFAULT 0,requested INTEGER NOT NULL);
+CREATE TABLE sessions (digest TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id),expires INTEGER NOT NULL);
+CREATE TABLE groups (id TEXT PRIMARY KEY,owner_id TEXT NOT NULL REFERENCES users(id),name TEXT NOT NULL);
+CREATE TABLE events (id TEXT PRIMARY KEY,owner_id TEXT NOT NULL REFERENCES users(id),group_id TEXT NOT NULL REFERENCES groups(id),name TEXT NOT NULL,budget REAL NOT NULL,description TEXT NOT NULL,close_at TEXT NOT NULL,draw_at TEXT NOT NULL,gift_at TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'open',version INTEGER NOT NULL DEFAULT 0,invite_token TEXT NOT NULL UNIQUE,created_at TEXT NOT NULL,error TEXT);
+CREATE TABLE members (id TEXT PRIMARY KEY,event_id TEXT NOT NULL REFERENCES events(id),user_id TEXT NOT NULL REFERENCES users(id),status TEXT NOT NULL DEFAULT 'pending',wishlist TEXT NOT NULL DEFAULT '[]',updated_at TEXT NOT NULL,UNIQUE(event_id,user_id));
+CREATE TABLE rules (event_id TEXT NOT NULL REFERENCES events(id),giver_id TEXT NOT NULL,receiver_id TEXT NOT NULL,type TEXT NOT NULL,PRIMARY KEY(event_id,giver_id,receiver_id,type));
+CREATE TABLE assignments (event_id TEXT NOT NULL REFERENCES events(id),version INTEGER NOT NULL,giver_id TEXT NOT NULL,receiver_id TEXT NOT NULL,PRIMARY KEY(event_id,version,giver_id),UNIQUE(event_id,version,receiver_id));
+CREATE TABLE history (id TEXT PRIMARY KEY,group_id TEXT NOT NULL REFERENCES groups(id),giver_email TEXT NOT NULL,receiver_email TEXT NOT NULL);
+CREATE TABLE invites (id TEXT PRIMARY KEY,event_id TEXT NOT NULL REFERENCES events(id),email TEXT NOT NULL,state TEXT NOT NULL DEFAULT 'queued',created_at TEXT NOT NULL,UNIQUE(event_id,email));
+CREATE TABLE outbox (id TEXT PRIMARY KEY,event_id TEXT,version INTEGER,email TEXT NOT NULL,subject TEXT NOT NULL,html TEXT NOT NULL,state TEXT NOT NULL DEFAULT 'queued',attempts INTEGER NOT NULL DEFAULT 0,next_at INTEGER NOT NULL DEFAULT 0,error TEXT,UNIQUE(event_id,version,email,subject));
+CREATE TABLE audit (id TEXT PRIMARY KEY,event_id TEXT NOT NULL,actor_id TEXT NOT NULL,action TEXT NOT NULL,created_at TEXT NOT NULL);
+CREATE INDEX events_due ON events(status,draw_at);
+CREATE INDEX members_user ON members(user_id,event_id);
+CREATE INDEX sessions_expiry ON sessions(expires);
+CREATE INDEX outbox_due ON outbox(state,next_at);
+CREATE INDEX history_group ON history(group_id);

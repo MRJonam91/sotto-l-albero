@@ -1,0 +1,868 @@
+import {
+  id,
+  token,
+  validEmail,
+  safeText,
+  safeUrl,
+  HttpError,
+  json,
+  escapeHtml,
+} from "./security.js";
+import { first, all, run, sendMail } from "./auth.js";
+import { matchParticipants } from "./matching.js";
+const nowIso = () => new Date().toISOString();
+const stmt = (db, sql, ...args) => db.prepare(sql).bind(...args);
+const audit = (db, eventId, userId, action) =>
+  stmt(
+    db,
+    "INSERT INTO audit(id,event_id,actor_id,action,created_at) VALUES(?,?,?,?,?)",
+    id(),
+    eventId,
+    userId,
+    action,
+    nowIso(),
+  );
+function outputEvent(e, user, count) {
+  return {
+    id: e.id,
+    name: e.name,
+    budget: e.budget,
+    description: e.description,
+    closeAt: e.close_at,
+    drawAt: e.draw_at,
+    giftAt: e.gift_at,
+    status: e.status,
+    version: e.version,
+    historyDepth: e.history_depth,
+    isAdmin: e.owner_id === user.id,
+    groupName: e.group_name,
+    memberCount: count,
+    error: e.error,
+    ...(e.owner_id === user.id ? { inviteToken: e.invite_token } : {}),
+  };
+}
+function mutable(e) {
+  if (e.status !== "open")
+    throw new HttpError(
+      "L’estrazione è già avvenuta. Per cambiare i partecipanti o le regole, annullala prima.",
+      409,
+    );
+}
+export async function getEvent(db, eid, user) {
+  const e = await first(
+    db,
+    "SELECT e.*,g.name AS group_name FROM events e JOIN groups g ON g.id=e.group_id WHERE e.id=?",
+    eid,
+  );
+  if (!e) throw new HttpError("Non abbiamo trovato questo evento.", 404);
+  const member = await first(
+    db,
+    "SELECT * FROM members WHERE event_id=? AND user_id=? AND status!='removed'",
+    eid,
+    user.id,
+  );
+  if (e.owner_id !== user.id && !member)
+    throw new HttpError("Questo evento è riservato ai suoi partecipanti.", 403);
+  return { e, member, admin: e.owner_id === user.id };
+}
+function dates(body) {
+  const values = ["closeAt", "drawAt", "giftAt"].map((k) => new Date(body[k]));
+  if (
+    values.some((d) => !Number.isFinite(d.valueOf())) ||
+    values[0] > values[1] ||
+    values[1] > values[2]
+  )
+    throw new HttpError(
+      "Controlla le date: prima si chiudono le iscrizioni, poi si estrae e infine si scambiano i regali.",
+    );
+  return values.map((d) => d.toISOString());
+}
+export async function createEvent(db, user, body, groupId) {
+  if (!user.organizer)
+    throw new HttpError(
+      "Per creare un evento serve l’abilitazione di chi gestisce il sito.",
+      403,
+    );
+  const name = safeText(body.name, 100, true),
+    description = safeText(body.description, 2000),
+    groupName = safeText(body.groupName, 100) || name;
+  const budget = Number(body.budget);
+  if (!Number.isFinite(budget) || budget < 0 || budget > 10000)
+    throw new HttpError("Indica un budget compreso tra 0 e 10.000 euro.");
+  const historyDepth = body.historyDepth ?? 1;
+  if (!Number.isInteger(historyDepth) || historyDepth < 0 || historyDepth > 10)
+    throw new HttpError("Scegli da 0 a 10 edizioni precedenti da escludere.");
+  const [close, draw, gift] = dates(body),
+    eid = id(),
+    gid = groupId || id();
+  const batch = [];
+  if (!groupId)
+    batch.push(
+      stmt(
+        db,
+        "INSERT INTO groups(id,owner_id,name) VALUES(?,?,?)",
+        gid,
+        user.id,
+        groupName,
+      ),
+    );
+  batch.push(
+    stmt(
+      db,
+      "INSERT INTO events(id,owner_id,group_id,name,budget,description,close_at,draw_at,gift_at,invite_token,created_at,history_depth) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+      eid,
+      user.id,
+      gid,
+      name,
+      budget,
+      description,
+      close,
+      draw,
+      gift,
+      token(),
+      nowIso(),
+      historyDepth,
+    ),
+  );
+  await db.batch(batch);
+  return first(
+    db,
+    "SELECT e.*,g.name AS group_name FROM events e JOIN groups g ON g.id=e.group_id WHERE e.id=?",
+    eid,
+  );
+}
+export async function historicalRules(db, e, members) {
+  const byEmail = new Map(members.map((m) => [m.email, m.id]));
+  const manual = await all(
+    db,
+    "SELECT giver_email,receiver_email FROM history WHERE group_id=?",
+    e.group_id,
+  );
+  const old = await all(
+    db,
+    "SELECT ug.email AS giver_email,ur.email AS receiver_email FROM assignments a JOIN events old ON old.id=a.event_id AND old.version=a.version JOIN members mg ON mg.id=a.giver_id JOIN users ug ON ug.id=mg.user_id JOIN members mr ON mr.id=a.receiver_id JOIN users ur ON ur.id=mr.user_id WHERE old.id IN (SELECT id FROM events WHERE group_id=? AND id!=? AND status IN ('drawn','archived') AND EXISTS(SELECT 1 FROM assignments a2 WHERE a2.event_id=events.id AND a2.version=events.version) ORDER BY created_at DESC,id DESC LIMIT ?)",
+    e.group_id,
+    e.id,
+    e.history_depth ?? 1,
+  );
+  return manual
+    .concat(old)
+    .filter((x) => byEmail.has(x.giver_email) && byEmail.has(x.receiver_email))
+    .map((x) => ({
+      giverId: byEmail.get(x.giver_email),
+      receiverId: byEmail.get(x.receiver_email),
+      type: "exclude",
+    }));
+}
+export async function drawEvent(env, e, actor = "scheduler") {
+  if (e.status === "drawn") return;
+  mutable(e);
+  const db = env.DB,
+    members = await all(
+      db,
+      "SELECT m.*,u.email FROM members m JOIN users u ON u.id=m.user_id WHERE m.event_id=? AND m.status='approved'",
+      e.id,
+    );
+  const rules = await all(
+    db,
+    "SELECT giver_id AS giverId,receiver_id AS receiverId,type FROM rules WHERE event_id=?",
+    e.id,
+  );
+  const pairs = matchParticipants(
+    members.map((x) => x.id),
+    rules.concat(await historicalRules(db, e, members)),
+  );
+  const version = e.version + 1,
+    claim = token();
+  const batch = [
+    stmt(
+      db,
+      "UPDATE events SET status='drawn',version=?,draw_token=?,error=NULL WHERE id=? AND version=? AND status='open'",
+      version,
+      claim,
+      e.id,
+      e.version,
+    ),
+  ];
+  for (const p of pairs)
+    batch.push(
+      stmt(
+        db,
+        "INSERT INTO assignments(event_id,version,giver_id,receiver_id) SELECT ?,?,?,? WHERE EXISTS(SELECT 1 FROM events WHERE id=? AND draw_token=? AND status='drawn')",
+        e.id,
+        version,
+        p.giverId,
+        p.receiverId,
+        e.id,
+        claim,
+      ),
+    );
+  for (const m of members)
+    batch.push(
+      stmt(
+        db,
+        "INSERT OR IGNORE INTO outbox(id,event_id,version,email,subject,html) SELECT ?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM events WHERE id=? AND draw_token=? AND status='drawn')",
+        id(),
+        e.id,
+        version,
+        m.email,
+        `La tua lettera per ${e.name} è pronta`,
+        `<p>Abbiamo estratto i nomi per <strong>${escapeHtml(e.name)}</strong>.</p><p><a href="${escapeHtml(env.APP_URL || "")}/events/${e.id}">Apri la tua lettera</a> e scopri per chi preparerai il regalo.</p>`,
+        e.id,
+        claim,
+      ),
+    );
+  batch.push(
+    stmt(
+      db,
+      "INSERT INTO audit(id,event_id,actor_id,action,created_at) SELECT ?,?,?,?,? WHERE EXISTS(SELECT 1 FROM events WHERE id=? AND draw_token=?)",
+      id(),
+      e.id,
+      actor,
+      "draw",
+      nowIso(),
+      e.id,
+      claim,
+    ),
+  );
+  const result = await db.batch(batch);
+  if (result[0].meta.changes !== 1) {
+    const latest = await first(
+      db,
+      "SELECT status FROM events WHERE id=?",
+      e.id,
+    );
+    if (latest?.status !== "drawn")
+      throw new HttpError(
+        "L’evento è cambiato durante l’estrazione. Riprova.",
+        409,
+      );
+  }
+}
+export async function eventRoute(request, env, path, body, user) {
+  const db = env.DB,
+    method = request.method;
+  if (path === "/api/events") {
+    if (method === "GET") {
+      const rows = await all(
+        db,
+        "SELECT DISTINCT e.*,g.name AS group_name,(SELECT COUNT(*) FROM members x WHERE x.event_id=e.id AND x.status='approved') AS member_count FROM events e JOIN groups g ON g.id=e.group_id LEFT JOIN members m ON m.event_id=e.id AND m.user_id=? AND m.status!='removed' WHERE e.owner_id=? OR m.id IS NOT NULL ORDER BY e.created_at DESC",
+        user.id,
+        user.id,
+      );
+      return json({
+        events: rows.map((e) => outputEvent(e, user, e.member_count)),
+      });
+    }
+    if (method === "POST")
+      return json(
+        { event: outputEvent(await createEvent(db, user, body), user, 0) },
+        201,
+      );
+  }
+  const match = path.match(/^\/api\/events\/([^/]+)(?:\/(.*))?$/);
+  if (!match) throw new HttpError("Questa pagina non esiste.", 404);
+  const [, eid, action = ""] = match;
+  if (action === "join" && method === "POST") {
+    const givenToken = safeText(body.token, 100, true);
+    const e = await first(
+      db,
+      "SELECT * FROM events WHERE id=? AND status='open' AND (invite_token=? OR EXISTS(SELECT 1 FROM invites i WHERE i.event_id=events.id AND i.token=? AND i.email=?))",
+      eid,
+      givenToken,
+      givenToken,
+      user.email,
+    );
+    if (!e || new Date(e.close_at).valueOf() <= Date.now())
+      throw new HttpError(
+        "Questo invito non è più valido o le iscrizioni sono chiuse.",
+      );
+    const count = await first(
+      db,
+      "SELECT COUNT(*) AS n FROM members WHERE event_id=? AND status!='removed'",
+      eid,
+    );
+    if (count.n >= 50)
+      throw new HttpError("Questo evento ha già raggiunto 50 iscritti.");
+    await run(
+      db,
+      "INSERT INTO members(id,event_id,user_id,status,updated_at) VALUES(?,?,?,'pending',?) ON CONFLICT(event_id,user_id) DO UPDATE SET status=CASE WHEN members.status='removed' THEN 'pending' ELSE members.status END,updated_at=excluded.updated_at",
+      id(),
+      eid,
+      user.id,
+      nowIso(),
+    );
+    return json({ ok: true });
+  }
+  const { e, member, admin } = await getEvent(db, eid, user);
+  if (action === "" && method === "GET") {
+    const members = await all(
+      db,
+      "SELECT m.id,m.user_id AS userId,u.name,m.status,m.wishlist FROM members m JOIN users u ON u.id=m.user_id WHERE m.event_id=? AND m.status!='removed' ORDER BY m.updated_at",
+      eid,
+    );
+    const recipient =
+      member && e.status !== "open"
+        ? await first(
+            db,
+            "SELECT u.name,m.wishlist FROM assignments a JOIN members m ON m.id=a.receiver_id JOIN users u ON u.id=m.user_id WHERE a.event_id=? AND a.version=? AND a.giver_id=?",
+            eid,
+            e.version,
+            member.id,
+          )
+        : null;
+    const rules = admin
+      ? await all(
+          db,
+          "SELECT giver_id AS giverId,receiver_id AS receiverId,type FROM rules WHERE event_id=?",
+          eid,
+        )
+      : [];
+    const assignments =
+      admin && new URL(request.url).searchParams.get("reveal") === "1"
+        ? await all(
+            db,
+            "SELECT giver_id AS giverId,receiver_id AS receiverId FROM assignments WHERE event_id=? AND version=?",
+            eid,
+            e.version,
+          )
+        : undefined;
+    if (assignments) await audit(db, eid, user.id, "view_assignments").run();
+    const invites = admin
+      ? await all(
+          db,
+          "SELECT id,email,state,created_at AS createdAt FROM invites WHERE event_id=?",
+          eid,
+        )
+      : [];
+    const visibleMembers =
+      !admin && member?.status !== "approved"
+        ? members.filter((m) => m.userId === user.id)
+        : members;
+    return json({
+      event: outputEvent(
+        e,
+        user,
+        members.filter((x) => x.status === "approved").length,
+      ),
+      members: visibleMembers.map(({ wishlist, ...m }) => ({
+        ...m,
+        hasWishlist: JSON.parse(wishlist).length > 0,
+      })),
+      rules,
+      wishlist: member ? JSON.parse(member.wishlist) : [],
+      recipient: recipient
+        ? { name: recipient.name, wishlist: JSON.parse(recipient.wishlist) }
+        : null,
+      ...(assignments ? { assignments } : {}),
+      invites,
+    });
+  }
+  if (action === "wishlist" && method === "PUT") {
+    if (!member || member.status !== "approved")
+      throw new HttpError(
+        "Aspetta che l’organizzatore confermi la tua iscrizione.",
+        403,
+      );
+    if (!Array.isArray(body.items) || body.items.length > 30)
+      throw new HttpError("Puoi lasciare fino a 30 desideri.");
+    const types = [
+      "object",
+      "theme",
+      "hint",
+      "riddle",
+      "avoid",
+      "surprise",
+      "preference",
+    ];
+    const items = body.items.map((x) => {
+      if (!types.includes(x.type))
+        throw new HttpError("Scegli il tipo di desiderio.");
+      return {
+        id: id(),
+        type: x.type,
+        title: safeText(x.title, 150, true),
+        description: safeText(x.description, 1500),
+        url: safeUrl(x.url),
+        hint: safeText(x.hint, 1000),
+        answer: safeText(x.answer, 1000),
+      };
+    });
+    await run(
+      db,
+      "UPDATE members SET wishlist=?,updated_at=? WHERE id=?",
+      JSON.stringify(items),
+      nowIso(),
+      member.id,
+    );
+    return json({ ok: true });
+  }
+  if (!admin)
+    throw new HttpError("Questa azione spetta all’organizzatore.", 403);
+  if (action === "" && method === "PUT") {
+    mutable(e);
+    if (!Number.isInteger(body.version) || body.version !== e.version)
+      throw new HttpError(
+        "L’evento è cambiato. Aggiorna la pagina e riprova.",
+        409,
+      );
+    const name = safeText(body.name, 100, true),
+      description = safeText(body.description, 2000),
+      budget = Number(body.budget),
+      depth = body.historyDepth ?? e.history_depth;
+    if (!Number.isFinite(budget) || budget < 0 || budget > 10000)
+      throw new HttpError("Indica un budget compreso tra 0 e 10.000 euro.");
+    if (!Number.isInteger(depth) || depth < 0 || depth > 10)
+      throw new HttpError("Scegli da 0 a 10 edizioni precedenti da escludere.");
+    const [close, draw, gift] = dates(body),
+      claim = token();
+    const result = await db.batch([
+      stmt(
+        db,
+        "UPDATE events SET name=?,description=?,budget=?,close_at=?,draw_at=?,gift_at=?,history_depth=?,version=version+1,draw_token=?,error=NULL WHERE id=? AND version=? AND status='open'",
+        name,
+        description,
+        budget,
+        close,
+        draw,
+        gift,
+        depth,
+        claim,
+        eid,
+        body.version,
+      ),
+      stmt(
+        db,
+        "INSERT INTO audit(id,event_id,actor_id,action,created_at) SELECT ?,?,?,?,? WHERE EXISTS(SELECT 1 FROM events WHERE id=? AND draw_token=?)",
+        id(),
+        eid,
+        user.id,
+        "edit",
+        nowIso(),
+        eid,
+        claim,
+      ),
+    ]);
+    if (!result[0].meta.changes)
+      throw new HttpError(
+        "L’evento è cambiato. Aggiorna la pagina e riprova.",
+        409,
+      );
+    return json({
+      event: outputEvent(
+        await first(
+          db,
+          "SELECT e.*,g.name AS group_name FROM events e JOIN groups g ON g.id=e.group_id WHERE e.id=?",
+          eid,
+        ),
+        user,
+      ),
+    });
+  }
+  if (action.startsWith("members/") && method === "POST") {
+    mutable(e);
+    const mid = action.split("/")[1];
+    if (!["approved", "removed"].includes(body.status))
+      throw new HttpError("Scegli uno stato valido.");
+    const target = await first(
+      db,
+      "SELECT id FROM members WHERE id=? AND event_id=?",
+      mid,
+      eid,
+    );
+    if (!target) throw new HttpError("Partecipante non trovato.", 404);
+    const claim = token();
+    const changed = await db.batch([
+      stmt(
+        db,
+        "UPDATE events SET version=version+1,draw_token=?,error=NULL WHERE id=? AND status='open' AND version=?",
+        claim,
+        eid,
+        e.version,
+      ),
+      stmt(
+        db,
+        "UPDATE members SET status=? WHERE id=? AND event_id=? AND EXISTS(SELECT 1 FROM events WHERE id=? AND status='open' AND draw_token=?)",
+        body.status,
+        mid,
+        eid,
+        eid,
+        claim,
+      ),
+      stmt(
+        db,
+        "DELETE FROM rules WHERE event_id=? AND (giver_id=? OR receiver_id=?) AND ?='removed' AND EXISTS(SELECT 1 FROM events WHERE id=? AND status='open' AND draw_token=?)",
+        eid,
+        mid,
+        mid,
+        body.status,
+        eid,
+        claim,
+      ),
+    ]);
+    if (!changed[0].meta.changes)
+      throw new HttpError(
+        "L’evento è cambiato. Aggiorna la pagina e riprova.",
+        409,
+      );
+    return json({ ok: true });
+  }
+  if (action === "rules" && method === "PUT") {
+    mutable(e);
+    if (!Array.isArray(body.rules) || body.rules.length > 2500)
+      throw new HttpError("L’elenco delle regole non è valido.");
+    const members = await all(
+        db,
+        "SELECT id FROM members WHERE event_id=? AND status='approved'",
+        eid,
+      ),
+      ids = new Set(members.map((m) => m.id));
+    const rules = body.rules.map((r) => {
+      if (
+        !ids.has(r.giverId) ||
+        !ids.has(r.receiverId) ||
+        !["fixed", "exclude"].includes(r.type)
+      )
+        throw new HttpError(
+          "Una regola contiene un partecipante non confermato.",
+        );
+      return r;
+    });
+    const claim = token();
+    const changed = await db.batch([
+      stmt(
+        db,
+        "UPDATE events SET version=version+1,draw_token=?,error=NULL WHERE id=? AND status='open' AND version=?",
+        claim,
+        eid,
+        e.version,
+      ),
+      stmt(
+        db,
+        "DELETE FROM rules WHERE event_id=? AND EXISTS(SELECT 1 FROM events WHERE id=? AND status='open' AND draw_token=?)",
+        eid,
+        eid,
+        claim,
+      ),
+      ...rules.map((r) =>
+        stmt(
+          db,
+          "INSERT OR IGNORE INTO rules(event_id,giver_id,receiver_id,type) SELECT ?,?,?,? WHERE EXISTS(SELECT 1 FROM events WHERE id=? AND status='open' AND draw_token=?)",
+          eid,
+          r.giverId,
+          r.receiverId,
+          r.type,
+          eid,
+          claim,
+        ),
+      ),
+    ]);
+    if (!changed[0].meta.changes)
+      throw new HttpError(
+        "L’evento è cambiato. Aggiorna la pagina e riprova.",
+        409,
+      );
+    return json({ ok: true });
+  }
+  if (action === "draw" && method === "POST") {
+    await drawEvent(env, e, user.id);
+    return json({ ok: true });
+  }
+  if (action === "cancel" && method === "POST") {
+    if (
+      e.status !== "drawn" ||
+      !Number.isInteger(body.version) ||
+      body.version !== e.version
+    )
+      throw new HttpError(
+        "L’estrazione è cambiata. Aggiorna la pagina prima di annullarla.",
+        409,
+      );
+    safeText(body.reason, 500, true);
+    const claim = token(),
+      result = await db.batch([
+        stmt(
+          db,
+          "UPDATE events SET status='open',version=version+1,draw_token=?,error='Estrazione annullata. Controlla le regole e avviala di nuovo quando il gruppo è pronto.' WHERE id=? AND status='drawn' AND version=?",
+          claim,
+          eid,
+          body.version,
+        ),
+        stmt(
+          db,
+          "UPDATE outbox SET state='cancelled' WHERE event_id=? AND state='queued' AND EXISTS(SELECT 1 FROM events WHERE id=? AND draw_token=?)",
+          eid,
+          eid,
+          claim,
+        ),
+        stmt(
+          db,
+          "INSERT INTO audit(id,event_id,actor_id,action,created_at) SELECT ?,?,?,?,? WHERE EXISTS(SELECT 1 FROM events WHERE id=? AND draw_token=?)",
+          id(),
+          eid,
+          user.id,
+          `cancel: ${safeText(body.reason, 500)}`,
+          nowIso(),
+          eid,
+          claim,
+        ),
+      ]);
+    if (!result[0].meta.changes)
+      throw new HttpError(
+        "L’estrazione è cambiata. Aggiorna la pagina prima di annullarla.",
+        409,
+      );
+    return json({ ok: true });
+  }
+  if (action === "archive" && method === "POST") {
+    await run(db, "UPDATE events SET status='archived' WHERE id=?", eid);
+    return json({ ok: true });
+  }
+  if (action === "rotate-invite" && method === "POST") {
+    mutable(e);
+    const t = token();
+    await db.batch([
+      stmt(db, "UPDATE events SET invite_token=? WHERE id=?", t, eid),
+      stmt(
+        db,
+        "UPDATE invites SET token=NULL,state='revoked' WHERE event_id=?",
+        eid,
+      ),
+      stmt(
+        db,
+        "UPDATE outbox SET state='cancelled' WHERE event_id=? AND state='queued' AND subject LIKE 'Ti aspettiamo%'",
+        eid,
+      ),
+    ]);
+    return json({ token: t });
+  }
+  if (action === "invites" && method === "POST") {
+    mutable(e);
+    if (!Array.isArray(body.emails) || body.emails.length > 50)
+      throw new HttpError("Invia al massimo 50 inviti alla volta.");
+    if (!env.RESEND_API_KEY || !env.MAIL_FROM)
+      throw new HttpError(
+        "L’invio email non è configurato. Puoi copiare il testo dell’invito e condividerlo tu.",
+        503,
+      );
+    const emails = [...new Set(body.emails.map(validEmail))],
+      batch = [];
+    for (const email of emails) {
+      const invitation = id(),
+        individualToken = token();
+      batch.push(
+        stmt(
+          db,
+          "INSERT INTO invites(id,event_id,email,state,created_at,token,generation) VALUES(?,?,?,'queued',?,?,1) ON CONFLICT(event_id,email) DO UPDATE SET state='queued',created_at=excluded.created_at,token=excluded.token,generation=invites.generation+1 WHERE invites.state IN ('revoked','failed')",
+          invitation,
+          eid,
+          email,
+          nowIso(),
+          individualToken,
+        ),
+      );
+      batch.push(
+        stmt(
+          db,
+          "INSERT OR IGNORE INTO outbox(id,event_id,version,email,subject,html) SELECT ?,?,-i.generation,?,?,? FROM invites i WHERE i.event_id=? AND i.token=?",
+          id(),
+          eid,
+          email,
+          `Ti aspettiamo per ${e.name}`,
+          `<p>${escapeHtml(user.name)} ti invita a <strong>${escapeHtml(e.name)}</strong>.</p><p>Il budget è ${e.budget} €. Iscrizioni entro il ${escapeHtml(e.close_at.slice(0, 10))}.</p><p><a href="${escapeHtml(env.APP_URL || "")}/invite/${individualToken}">Leggi l’invito e partecipa</a>.</p><p>L’organizzatore può conoscere gli abbinamenti.</p>`,
+          eid,
+          individualToken,
+        ),
+      );
+    }
+    const result = await db.batch(batch);
+    return json({
+      ok: true,
+      queued: result
+        .filter((_, i) => i % 2 === 0)
+        .reduce((n, r) => n + r.meta.changes, 0),
+    });
+  }
+  if (action === "clear-history" && method === "POST") {
+    mutable(e);
+    const claim = token(),
+      result = await db.batch([
+        stmt(
+          db,
+          "UPDATE events SET version=version+1,draw_token=?,error=NULL WHERE id=? AND version=? AND status='open'",
+          claim,
+          eid,
+          e.version,
+        ),
+        stmt(
+          db,
+          "DELETE FROM history WHERE group_id=? AND EXISTS(SELECT 1 FROM events WHERE id=? AND draw_token=?)",
+          e.group_id,
+          eid,
+          claim,
+        ),
+      ]);
+    if (!result[0].meta.changes)
+      throw new HttpError(
+        "L’evento è cambiato. Aggiorna la pagina e riprova.",
+        409,
+      );
+    return json({ ok: true });
+  }
+  if (action === "history" && method === "POST") {
+    mutable(e);
+    if (!Array.isArray(body.pairs) || body.pairs.length > 500)
+      throw new HttpError("Puoi importare fino a 500 coppie alla volta.");
+    const pairs = body.pairs.map((p) => ({
+      giverEmail: validEmail(p.giverEmail),
+      receiverEmail: validEmail(p.receiverEmail),
+    }));
+    const claim = token(),
+      result = await db.batch([
+        stmt(
+          db,
+          "UPDATE events SET version=version+1,draw_token=?,error=NULL WHERE id=? AND version=? AND status='open'",
+          claim,
+          eid,
+          e.version,
+        ),
+        ...pairs.map((p) =>
+          stmt(
+            db,
+            "INSERT INTO history(id,group_id,giver_email,receiver_email) SELECT ?,?,?,? WHERE EXISTS(SELECT 1 FROM events WHERE id=? AND draw_token=? AND status='open')",
+            id(),
+            e.group_id,
+            p.giverEmail,
+            p.receiverEmail,
+            eid,
+            claim,
+          ),
+        ),
+      ]);
+    if (!result[0].meta.changes)
+      throw new HttpError(
+        "L’evento è cambiato. Aggiorna la pagina e riprova.",
+        409,
+      );
+    return json({ ok: true });
+  }
+  if (action === "duplicate" && method === "POST") {
+    const year = 365 * 86400000,
+      shift = (d) => new Date(new Date(d).valueOf() + year).toISOString();
+    const copy = await createEvent(
+      db,
+      user,
+      {
+        name: body.name || `${e.name} — nuova edizione`,
+        budget: e.budget,
+        description: e.description,
+        groupName: e.group_name,
+        historyDepth: e.history_depth,
+        closeAt: shift(e.close_at),
+        drawAt: shift(e.draw_at),
+        giftAt: shift(e.gift_at),
+      },
+      e.group_id,
+    );
+    return json({ event: outputEvent(copy, user, 0) }, 201);
+  }
+  throw new HttpError("Questa azione non è disponibile.", 404);
+}
+export async function inviteRoute(env, t) {
+  const e = await first(
+    env.DB,
+    "SELECT e.*,u.name AS organizer_name FROM events e JOIN users u ON u.id=e.owner_id WHERE e.status='open' AND (e.invite_token=? OR EXISTS(SELECT 1 FROM invites i WHERE i.event_id=e.id AND i.token=?))",
+    t,
+    t,
+  );
+  if (!e || new Date(e.close_at).valueOf() <= Date.now())
+    throw new HttpError("Questo invito è scaduto o è stato revocato.", 404);
+  return json({
+    event: {
+      id: e.id,
+      name: e.name,
+      budget: e.budget,
+      drawAt: e.draw_at,
+      giftAt: e.gift_at,
+      description: e.description,
+    },
+    organizerName: e.organizer_name,
+  });
+}
+export async function scheduled(env) {
+  const due = await all(
+    env.DB,
+    "SELECT * FROM events WHERE status='open' AND draw_at<=? AND error IS NULL LIMIT 10",
+    nowIso(),
+  );
+  for (const e of due)
+    try {
+      await drawEvent(env, e);
+    } catch (error) {
+      await run(
+        env.DB,
+        "UPDATE events SET error=? WHERE id=? AND version=?",
+        error.message,
+        e.id,
+        e.version,
+      );
+    }
+  if (env.RESEND_API_KEY && env.MAIL_FROM) {
+    await run(
+      env.DB,
+      "UPDATE outbox SET state='queued' WHERE state='sending' AND last_attempt<?",
+      Date.now() - 300000,
+    );
+    const mails = await all(
+      env.DB,
+      "SELECT * FROM outbox WHERE state='queued' AND next_at<=? AND attempts<5 LIMIT 5",
+      Date.now(),
+    );
+    for (const mail of mails) {
+      const claim = await run(
+        env.DB,
+        "UPDATE outbox SET state='sending',last_attempt=? WHERE id=? AND state='queued'",
+        Date.now(),
+        mail.id,
+      );
+      if (claim.meta.changes !== 1) continue;
+      try {
+        await sendMail(env, mail.email, mail.subject, mail.html, mail.id);
+        await run(
+          env.DB,
+          "UPDATE outbox SET state='sent',error=NULL WHERE id=?",
+          mail.id,
+        );
+        if (mail.version < 0)
+          await run(
+            env.DB,
+            "UPDATE invites SET state='sent' WHERE event_id=? AND email=? AND generation=?",
+            mail.event_id,
+            mail.email,
+            -mail.version,
+          );
+      } catch (error) {
+        const state = mail.attempts >= 4 ? "failed" : "queued";
+        await run(
+          env.DB,
+          "UPDATE outbox SET state=?,attempts=attempts+1,next_at=?,error=? WHERE id=?",
+          state,
+          Date.now() + 60000 * Math.pow(2, mail.attempts),
+          error.message,
+          mail.id,
+        );
+        if (mail.version < 0)
+          await run(
+            env.DB,
+            "UPDATE invites SET state=? WHERE event_id=? AND email=? AND generation=?",
+            state,
+            mail.event_id,
+            mail.email,
+            -mail.version,
+          );
+      }
+    }
+  }
+  await run(env.DB, "DELETE FROM sessions WHERE expires<?", Date.now());
+  await run(env.DB, "DELETE FROM auth_limits WHERE expires<?", Date.now());
+}

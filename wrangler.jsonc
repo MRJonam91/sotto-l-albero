@@ -1,0 +1,21 @@
+{
+  "name": "sotto-l-albero",
+  "main": "worker/index.js",
+  "compatibility_date": "2026-11-05",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"],
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "sotto-l-albero",
+      "database_id": "f7dbc495-bb0c-4e84-9bd5-73d5a55bc25b",
+      "migrations_dir": "migrations",
+    },
+  ],
+  "triggers": { "crons": ["* * * * *"] },
+  "vars": { "APP_URL": "https://sotto-l-albero.sotto-l-albero.workers.dev" },
+}

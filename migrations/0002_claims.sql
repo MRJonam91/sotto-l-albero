@@ -1,0 +1,4 @@
+ALTER TABLE events ADD COLUMN draw_token TEXT NOT NULL DEFAULT '';
+ALTER TABLE invites ADD COLUMN token TEXT;
+CREATE UNIQUE INDEX invites_token ON invites(token);
+ALTER TABLE outbox ADD COLUMN last_attempt INTEGER NOT NULL DEFAULT 0;
