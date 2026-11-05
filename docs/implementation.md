@@ -33,8 +33,41 @@ Admin incluso nei membri solo con adesione esplicita. Non-admin non riceve invit
 - [x] Backend: migrazioni, OTP/sessioni, isolamento eventi, adesioni e inviti, desideri, vincoli, storico, matching, estrazione atomica e cron. Test prima del codice per matching e autorizzazioni.
 - [x] Frontend: schermate accesso, home, evento, creazione, desideri, admin, rivelazione e invito; testi colloquiali; movimento ridotto e mobile.
 - [x] Integrazione: build, migrazione locale, test API reali e percorso browser con utenti distinti, asset e confronto visuale.
-- [ ] Pubblicazione: controllo segreti, README/configurazione, commit, repository GitHub privata, push; deploy completo dove esiste accesso al provider.
+- [x] Pubblicazione del codice: controllo segreti, README, commit e push nella repository GitHub privata MRJonam91/sotto-l-albero.
+- [x] Deploy Cloudflare: database, quattro migrazioni, Worker e scheduler attivi; HTTPS e API verificati; modalità locale disattivata.
+- [ ] Attivazione email: configurare RESEND_API_KEY e MAIL_FROM con mittente verificato, poi provare consegna e accesso sul dominio pubblicato.
 
 ## Punti da verificare
 
 Inviti revocati; omonimi nello storico; esclusioni impossibili; retry concorrenti dell’estrazione; quote email o servizio mancante devono restituire messaggi chiari senza alterare gli abbinamenti.
+
+## Esito delle verifiche
+
+Il 5 novembre 2026: 19 test di codice e 4 prove sulla vera istanza Wrangler locale superati. Build, formattazione e audit passati, nessuna vulnerabilità segnalata. Anche il workflow GitHub della prima pubblicazione è terminato con successo: https://github.com/MRJonam91/sotto-l-albero/actions/runs/42066365732.
+
+Le prove locali coprono accessi separati, isolamento dei desideri, approvazione, coppia fissata, estrazione concorrente, link revocati, URL pericolosi, scheduler senza browser e annullamento con versione obsoleta. Il browser verifica creazione, rivelazione, aiuti e soluzione dell’indovinello, salvataggio dopo reload, console senza errori e assenza di overflow a 390 px. La stella della home apre la citazione attribuita.
+
+La revisione indipendente ha segnalato cinque problemi: reinvio degli inviti revocati, pagine ferme su destinatari vecchi, annullamenti senza versione, storico cumulativo e date non modificabili. Corretti e sottoposti a seconda revisione: nessun problema bloccante residuo nelle modifiche esaminate.
+
+### Confronto visivo
+
+Confrontati il mockup iniziale e gli screenshot Playwright del rendering reale, aperti con view_image. Desktop 1536×1024 e telefono 390×844; screenshot completi acquisiti fuori dalla repository.
+
+| Aspetto | Concept e risultato |
+| --- | --- |
+| Palette | Conservati verde abete, avorio, oro tenue e rosso ceralacca |
+| Tipografia | Titoli serif e comandi sans, font locali; verificati anche tab e moduli |
+| Struttura | Navigazione orizzontale, immagine a destra, eventi in righe e lettera avorio conservati |
+| Immagini | Still life originale separato dalla UI; WebP da 167 KB al posto del PNG da 2,17 MB |
+| Testi | Titolo e inviti riscritti su richiesta dell’utente; differenze intenzionali dal mockup, niente dati dimostrativi nell’app |
+| Icone | Famiglia lineare coerente, con albero, lettera, regalo e calendario |
+| Mobile | Navigazione su seconda riga, hero e righe adattati; nessun contenuto tagliato |
+| Accessibilità | Corretto il link salta-contenuto che appariva senza focus; movimento ridotto e rivelazione saltabile |
+
+La direzione visiva è stata verificata rispetto al concept; le differenze intenzionali riguardano la revisione dei testi, dati reali e l’adattamento delle schermate operative. Non si dichiara una riproduzione identica del mockup.
+
+### Produzione
+
+URL: https://sotto-l-albero.sotto-l-albero.workers.dev. Homepage HTTP 200; /api/me HTTP 200 con user:null, local:false e mailConfigured:false. L’organizzatore richiesto è configurato come segreto, fuori dal codice. I dati fittizi dei test restano sul PC.
+
+Il servizio email manca: accessi e consegne reali in produzione non sono verificati né attivi. Il sito lo indica e non espone codici di sviluppo sul dominio pubblico.
