@@ -9,9 +9,29 @@ import "./competition.css";
 function PlayCard({ attempt, onMove, onClose, busy, error }) {
   const heading = useRef(null);
   const board = attempt.cards;
+  const isQuestion = !attempt.done && !board && attempt.question;
+  const timeLimit = attempt.timeLimit || 20;
+  const [timeLeft, setTimeLeft] = useState(timeLimit);
+
   useEffect(() => {
     heading.current?.focus();
   }, [attempt.id, attempt.progress, attempt.done]);
+
+  useEffect(() => {
+    if (!isQuestion) return;
+    setTimeLeft(timeLimit);
+    const start = Date.now();
+    const interval = setInterval(() => {
+      const remaining = Math.max(0, Math.ceil(timeLimit - (Date.now() - start) / 1000));
+      setTimeLeft(remaining);
+      if (remaining <= 0) {
+        clearInterval(interval);
+        onMove({ choice: -1, timeout: true });
+      }
+    }, 250);
+    return () => clearInterval(interval);
+  }, [attempt.id, attempt.progress, isQuestion]);
+
   return (
     <div className="competition-play paper">
       {attempt.done ? (
@@ -49,9 +69,22 @@ function PlayCard({ attempt, onMove, onClose, busy, error }) {
         </>
       ) : (
         <>
-          <p>
-            Domanda {attempt.progress + 1} di {attempt.total}
-          </p>
+          <div className="quiz-timer-wrap" aria-live="polite">
+            <div className="quiz-timer-header">
+              <span>
+                Domanda {attempt.progress + 1} di {attempt.total}
+              </span>
+              <span className={`quiz-timer-count ${timeLeft <= 5 ? "urgent" : ""}`}>
+                ⏱️ {timeLeft}s
+              </span>
+            </div>
+            <div className="quiz-timer-track">
+              <div
+                className={`quiz-timer-fill ${timeLeft <= 5 ? "urgent" : ""}`}
+                style={{ width: `${(timeLeft / timeLimit) * 100}%` }}
+              />
+            </div>
+          </div>
           <h3 ref={heading} tabIndex={-1}>
             {attempt.question.text}
           </h3>

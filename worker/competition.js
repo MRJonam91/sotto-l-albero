@@ -1,6 +1,7 @@
 import { all, first, run } from "./auth.js";
 import { HttpError, id, json, safeText } from "./security.js";
 import { createMemoryDeck, memoryCardCount } from "../shared/memory.js";
+import { quizQuestions } from "../shared/quizQuestions.js";
 
 const DAY = 86_400_000;
 const multipliers = [1, 0.95, 0.9];
@@ -13,72 +14,7 @@ const games = {
   addobbi: { name: "Addobbi in ordine", points: 100 },
 };
 
-const questions = [
-  [
-    "Quale mese ospita la notte di San Silvestro?",
-    ["Dicembre", "Gennaio", "Novembre"],
-    0,
-  ],
-  [
-    "Di che colore sono di solito le bacche dell’agrifoglio maturo?",
-    ["Verdi", "Rosse", "Azzurre"],
-    1,
-  ],
-  [
-    "Quale bevanda si prepara scaldando vino e spezie?",
-    ["Vin brulé", "Orzata", "Granita"],
-    0,
-  ],
-  [
-    "Qual è il primo giorno dell’anno?",
-    ["25 dicembre", "31 dicembre", "1º gennaio"],
-    2,
-  ],
-  [
-    "Quale frutto è tipico del ripieno di un panettone classico?",
-    ["Uvetta", "Cocco", "Avocado"],
-    0,
-  ],
-  [
-    "Che cosa sono i canditi?",
-    [
-      "Spezie macinate",
-      "Frutta conservata nello zucchero",
-      "Frutta secca tostata",
-    ],
-    1,
-  ],
-  [
-    "Quante settimane ha all’incirca il tempo d’Avvento?",
-    ["Due", "Quattro", "Otto"],
-    1,
-  ],
-  [
-    "Quale strumento è formato da una sacca e da canne sonore?",
-    ["Tamburello", "Mandolino", "Zampogna"],
-    2,
-  ],
-  [
-    "Che giorno viene dopo Natale?",
-    ["Santo Stefano", "Epifania", "Capodanno"],
-    0,
-  ],
-  [
-    "Con che cosa si decora spesso la cima dell’albero?",
-    ["Un piatto", "Una stella", "Una calza"],
-    1,
-  ],
-  [
-    "Quale albero conserva gli aghi durante l’inverno?",
-    ["L’abete", "Il faggio", "Il ciliegio"],
-    0,
-  ],
-  [
-    "Di che cosa sono fatti i ghiaccioli che pendono da un tetto?",
-    ["Acqua congelata", "Sale", "Carta"],
-    0,
-  ],
-];
+const questions = quizQuestions;
 
 const puzzles = {
   pacchi: [
@@ -129,7 +65,7 @@ function shuffled(values) {
 function questionSet(game) {
   const selected = Object.hasOwn(puzzles, game)
     ? [puzzles[game]]
-    : shuffled(questions).slice(0, 5);
+    : shuffled(questions).slice(0, 10);
   return selected.map(([text, options, answer]) => {
     const order = shuffled(options.map((_, index) => index));
     return {
@@ -233,6 +169,7 @@ function publicAttempt(attempt) {
     progress: state.index,
     total: state.questions.length,
     question: done ? null : { text: question.text, options: question.options },
+    timeLimit: 20,
   };
 }
 
@@ -456,15 +393,18 @@ function turnMemory(state, body) {
 
 function turnQuiz(state, game, body) {
   const question = state.questions[state.index],
-    choice = body?.choice;
-  if (
-    !Number.isInteger(choice) ||
-    choice < 0 ||
-    choice >= question.options.length
-  ) {
-    throw new HttpError("Scegli una delle risposte proposte.");
+    choice = body?.choice,
+    isTimeout = body?.timeout === true || choice === -1;
+  if (!isTimeout) {
+    if (
+      !Number.isInteger(choice) ||
+      choice < 0 ||
+      choice >= question.options.length
+    ) {
+      throw new HttpError("Scegli una delle risposte proposte.");
+    }
+    if (choice === question.answer) state.correct++;
   }
-  if (choice === question.answer) state.correct++;
   state.index++;
   const points = game === "duel" ? 100 : games[game].points;
   return state.index === state.questions.length

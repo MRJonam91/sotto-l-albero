@@ -53,6 +53,7 @@ function view(game, state, revision) {
       done: !question,
       index: state.index,
       total: questions.length,
+      timeLimit: 20,
       ...(question
         ? { question: { title: question[0], options: question[1] } }
         : { score: state.score }),
@@ -70,8 +71,16 @@ function view(game, state, revision) {
   };
 }
 
-function advanceQuiz(state, choice) {
+function advanceQuiz(state, choice, timeout = false) {
   const [, options, answer, note] = questions[state.index];
+  if (timeout || choice === -1) {
+    state.index++;
+    return {
+      choice: -1,
+      answer,
+      text: `Tempo scaduto! La risposta era ${options[answer]}. ${note}`,
+    };
+  }
   if (!Number.isInteger(choice) || choice < 0 || choice >= options.length)
     throw new HttpError("Scegli una delle risposte.");
   state.index++;
@@ -199,7 +208,7 @@ export async function practiceRoute(request, env, path, body, user) {
     );
   const feedback =
     game === "quiz"
-      ? advanceQuiz(state, body.choice)
+      ? advanceQuiz(state, body.choice, body.timeout)
       : advanceMemory(state, body);
   const revision = token(),
     result = view(game, state, revision);

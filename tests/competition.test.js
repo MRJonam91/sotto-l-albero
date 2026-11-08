@@ -404,3 +404,36 @@ it("moves legacy scores to one eligible event and keeps duels on their original 
     legacy.sql.close();
   }
 });
+
+it("il quiz ha 10 domande e in un duello le domande sono identiche per entrambi i giocatori, gestendo il timeout", async () => {
+  await api(anna, "/join", {});
+  await api(bea, "/join", {});
+
+  const quizAttempt = await start(anna, "quiz");
+  expect(quizAttempt.total).toBe(10);
+  expect(quizAttempt.timeLimit).toBe(20);
+
+  await api(anna, "/duels", { userId: "bea" });
+  const duelsAnna = (await api(anna)).duels;
+  expect(duelsAnna).toHaveLength(1);
+  const duelId = duelsAnna[0].id;
+
+  const annaDuel = await start(anna, "duel", duelId);
+  const beaDuel = await start(bea, "duel", duelId);
+
+  expect(annaDuel.total).toBe(10);
+  expect(beaDuel.total).toBe(10);
+
+  const duelRow = env.DB.sql
+    .prepare("SELECT questions FROM competition_duels WHERE id=?")
+    .get(duelId);
+  const storedQuestions = JSON.parse(duelRow.questions);
+  expect(storedQuestions).toHaveLength(10);
+
+  const nextAnna = await action(anna, annaDuel, { timeout: true });
+  expect(nextAnna.progress).toBe(1);
+
+  const q0 = storedQuestions[0];
+  const nextBea = await action(bea, beaDuel, { choice: q0.answer });
+  expect(nextBea.progress).toBe(1);
+});

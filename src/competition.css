@@ -322,3 +322,41 @@
     justify-self: start;
   }
 }
+
+.quiz-timer-wrap {
+  margin-bottom: 16px;
+}
+.quiz-timer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.9rem;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+.quiz-timer-count {
+  font-weight: 700;
+  color: var(--gold);
+  font-variant-numeric: tabular-nums;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.quiz-timer-count.urgent {
+  color: #ff5252;
+}
+.quiz-timer-track {
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.quiz-timer-fill {
+  height: 100%;
+  background: var(--gold);
+  transition: width 0.25s linear;
+}
+.quiz-timer-fill.urgent {
+  background: #ff5252;
+}

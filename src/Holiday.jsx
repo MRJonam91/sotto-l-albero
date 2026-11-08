@@ -245,11 +245,30 @@ function Quiz({ collection }) {
   const [next, setNext] = useState(null);
   const heading = useRef(null);
   const { state } = game;
+  const question = state?.question,
+    answer = next?.feedback;
+  const timeLimit = state?.timeLimit || 20;
+  const [timeLeft, setTimeLeft] = useState(timeLimit);
+
   useEffect(() => {
     heading.current?.focus();
   }, [state?.index]);
-  const question = state?.question,
-    answer = next?.feedback;
+
+  useEffect(() => {
+    if (!question || next || game.busy) return;
+    setTimeLeft(timeLimit);
+    const start = Date.now();
+    const interval = setInterval(() => {
+      const remaining = Math.max(0, Math.ceil(timeLimit - (Date.now() - start) / 1000));
+      setTimeLeft(remaining);
+      if (remaining <= 0) {
+        clearInterval(interval);
+        game.step({ choice: -1, timeout: true }, setNext);
+      }
+    }, 250);
+    return () => clearInterval(interval);
+  }, [state?.index, question, next, game.busy]);
+
   return (
     <div className="holiday-game paper">
       <PracticeNotice game={game} />
@@ -257,9 +276,22 @@ function Quiz({ collection }) {
         <p role="status">Prepariamo le domande…</p>
       ) : question ? (
         <>
-          <p className="game-progress">
-            Domanda {state.index + 1} di {state.total}
-          </p>
+          <div className="quiz-timer-wrap" aria-live="polite">
+            <div className="quiz-timer-header">
+              <span className="game-progress">
+                Domanda {state.index + 1} di {state.total}
+              </span>
+              <span className={`quiz-timer-count ${timeLeft <= 5 ? "urgent" : ""}`}>
+                ⏱️ {timeLeft}s
+              </span>
+            </div>
+            <div className="quiz-timer-track">
+              <div
+                className={`quiz-timer-fill ${timeLeft <= 5 ? "urgent" : ""}`}
+                style={{ width: `${(timeLeft / timeLimit) * 100}%` }}
+              />
+            </div>
+          </div>
           <h2 ref={heading} tabIndex={-1}>
             {question.title}
           </h2>

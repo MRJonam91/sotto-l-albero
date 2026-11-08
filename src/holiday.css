@@ -227,3 +227,41 @@
   margin-bottom: 0.7rem;
   color: #875834;
 }
+
+.holiday-game .quiz-timer-wrap {
+  margin-bottom: 16px;
+}
+.holiday-game .quiz-timer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.9rem;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+.holiday-game .quiz-timer-count {
+  font-weight: 700;
+  color: #76362e;
+  font-variant-numeric: tabular-nums;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.holiday-game .quiz-timer-count.urgent {
+  color: #c92a2a;
+}
+.holiday-game .quiz-timer-track {
+  width: 100%;
+  height: 6px;
+  background: rgba(118, 54, 46, 0.15);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.holiday-game .quiz-timer-fill {
+  height: 100%;
+  background: #76362e;
+  transition: width 0.25s linear;
+}
+.holiday-game .quiz-timer-fill.urgent {
+  background: #c92a2a;
+}
