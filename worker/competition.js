@@ -4,6 +4,8 @@ import { createMemoryDeck, memoryCardCount } from "../shared/memory.js";
 import { quizQuestions } from "../shared/quizQuestions.js";
 
 const DAY = 86_400_000;
+const QUESTION_TIME = 20_000;
+const isTimed = (game) => game === "quiz" || game === "duel";
 const multipliers = [1, 0.95, 0.9];
 const games = {
   quiz: { name: "Quiz di Natale", points: 300 },
@@ -138,7 +140,7 @@ async function access(db, eventId, userId) {
   };
 }
 
-function publicAttempt(attempt) {
+function publicAttempt(attempt, now) {
   const state = JSON.parse(attempt.state);
   const done = attempt.raw_score !== null;
   const result = {
@@ -169,7 +171,12 @@ function publicAttempt(attempt) {
     progress: state.index,
     total: state.questions.length,
     question: done ? null : { text: question.text, options: question.options },
-    timeLimit: 20,
+    ...(!done && isTimed(attempt.game)
+      ? {
+          timeLimit: QUESTION_TIME / 1000,
+          timeRemaining: Math.max(0, state.questionDeadline - now),
+        }
+      : {}),
   };
 }
 
@@ -315,10 +322,24 @@ async function startGame(db, context, body, userId, now) {
           previous.revision,
           now,
         );
-        return json({ attempt: publicAttempt(await latest()) });
+        return json({ attempt: publicAttempt(await latest(), now) });
       }
     }
-    return json({ attempt: publicAttempt(previous) });
+    if (isTimed(game)) {
+      const state = JSON.parse(previous.state);
+      if (!state.questionDeadline) {
+        state.questionDeadline = now + QUESTION_TIME;
+        await run(
+          db,
+          "UPDATE competition_attempts SET state=?,revision=revision+1 WHERE id=? AND revision=? AND raw_score IS NULL",
+          JSON.stringify(state),
+          previous.id,
+          previous.revision,
+        );
+        return json({ attempt: publicAttempt(await latest(), now) });
+      }
+    }
+    return json({ attempt: publicAttempt(previous, now) });
   }
   const ordinal = (previous?.ordinal || 0) + 1;
   if (ordinal > (duel ? 1 : multipliers.length)) {
@@ -331,6 +352,7 @@ async function startGame(db, context, body, userId, now) {
           questions: duel ? JSON.parse(duel.questions) : questionSet(game),
           index: 0,
           correct: 0,
+          ...(isTimed(game) ? { questionDeadline: now + QUESTION_TIME } : {}),
         };
   const expiry = Math.min(duel ? duel.expires : now + DAY, yearEnd(year));
   await run(
@@ -348,7 +370,7 @@ async function startGame(db, context, body, userId, now) {
     JSON.stringify(state),
     expiry,
   );
-  return json({ attempt: publicAttempt(await latest()) });
+  return json({ attempt: publicAttempt(await latest(), now) });
 }
 
 function newRankedMemory(mistakes = 0) {
@@ -391,11 +413,14 @@ function turnMemory(state, body) {
     : null;
 }
 
-function turnQuiz(state, game, body) {
+function turnQuiz(state, game, body, now) {
   const question = state.questions[state.index],
     choice = body?.choice,
-    isTimeout = body?.timeout === true || choice === -1;
-  if (!isTimeout) {
+    timed = isTimed(game),
+    expired = timed && now >= (state.questionDeadline ?? now + QUESTION_TIME);
+  if (!expired) {
+    if (timed && (body?.timeout === true || choice === -1))
+      throw new HttpError("Hai ancora tempo per rispondere.", 409);
     if (
       !Number.isInteger(choice) ||
       choice < 0 ||
@@ -406,6 +431,7 @@ function turnQuiz(state, game, body) {
     if (choice === question.answer) state.correct++;
   }
   state.index++;
+  if (timed) state.questionDeadline = now + QUESTION_TIME;
   const points = game === "duel" ? 100 : games[game].points;
   return state.index === state.questions.length
     ? Math.round((points * state.correct) / state.questions.length)
@@ -423,7 +449,7 @@ async function gameAction(db, context, body, userId, now) {
   );
   if (!attempt) throw new HttpError("Questa partita non è tua.", 403);
   if (attempt.raw_score !== null)
-    return json({ attempt: publicAttempt(attempt) });
+    return json({ attempt: publicAttempt(attempt, now) });
   if (attempt.expires <= now)
     throw new HttpError("Il tempo per questa partita è scaduto.", 410);
   if (body?.revision !== attempt.revision)
@@ -435,7 +461,7 @@ async function gameAction(db, context, body, userId, now) {
   const rawScore =
     attempt.game === "memory"
       ? turnMemory(state, body)
-      : turnQuiz(state, attempt.game, body);
+      : turnQuiz(state, attempt.game, body, now);
   const score =
     rawScore === null || attempt.duel_id
       ? null
@@ -484,7 +510,10 @@ async function gameAction(db, context, body, userId, now) {
     "SELECT * FROM competition_attempts WHERE id=?",
     attempt.id,
   );
-  return json({ attempt: publicAttempt(current), ...(stamp ? { stamp } : {}) });
+  return json({
+    attempt: publicAttempt(current, now),
+    ...(stamp ? { stamp } : {}),
+  });
 }
 
 async function adjust(db, context, body, ownerId, now) {

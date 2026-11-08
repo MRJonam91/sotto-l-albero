@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useId, useRef, useState } from "react";
 import { BookOpen, Gift, Medal, Puzzle, Swords } from "lucide-react";
 import { activeMember, api } from "./api.js";
 import FestivalLeaderboard from "./FestivalLeaderboard.jsx";
@@ -10,27 +10,31 @@ function PlayCard({ attempt, onMove, onClose, busy, error }) {
   const heading = useRef(null);
   const board = attempt.cards;
   const isQuestion = !attempt.done && !board && attempt.question;
-  const timeLimit = attempt.timeLimit || 20;
+  const { timeLimit, deadline } = attempt;
   const [timeLeft, setTimeLeft] = useState(timeLimit);
+  const expire = useEffectEvent(() => onMove({ timeout: true }));
 
   useEffect(() => {
     heading.current?.focus();
   }, [attempt.id, attempt.progress, attempt.done]);
 
   useEffect(() => {
-    if (!isQuestion) return;
-    setTimeLeft(timeLimit);
-    const start = Date.now();
-    const interval = setInterval(() => {
-      const remaining = Math.max(0, Math.ceil(timeLimit - (Date.now() - start) / 1000));
+    if (!isQuestion || deadline === undefined || busy || error) return;
+    const tick = () => {
+      const remaining = Math.max(
+        0,
+        Math.ceil((deadline - performance.now()) / 1000),
+      );
       setTimeLeft(remaining);
       if (remaining <= 0) {
         clearInterval(interval);
-        onMove({ choice: -1, timeout: true });
+        expire();
       }
-    }, 250);
+    };
+    const interval = setInterval(tick, 200);
+    tick();
     return () => clearInterval(interval);
-  }, [attempt.id, attempt.progress, isQuestion]);
+  }, [deadline, isQuestion, busy, error]);
 
   return (
     <div className="competition-play paper">
@@ -69,21 +73,28 @@ function PlayCard({ attempt, onMove, onClose, busy, error }) {
         </>
       ) : (
         <>
-          <div className="quiz-timer-wrap" aria-live="polite">
+          <div className="quiz-timer-wrap">
             <div className="quiz-timer-header">
               <span>
                 Domanda {attempt.progress + 1} di {attempt.total}
               </span>
-              <span className={`quiz-timer-count ${timeLeft <= 5 ? "urgent" : ""}`}>
-                ⏱️ {timeLeft}s
-              </span>
+              {timeLimit && (
+                <span
+                  role="timer"
+                  className={`quiz-timer-count ${timeLeft <= 5 ? "urgent" : ""}`}
+                >
+                  ⏱️ {timeLeft}s
+                </span>
+              )}
             </div>
-            <div className="quiz-timer-track">
-              <div
-                className={`quiz-timer-fill ${timeLeft <= 5 ? "urgent" : ""}`}
-                style={{ width: `${(timeLeft / timeLimit) * 100}%` }}
-              />
-            </div>
+            {timeLimit && (
+              <div className="quiz-timer-track" aria-hidden="true">
+                <div
+                  className={`quiz-timer-fill ${timeLeft <= 5 ? "urgent" : ""}`}
+                  style={{ width: `${(timeLeft / timeLimit) * 100}%` }}
+                />
+              </div>
+            )}
           </div>
           <h3 ref={heading} tabIndex={-1}>
             {attempt.question.text}
@@ -173,6 +184,7 @@ export default function Competition({ event, user, members = [], onStamp }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const inFlight = useRef(false);
   const path = `/competition/${event.id}`;
   useEffect(() => {
     let live = true;
@@ -194,6 +206,8 @@ export default function Competition({ event, user, members = [], onStamp }) {
     setBoard(await api(path));
   }
   async function perform(action) {
+    if (inFlight.current) return false;
+    inFlight.current = true;
     setBusy(true);
     setError("");
     setNotice("");
@@ -204,13 +218,22 @@ export default function Competition({ event, user, members = [], onStamp }) {
       setError(failure.message);
       return false;
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
+  }
+  function showAttempt(data) {
+    setAttempt({
+      ...data,
+      ...(data.timeRemaining !== undefined
+        ? { deadline: performance.now() + data.timeRemaining }
+        : {}),
+    });
   }
   const start = (game, duelId) =>
     perform(async () => {
       const data = await api(`${path}/start`, "POST", { game, duelId });
-      setAttempt(data.attempt);
+      showAttempt(data.attempt);
     });
   const move = (selection) =>
     perform(async () => {
@@ -219,7 +242,7 @@ export default function Competition({ event, user, members = [], onStamp }) {
         revision: attempt.revision,
         ...selection,
       });
-      setAttempt(data.attempt);
+      showAttempt(data.attempt);
       if (data.stamp) onStamp?.(data.stamp);
       if (data.attempt.done) await refresh();
     });

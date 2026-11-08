@@ -1,7 +1,8 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DatabaseSync } from "node:sqlite";
 import { readFileSync, readdirSync } from "node:fs";
 import { competitionRoute, getLeaderboard } from "../worker/competition.js";
+import { practiceRoute } from "../worker/practice.js";
 
 const eventMigration = "0009_event_competition.sql";
 
@@ -430,10 +431,93 @@ it("il quiz ha 10 domande e in un duello le domande sono identiche per entrambi 
   const storedQuestions = JSON.parse(duelRow.questions);
   expect(storedQuestions).toHaveLength(10);
 
-  const nextAnna = await action(anna, annaDuel, { timeout: true });
+  expect(annaDuel.question).toEqual(beaDuel.question);
+  const nextAnna = await action(anna, annaDuel, {
+    choice: storedQuestions[0].answer,
+  });
   expect(nextAnna.progress).toBe(1);
 
   const q0 = storedQuestions[0];
   const nextBea = await action(bea, beaDuel, { choice: q0.answer });
   expect(nextBea.progress).toBe(1);
+  expect(nextAnna.question).toEqual(nextBea.question);
+});
+
+it("uses the same server deadline after reopening and gives no points for a late answer", async () => {
+  const now = Date.now();
+  const clock = vi.spyOn(Date, "now").mockReturnValue(now);
+  try {
+    await api(anna, "/join", {});
+    const attempt = await start(anna, "quiz");
+    expect(attempt.timeRemaining).toBe(20_000);
+    await expect(
+      action(anna, attempt, { timeout: true }),
+    ).rejects.toMatchObject({ status: 409 });
+    clock.mockReturnValue(now + 20_000);
+    const resumed = await start(anna, "quiz");
+    expect(resumed).toMatchObject({
+      id: attempt.id,
+      revision: attempt.revision,
+      timeRemaining: 0,
+    });
+    const stored = JSON.parse(
+      env.DB.sql
+        .prepare("SELECT state FROM competition_attempts WHERE id=?")
+        .get(attempt.id).state,
+    );
+    const next = await action(anna, resumed, {
+      choice: stored.questions[0].answer,
+    });
+    expect(next).toMatchObject({ progress: 1, timeRemaining: 20_000 });
+    const saved = JSON.parse(
+      env.DB.sql
+        .prepare("SELECT state FROM competition_attempts WHERE id=?")
+        .get(attempt.id).state,
+    );
+    expect(saved.correct).toBe(0);
+  } finally {
+    clock.mockRestore();
+  }
+});
+
+it("keeps the practice deadline on reopen and starts the next timer after feedback", async () => {
+  const post = async (action, body = {}) => {
+    const path = `/api/practice/quiz/${action}`;
+    return (
+      await practiceRoute(
+        new Request(`https://albero.example${path}`, { method: "POST" }),
+        env,
+        path,
+        body,
+        anna,
+      )
+    ).json();
+  };
+  const now = Date.now();
+  const clock = vi.spyOn(Date, "now").mockReturnValue(now);
+  try {
+    const attempt = await post("start");
+    clock.mockReturnValue(now + 21_000);
+    const resumed = await post("start");
+    expect(resumed).toMatchObject({
+      revision: attempt.revision,
+      timeRemaining: 0,
+    });
+    const result = await post("step", {
+      revision: attempt.revision,
+      choice: 1,
+    });
+    expect(result).toMatchObject({
+      index: 1,
+      timeRemaining: null,
+      feedback: { choice: -1 },
+    });
+    clock.mockReturnValue(now + 50_000);
+    expect(await post("start")).toMatchObject({
+      index: 1,
+      timeRemaining: 20_000,
+    });
+  } finally {
+    clock.mockRestore();
+  }
 });

@@ -2,6 +2,7 @@ import { first, run } from "./auth.js";
 import { HttpError, json, token } from "./security.js";
 import { createMemoryDeck, memoryCardCount } from "../shared/memory.js";
 
+const QUESTION_TIME = 20_000;
 const questions = [
   [
     "Quale di questi è un dolce natalizio?",
@@ -35,8 +36,9 @@ const questions = [
   ],
 ];
 
-function newState(game) {
-  if (game === "quiz") return { index: 0, score: 0 };
+function newState(game, now) {
+  if (game === "quiz")
+    return { index: 0, score: 0, questionDeadline: now + QUESTION_TIME };
   return {
     deck: createMemoryDeck(),
     open: [],
@@ -45,7 +47,7 @@ function newState(game) {
   };
 }
 
-function view(game, state, revision) {
+function view(game, state, revision, now) {
   if (game === "quiz") {
     const question = questions[state.index];
     return {
@@ -53,7 +55,10 @@ function view(game, state, revision) {
       done: !question,
       index: state.index,
       total: questions.length,
-      timeLimit: 20,
+      timeLimit: QUESTION_TIME / 1000,
+      timeRemaining: state.questionDeadline
+        ? Math.max(0, state.questionDeadline - now)
+        : null,
       ...(question
         ? { question: { title: question[0], options: question[1] } }
         : { score: state.score }),
@@ -71,9 +76,13 @@ function view(game, state, revision) {
   };
 }
 
-function advanceQuiz(state, choice, timeout = false) {
+function advanceQuiz(state, choice, timeout, now) {
   const [, options, answer, note] = questions[state.index];
-  if (timeout || choice === -1) {
+  if (!state.questionDeadline)
+    throw new HttpError("Apri la domanda per continuare.", 409);
+  const expired = now >= state.questionDeadline;
+  state.questionDeadline = null;
+  if (expired) {
     state.index++;
     return {
       choice: -1,
@@ -81,6 +90,8 @@ function advanceQuiz(state, choice, timeout = false) {
       text: `Tempo scaduto! La risposta era ${options[answer]}. ${note}`,
     };
   }
+  if (timeout === true || choice === -1)
+    throw new HttpError("Hai ancora tempo per rispondere.", 409);
   if (!Number.isInteger(choice) || choice < 0 || choice >= options.length)
     throw new HttpError("Scegli una delle risposte.");
   state.index++;
@@ -149,6 +160,7 @@ export async function practiceRoute(request, env, path, body, user) {
       403,
     );
   const [, game, action] = match;
+  const now = Date.now();
   const find = () =>
     first(
       db,
@@ -157,7 +169,7 @@ export async function practiceRoute(request, env, path, body, user) {
       game,
     );
   if (action === "start") {
-    const initial = JSON.stringify(newState(game));
+    const initial = JSON.stringify(newState(game, now));
     if (body?.reset === true && typeof body.revision === "string") {
       await run(
         db,
@@ -195,7 +207,23 @@ export async function practiceRoute(request, env, path, body, user) {
       );
       current = await find();
     }
-    return json(view(game, JSON.parse(current.state), current.revision));
+    if (game === "quiz" && !current.done) {
+      const state = JSON.parse(current.state);
+      if (!state.questionDeadline) {
+        state.questionDeadline = now + QUESTION_TIME;
+        await run(
+          db,
+          "UPDATE practice_games SET revision=?,state=? WHERE user_id=? AND game=? AND revision=? AND done=0",
+          token(),
+          JSON.stringify(state),
+          user.id,
+          game,
+          current.revision,
+        );
+        current = await find();
+      }
+    }
+    return json(view(game, JSON.parse(current.state), current.revision, now));
   }
   const current = await find();
   if (!current || current.done || current.revision !== body?.revision)
@@ -208,10 +236,10 @@ export async function practiceRoute(request, env, path, body, user) {
     );
   const feedback =
     game === "quiz"
-      ? advanceQuiz(state, body.choice, body.timeout)
+      ? advanceQuiz(state, body.choice, body.timeout, now)
       : advanceMemory(state, body);
   const revision = token(),
-    result = view(game, state, revision);
+    result = view(game, state, revision, now);
   const changed = await run(
     db,
     "UPDATE practice_games SET revision=?,state=?,done=? WHERE user_id=? AND game=? AND revision=?",

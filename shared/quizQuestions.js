@@ -6,12 +6,12 @@ export const quizQuestions = [
     0,
   ],
   [
-    "L'amore non va in vacanza (The Holiday): in quale paese si scambiano la casa Amanda (Cameron Diaz) e Iris (Kate Winslet)?",
+    "L'amore non va in vacanza (The Holiday): in quali due paesi si scambiano casa Amanda (Cameron Diaz) e Iris (Kate Winslet)?",
     ["Francia e Stati Uniti", "Inghilterra e Stati Uniti", "Canada e Inghilterra"],
     1,
   ],
   [
-    "Elf: qual è il cibo preferito da Buddy l'elfo, che mette persino sugli spaghetti?",
+    "Elf: che cosa versa Buddy persino sugli spaghetti?",
     ["Il burro d'arachidi", "Lo sciroppo d'acero", "La marmellata di fragole"],
     1,
   ],
@@ -26,115 +26,115 @@ export const quizQuestions = [
     0,
   ],
 
-  // 6-27: Le 22 citazioni di film natalizi
+  // 6-27: Scene e personaggi di film delle feste
   [
-    "«Solo i vigliacchi si nascondono sotto il letto e io non sono un vigliacco! Sono l’uomo di casa!». Da quale film è tratta?",
-    ["Un magico Natale", "Jack Frost", "Mamma, ho perso l’aereo"],
+    "Kevin è rimasto a casa da solo e prepara una serie di trappole per due ladri. In quale film?",
+    ["Un magico Natale","Jack Frost","Mamma, ho perso l’aereo"],
     2,
   ],
   [
-    "«Allora quale bambola regaliamo a Emily: l’amichetta di Daisy, quella che sembra un travestito o la dominatrice sadomaso?». Da quale film è tratta?",
-    ["L’amore non va in vacanza", "La cena di Natale", "Love Actually"],
+    "Quale commedia segue più storie d’amore a Londra nelle settimane che precedono il Natale?",
+    ["L’amore non va in vacanza","La cena di Natale","Love Actually"],
     2,
   ],
   [
-    "«Quando suona una campana, un angelo mette le ali». Da quale celebre classico è tratta?",
-    ["È arrivata la felicità", "La vita è meravigliosa", "Miracolo nella 34esima strada"],
+    "In quale film la piccola Zuzu associa il suono di una campanella alle ali di un angelo?",
+    ["È arrivata la felicità","La vita è meravigliosa","Miracolo nella 34ª strada"],
     1,
   ],
   [
-    "«Ho sempre avuto un debole per Babbo Natale. Nel caso tu non l’abbia notato». Da quale film è tratta?",
-    ["Babbo Bastardo", "Polar Express", "Che fine ha fatto Santa Clause?"],
+    "In quale commedia Billy Bob Thornton interpreta un ladro che si traveste da Babbo Natale?",
+    ["Babbo Bastardo","Polar Express","Che fine ha fatto Santa Clause?"],
     0,
   ],
   [
-    "«Io scelgo “Noi”!». Da quale film con Nicolas Cage è tratta questa battuta?",
-    ["The Family Man", "La vita è meravigliosa", "Natale in affitto"],
+    "In quale film Nicolas Cage si sveglia la mattina di Natale in una vita diversa dalla sua?",
+    ["The Family Man","La vita è meravigliosa","Natale in affitto"],
     0,
   ],
   [
-    "«Nel sogno io ero la neve… e tu mi spalavi…». Da quale commedia natalizia è tratta?",
-    ["Conciati per le feste", "La renna", "La neve nel cuore"],
+    "In quale commedia la famiglia Stone si riunisce per Natale e conosce la nuova compagna di Everett?",
+    ["Conciati per le feste","Fuga dal Natale","La neve nel cuore"],
     2,
   ],
   [
-    "«Silenzio! Ragazzi! Papà ci vuole dire qualche cosa…!». «Beh… Anche questo Natale… se lo semo levato dalle palle». Da quale cult italiano è tratta?",
-    ["Babbo Bastardo", "Vacanze di Natale (1983)", "Tutti insieme inevitabilmente"],
+    "Quale commedia italiana del 1983 ambienta le vacanze di più famiglie a Cortina d’Ampezzo?",
+    ["Parenti serpenti","Vacanze di Natale","La banda dei Babbi Natale"],
     1,
   ],
   [
-    "«Sembrava che tutto l’universo girasse con l’unico scopo di unirci». Da quale film romantico natalizio è tratta?",
-    ["Il sergente e la signora", "Serendipity – Quando l’amore è magia", "A Christmas Carol"],
+    "In quale commedia romantica Jonathan e Sara si conoscono a New York mentre cercano di comprare lo stesso paio di guanti?",
+    ["Love Actually","Serendipity – Quando l’amore è magia","L’amore non va in vacanza"],
     1,
   ],
   [
-    "«Io le chiedo di scegliere tra una bugia che apre i cuori alla speranza e una verità che provoca solo dolore». Da quale classico natalizio è tratta?",
-    ["La più bella storia di Dickens", "La vera storia di Babbo Natale – Santa Claus", "Miracolo nella 34esima strada"],
+    "In quale film Kris Kringle deve sostenere in tribunale di essere Babbo Natale?",
+    ["La più bella storia di Dickens","La vera storia di Babbo Natale","Miracolo nella 34ª strada"],
     2,
   ],
   [
-    "«Non sforzarti di capirlo, devi solo immaginarlo». Da quale capolavoro animato è tratta?",
-    ["The Nightmare Before Christmas", "Festa in casa Muppet", "Un Natale esplosivo"],
+    "In quale film il re di Halloween attraversa una porta a forma di albero e scopre il mondo del Natale?",
+    ["The Nightmare Before Christmas","Festa in casa Muppet","Un Natale esplosivo"],
     0,
   ],
   [
-    "«Penso che dovremo conoscerci meglio…». «Davvero? E perché?». «Perché io ho finito le ragioni per non farlo, tu no?». Da quale film è tratta?",
-    ["L’amore non va in vacanza", "Elf – Un elfo di nome Buddy", "Una promessa è una promessa"],
+    "In quale film Iris parte dall’Inghilterra per trascorrere le feste nella casa di Amanda a Los Angeles?",
+    ["L’amore non va in vacanza","Elf – Un elfo di nome Buddy","Una promessa è una promessa"],
     0,
   ],
   [
-    "«Come fa una telefonata a cambiare il mondo?». Da quale commedia natalizia è tratta?",
-    ["George Balanchine – Lo schiaccianoci", "Ernesto Salva il Natale", "Fuga dal Natale"],
+    "In quale commedia i coniugi Krank decidono di saltare il Natale e andare in crociera?",
+    ["Conciati per le feste","Ernesto salva il Natale","Fuga dal Natale"],
     2,
   ],
   [
-    "«Mi starà addosso come una mosca losca su un cavallo col naso a tarallo». Da quale film è tratta?",
-    ["S.O.S. fantasmi", "Gremlins", "Il Grinch"],
+    "In quale film Cindy Lou Who cerca di capire perché qualcuno detesta così tanto il Natale?",
+    ["S.O.S. fantasmi","Gremlins","Il Grinch"],
     2,
   ],
   [
-    "«Seccherebbe a qualcuno se facessi un tuffo acrobatico?». Da quale sequel cult è tratta?",
-    ["Mamma, ho riperso l’aereo: mi sono smarrito a New York", "Il figlio di Babbo Natale", "Un Natale da Charlie Brown"],
+    "In quale seguito Kevin prende per sbaglio un volo per New York mentre la famiglia parte per la Florida?",
+    ["Mamma, ho riperso l’aereo","Il figlio di Babbo Natale","Un Natale da Charlie Brown"],
     0,
   ],
   [
-    "«Ma cosa lascio stare se poi mi viene su con un c**o che fa provincia!». Da quale film di Mario Monicelli è tratta?",
-    ["Bianco Natale", "Parenti serpenti", "Il diario di Bridget Jones"],
+    "Quale commedia di Mario Monicelli racconta le feste di una famiglia che deve decidere chi si occuperà dei genitori anziani?",
+    ["Bianco Natale","Parenti serpenti","Il diario di Bridget Jones"],
     1,
   ],
   [
-    "«Tutto questo sarà tuo un giorno». Da quale film delle feste è tratta?",
-    ["Il piccolo Lord", "Il figlio di Babbo Natale", "Polar Express"],
+    "In quale storia il giovane Cedric scopre di essere l’erede di un conte inglese?",
+    ["Il piccolo Lord","Il figlio di Babbo Natale","Polar Express"],
     0,
   ],
   [
-    "«Quisquilie e pinzillacchere!». In quale classico Disney sentiamo questa celebre esclamazione?",
-    ["Mary Poppins", "Frozen – Il regno di ghiaccio", "La spada nella roccia"],
+    "In quale classico Disney il giovane Artù studia con Merlino?",
+    ["Mary Poppins","Frozen – Il regno di ghiaccio","La spada nella roccia"],
     2,
   ],
   [
-    "«Nessun tacchino! Nessun sandwich di tacchino! No insalata di tacchino! Nessun tacchino al sugo! Andato, tutto finito!». Da quale film è tratta?",
-    ["Joyeux Noël – Una verità dimenticata dalla storia", "Willy Wonka e la Fabbrica di Cioccolato", "A Christmas Story – Una storia di Natale"],
+    "In quale commedia Ralphie passa le feste a sperare di ricevere una carabina ad aria compressa?",
+    ["Joyeux Noël","Willy Wonka e la fabbrica di cioccolato","A Christmas Story – Una storia di Natale"],
     2,
   ],
   [
-    "«Se tu dici di odiare il giorno del Ringraziamento non importa a nessuno, ma se dici di odiare il Natale la gente ti tratta come fossi un lebbroso». Da quale film è tratta?",
-    ["Black Christmas – Un Natale rosso sangue", "Gremlins", "Canto di Natale di Topolino"],
+    "In quale film Gizmo è un regalo di Natale da tenere lontano dall’acqua e dalla luce intensa?",
+    ["Black Christmas","Gremlins","Canto di Natale di Topolino"],
     1,
   ],
   [
-    "«Randolph… come Randolpho Valentino!». Da quale classico della vigilia di Natale è tratta?",
-    ["Una poltrona per due", "Caro Babbo Natale", "Incontriamoci a Saint Louis"],
+    "In quale film Billy Ray Valentine e Louis Winthorpe III si ritrovano al centro di una scommessa?",
+    ["Una poltrona per due","Caro Babbo Natale","Incontriamoci a Saint Louis"],
     0,
   ],
   [
-    "«La mia volontà è forte come la tua e il mio regno è altrettanto grande». Da quale film fantastico è tratta?",
-    ["Labyrinth – Dove tutto è possibile", "La storia infinita", "La banda dei Babbi Natale"],
+    "In quale film fantastico Sarah attraversa un labirinto per ritrovare il fratellino, rapito dal re dei goblin?",
+    ["Labyrinth – Dove tutto è possibile","La storia infinita","La banda dei Babbi Natale"],
     0,
   ],
   [
-    "«Il Natale, bah! Il Natale non è altro che una stupida festività creata per non lavorare». Da quale adattamento è tratta?",
-    ["Santa Clause", "Che fine ha fatto Santa Claus?", "A Christmas Carol (2009)"],
+    "In quale adattamento animato di Dickens Jim Carrey interpreta Ebenezer Scrooge?",
+    ["Santa Clause","Festa in casa Muppet","A Christmas Carol (2009)"],
     2,
   ],
 
@@ -166,7 +166,7 @@ export const quizQuestions = [
   ],
   [
     "Il Grinch: di quanto cresce il cuore del Grinch quando riscopre il vero significato del Natale?",
-    ["Di tre taglie", "Di due taglie", "Di cinque taglie"],
+    ["Di tre misure", "Di due taglie", "Di cinque taglie"],
     0,
   ],
   [
@@ -185,7 +185,7 @@ export const quizQuestions = [
     0,
   ],
   [
-    "Miracolo nella 34esima strada: in quale celebre grande magazzino di Manhattan lavora Kris Kringle?",
+    "Nel film del 1947 Miracolo nella 34ª strada, in quale grande magazzino lavora Kris Kringle?",
     ["Macy's", "Bloomingdale's", "Harrods"],
     0,
   ],
@@ -220,7 +220,7 @@ export const quizQuestions = [
     0,
   ],
   [
-    "Vacanze di Natale (1983): in quale hotel e località si ritrovano i protagonisti per il brindisi?",
+    "Vacanze di Natale (1983): in quale località si ritrovano i protagonisti?",
     ["A Cortina d'Ampezzo", "A Madonna di Campiglio", "A St. Moritz"],
     0,
   ],
@@ -272,7 +272,7 @@ export const quizQuestions = [
     0,
   ],
   [
-    "Topolino e la magia del Natale: cosa desiderano Qui, Quo e Qua aprendo la prima stella della cometa?",
+    "Topolino e la magia del Natale: che desiderio esprimono Qui, Quo e Qua quando vedono una stella cadente?",
     ["Che sia Natale ogni singolo giorno dell'anno", "Tutte le caramelle del Polo Nord", "Una slitta a motore a reazione"],
     0,
   ],
@@ -292,8 +292,8 @@ export const quizQuestions = [
     0,
   ],
   [
-    "Toy Story: Tutto un altro mondo: quale speciale televisivo delle feste vede protagonisti i giocattoli?",
-    ["La vigilia di Natale a casa dell'amico Mason", "Il capodanno al Pizza Planet", "La recita dell'asilo Sunnyside"],
+    "Toy Story: Tutto un altro mondo: che tipo di giocattoli incontrano Woody e Buzz durante la visita di Bonnie a Mason?",
+    ["Dinosauri guerrieri", "Robot da cucina", "Trenini elettrici"],
     0,
   ],
   [
@@ -312,17 +312,17 @@ export const quizQuestions = [
     0,
   ],
   [
-    "Topolino e la magia del Natale: cosa sacrifica Topolino per comprare la catena dell'orologio di Minni?",
+    "Topolino e la magia del Natale: a cosa rinuncia Topolino per comprare una catenella per l’orologio di Minni?",
     ["La sua amatissima armonica a bocca", "La sua automobile rossa", "Il suo prezioso cappello magico"],
     0,
   ],
   [
-    "La carica dei 101: in quale magico giorno d'inverno nasce la cucciolata dei dalmata?",
-    ["Verso la vigilia di Natale, con Londra coperta di neve", "Il giorno della Befana", "A Capodanno"],
+    "La carica dei 101: come si chiamano i genitori dei cuccioli?",
+    ["Pongo e Peggy", "Max e Nana", "Lilli e Biagio"],
     0,
   ],
   [
-    "La spada nella roccia: quale buffo gufo brontolone pronuncia la frase 'Quisquilie e pinzillacchere'?",
+    "La spada nella roccia: come si chiama il gufo di Merlino nel doppiaggio italiano?",
     ["Anacleto", "Archimede", "Gedeone"],
     0,
   ],
@@ -334,13 +334,13 @@ export const quizQuestions = [
 
   // 66-78: Tradizioni e regole del Secret Santa / Babbo Natale Segreto
   [
-    "Secret Santa: qual è la regola fondamentale di questo celebre scambio di regali?",
+    "Secret Santa: quale informazione si tiene segreta durante i preparativi?",
     ["L'identità di chi fa il regalo deve restare anonima fino allo scarto", "Tutti devono spendere la stessa cifra al centesimo", "Si possono scambiare solo cibi e dolciumi"],
     0,
   ],
   [
-    "Secret Santa: in quale paese anglosassone questo scambio è chiamato tradizionalmente 'Kris Kringle'?",
-    ["In Australia, Nuova Zelanda e Canada", "In Scozia", "In Sudafrica"],
+    "Secret Santa: quale di questi nomi indica lo stesso gioco in alcuni paesi di lingua inglese?",
+    ["Kris Kringle", "Boxing Day", "Thanksgiving"],
     0,
   ],
   [
@@ -406,7 +406,7 @@ export const quizQuestions = [
     0,
   ],
   [
-    "In quale borgo italiano San Francesco d'Assisi allestì nel 1223 il primissimo presepe della storia?",
+    "In quale borgo italiano San Francesco d'Assisi allestì nel 1223 il suo celebre presepe vivente?",
     ["Greccio, in provincia di Rieti", "Assisi, in Umbria", "Gubbio, vicino al grande albero"],
     0,
   ],
@@ -437,7 +437,7 @@ export const quizQuestions = [
   ],
   [
     "Secondo la tradizione popolare italiana, cosa lascia la Befana nelle calze dei bambini birichini?",
-    ["Il carbone dolce di zucchero nero", "Gusci di noce vuoti", "Sassi di fiume levigati"],
+    ["Il carbone, spesso di zucchero", "Gusci di noce vuoti", "Sassi di fiume levigati"],
     0,
   ],
   [
@@ -446,8 +446,8 @@ export const quizQuestions = [
     0,
   ],
   [
-    "Cosa lasciano tradizionalmente i bambini accanto all'albero prima di dormire la notte di Natale?",
-    ["Un bicchiere di latte con biscotti e una carota per le renne", "Una fetta di torta con una tazza di tè caldo", "Una mela cotta e un pezzo di formaggio"],
+    "Quale spuntino si lascia a Babbo Natale in molte famiglie americane?",
+    ["Latte e biscotti", "Una fetta di torta con una tazza di tè caldo", "Una mela cotta e un pezzo di formaggio"],
     0,
   ],
   [

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import {
   Bell,
   BookOpen,
@@ -176,16 +176,23 @@ export function StampAlbum({ user, collection, onLogout, children }) {
   );
 }
 
+function withDeadline(state) {
+  return Number.isFinite(state.timeRemaining)
+    ? { ...state, deadline: performance.now() + state.timeRemaining }
+    : state;
+}
+
 function usePractice(game) {
   const [state, setState] = useState(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const inFlight = useRef(false);
   const path = `/practice/${game}/`;
   useEffect(() => {
     let active = true;
     api(path + "start", "POST").then(
       (result) => {
-        if (active) setState(result);
+        if (active) setState(withDeadline(result));
       },
       (err) => {
         if (active) setError(err.message);
@@ -197,17 +204,19 @@ function usePractice(game) {
   }, [path]);
 
   async function submit(action, input, display = setState) {
-    if (busy) return;
+    if (inFlight.current) return false;
+    inFlight.current = true;
     setBusy(true);
     setError("");
     try {
       const result = await api(path + action, "POST", input);
-      display(result);
+      display(withDeadline(result));
       return true;
     } catch (err) {
       setError(err.message);
       return false;
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   }
@@ -247,27 +256,32 @@ function Quiz({ collection }) {
   const { state } = game;
   const question = state?.question,
     answer = next?.feedback;
-  const timeLimit = state?.timeLimit || 20;
-  const [timeLeft, setTimeLeft] = useState(timeLimit);
+  const timeLimit = state?.timeLimit;
+  const deadline = state?.deadline;
+  const [timeLeft, setTimeLeft] = useState(0);
+  const expire = useEffectEvent(() => game.step({ timeout: true }, setNext));
 
   useEffect(() => {
     heading.current?.focus();
   }, [state?.index]);
 
   useEffect(() => {
-    if (!question || next || game.busy) return;
-    setTimeLeft(timeLimit);
-    const start = Date.now();
-    const interval = setInterval(() => {
-      const remaining = Math.max(0, Math.ceil(timeLimit - (Date.now() - start) / 1000));
+    if (deadline === undefined || next || game.busy || game.error) return;
+    const tick = () => {
+      const remaining = Math.max(
+        0,
+        Math.ceil((deadline - performance.now()) / 1000),
+      );
       setTimeLeft(remaining);
       if (remaining <= 0) {
         clearInterval(interval);
-        game.step({ choice: -1, timeout: true }, setNext);
+        expire();
       }
-    }, 250);
+    };
+    const interval = setInterval(tick, 200);
+    tick();
     return () => clearInterval(interval);
-  }, [state?.index, question, next, game.busy]);
+  }, [deadline, next, game.busy, game.error]);
 
   return (
     <div className="holiday-game paper">
@@ -276,16 +290,19 @@ function Quiz({ collection }) {
         <p role="status">Prepariamo le domande…</p>
       ) : question ? (
         <>
-          <div className="quiz-timer-wrap" aria-live="polite">
+          <div className="quiz-timer-wrap">
             <div className="quiz-timer-header">
               <span className="game-progress">
                 Domanda {state.index + 1} di {state.total}
               </span>
-              <span className={`quiz-timer-count ${timeLeft <= 5 ? "urgent" : ""}`}>
+              <span
+                role="timer"
+                className={`quiz-timer-count ${timeLeft <= 5 ? "urgent" : ""}`}
+              >
                 ⏱️ {timeLeft}s
               </span>
             </div>
-            <div className="quiz-timer-track">
+            <div className="quiz-timer-track" aria-hidden="true">
               <div
                 className={`quiz-timer-fill ${timeLeft <= 5 ? "urgent" : ""}`}
                 style={{ width: `${(timeLeft / timeLimit) * 100}%` }}
@@ -317,9 +334,14 @@ function Quiz({ collection }) {
           {next && (
             <Button
               type="button"
-              onClick={() => {
-                game.setState(next);
-                setNext(null);
+              busy={game.busy}
+              onClick={async () => {
+                if (next.done) {
+                  game.setState(next);
+                  setNext(null);
+                } else if (await game.resume()) {
+                  setNext(null);
+                }
               }}
             >
               {next.done ? "Vedi il risultato" : "Prossima domanda"}
