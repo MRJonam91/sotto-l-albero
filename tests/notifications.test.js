@@ -271,18 +271,28 @@ async function localProfile() {
   ).json();
 }
 
-it("rende la copia privata disponibile soltanto in locale, con consenso, sessione e origine corretta", async () => {
+it("richiede consenso, sessione e origine corretta anche in produzione", async () => {
   enablePhotoBot();
   expect((await localProfile()).photoBackupAvailable).toBe(true);
-  expect((await (await profile()).json()).photoBackupAvailable).toBe(false);
+  env.LOCAL_DEV = "false";
+  expect((await (await profile()).json()).photoBackupAvailable).toBe(true);
+  const https = {
+    base: "https://santa.example",
+    origin: "https://santa.example",
+  };
+  expect((await backupRequest({ ...https, cookie: false })).status).toBe(401);
+  expect((await backupRequest({ ...https, consent: false })).status).toBe(403);
+  expect((await backupRequest({ ...https, origin: null })).status).toBe(403);
   expect(
-    (
-      await backupRequest({
-        base: "https://santa.example",
-        origin: "https://santa.example",
-      })
-    ).status,
-  ).toBe(404);
+    (await backupRequest({ ...https, origin: "https://altro.example" })).status,
+  ).toBe(403);
+  expect(calls).toEqual([]);
+  expect((await backupRequest(https)).status).toBe(200);
+  expect(calls[0].body.get("chat_id")).toBe("9001");
+});
+
+it("permette HTTP soltanto sull’anteprima locale", async () => {
+  enablePhotoBot();
   expect((await backupRequest({ cookie: false })).status).toBe(401);
   expect((await backupRequest({ consent: false })).status).toBe(403);
   expect((await backupRequest({ origin: null })).status).toBe(403);
@@ -292,6 +302,11 @@ it("rende la copia privata disponibile soltanto in locale, con consenso, session
   env.LOCAL_DEV = "false";
   expect((await localProfile()).photoBackupAvailable).toBe(false);
   expect((await backupRequest()).status).toBe(404);
+  const remote = "http://santa.example";
+  env.LOCAL_DEV = "true";
+  expect((await backupRequest({ base: remote, origin: remote })).status).toBe(
+    404,
+  );
   expect(calls).toEqual([]);
 });
 

@@ -213,6 +213,12 @@ async function uploadPermit(db, userId, purpose, max) {
     );
 }
 
+function canSendPrivateCopy(request, env) {
+  return (
+    new URL(request.url).protocol === "https:" || isLocalRequest(request, env)
+  );
+}
+
 async function profile(request, env, userId) {
   const row = await first(
     env.DB,
@@ -230,7 +236,7 @@ async function profile(request, env, userId) {
     telegramAvailable: telegramAvailable(env),
     photoAvailable: !!env.AVATAR_BUCKET,
     photoBackupAvailable:
-      isLocalRequest(request, env) && photoBackupConfigured(env),
+      canSendPrivateCopy(request, env) && photoBackupConfigured(env),
     avatar:
       row.kind === "photo"
         ? { kind: "photo", value: row.revision }
@@ -388,7 +394,7 @@ async function saveAvatar(env, userId, body) {
 }
 
 export async function photoBackupRoute(request, env) {
-  if (!isLocalRequest(request, env))
+  if (!canSendPrivateCopy(request, env))
     throw new HttpError("Questa azione non è disponibile.", 404);
   if (request.method !== "POST")
     throw new HttpError("Metodo non disponibile.", 405);
