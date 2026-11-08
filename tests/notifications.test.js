@@ -212,6 +212,149 @@ it("rifiuta l’upload dell’originale anche in presenza di un bucket e del con
   expect(images.size).toBe(0);
 });
 
+const localOrigin = "http://127.0.0.1:8787";
+const backupPng = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+X2ioAAAAASUVORK5CYII=",
+  "base64",
+);
+
+function enablePhotoBot() {
+  env.LOCAL_DEV = "true";
+  env.TELEGRAM_PHOTO_BOT_TOKEN = "56789:photo-test-token";
+  env.TELEGRAM_OWNER_CHAT_ID = "9001";
+}
+
+function backupRequest({
+  origin = localOrigin,
+  cookie = true,
+  consent = true,
+  base = localOrigin,
+  body = backupPng,
+  mime = "image/png",
+} = {}) {
+  const session = "a".repeat(64);
+  sql
+    .prepare(
+      "INSERT OR IGNORE INTO sessions(digest,user_id,expires) VALUES(?,?,?)",
+    )
+    .run(
+      createHash("sha256").update(session).digest("hex"),
+      user.id,
+      Date.now() + 60_000,
+    );
+  const headers = new Headers({
+    "Content-Type": mime,
+    "X-Owner-Chat-Id": "9999",
+  });
+  if (origin) headers.set("Origin", origin);
+  if (cookie) headers.set("Cookie", `santa_session=${session}`);
+  if (consent) headers.set("X-Photo-Consent", "yes");
+  return worker.fetch(
+    new Request(base + "/api/profile/photo-backup", {
+      method: "POST",
+      body,
+      headers,
+    }),
+    env,
+  );
+}
+
+async function localProfile() {
+  return (
+    await profileRoute(
+      new Request(localOrigin + "/api/profile"),
+      env,
+      "/api/profile",
+      {},
+      user,
+    )
+  ).json();
+}
+
+it("rende la copia privata disponibile soltanto in locale, con consenso, sessione e origine corretta", async () => {
+  enablePhotoBot();
+  expect((await localProfile()).photoBackupAvailable).toBe(true);
+  expect((await (await profile()).json()).photoBackupAvailable).toBe(false);
+  expect(
+    (
+      await backupRequest({
+        base: "https://santa.example",
+        origin: "https://santa.example",
+      })
+    ).status,
+  ).toBe(404);
+  expect((await backupRequest({ cookie: false })).status).toBe(401);
+  expect((await backupRequest({ consent: false })).status).toBe(403);
+  expect((await backupRequest({ origin: null })).status).toBe(403);
+  expect(
+    (await backupRequest({ origin: "https://altro.example" })).status,
+  ).toBe(403);
+  env.LOCAL_DEV = "false";
+  expect((await localProfile()).photoBackupAvailable).toBe(false);
+  expect((await backupRequest()).status).toBe(404);
+  expect(calls).toEqual([]);
+});
+
+it("usa soltanto il bot immagini, invia i byte originali alla chat configurata e non li salva", async () => {
+  enablePhotoBot();
+  delete env.TELEGRAM_BOT_TOKEN;
+  const settings = await localProfile();
+  expect(settings).toMatchObject({
+    photoBackupAvailable: true,
+    telegramAvailable: false,
+  });
+  expect(JSON.stringify(settings)).not.toContain("9001");
+  const result = await backupRequest();
+  expect(result.status).toBe(200);
+  expect(await result.json()).toEqual({ ok: true });
+  expect(calls).toHaveLength(1);
+  expect(calls[0].url).toBe(
+    "https://api.telegram.org/bot56789:photo-test-token/sendDocument",
+  );
+  expect(calls[0].body.get("chat_id")).toBe("9001");
+  expect(
+    Buffer.from(await calls[0].body.get("document").arrayBuffer()),
+  ).toEqual(backupPng);
+  expect(images.size).toBe(0);
+  expect(sql.prepare("SELECT COUNT(*) AS n FROM user_avatars").get().n).toBe(0);
+});
+
+it("rifiuta il fallback al bot notifiche e la stessa identità bot con una chiave diversa", async () => {
+  enablePhotoBot();
+  for (const token of [
+    undefined,
+    env.TELEGRAM_BOT_TOKEN,
+    "12345:rotated-token",
+  ]) {
+    env.TELEGRAM_PHOTO_BOT_TOKEN = token;
+    expect((await localProfile()).photoBackupAvailable).toBe(false);
+    expect((await backupRequest()).status).toBe(503);
+  }
+  expect(calls).toEqual([]);
+});
+
+it("rifiuta file non validi e nasconde i dettagli del provider quando l’invio fallisce", async () => {
+  enablePhotoBot();
+  expect(
+    (await backupRequest({ body: new Uint8Array(5 * 1024 * 1024 + 1) })).status,
+  ).toBe(413);
+  expect((await backupRequest({ body: jpeg256() })).status).toBe(415);
+  expect(calls).toEqual([]);
+  vi.stubGlobal("fetch", async () => {
+    throw new Error(
+      "Errore " +
+        env.TELEGRAM_PHOTO_BOT_TOKEN +
+        " alla chat " +
+        env.TELEGRAM_OWNER_CHAT_ID,
+    );
+  });
+  const result = await backupRequest();
+  expect(result.status).toBe(503);
+  const detail = await result.text();
+  expect(detail).not.toContain(env.TELEGRAM_PHOTO_BOT_TOKEN);
+  expect(detail).not.toContain(env.TELEGRAM_OWNER_CHAT_ID);
+});
+
 it("conserva la miniatura solo in R2, la serve agli iscritti autorizzati e rimuove le versioni sostituite", async () => {
   expect((await (await profile()).json()).photoAvailable).toBe(true);
   const image = `data:image/jpeg;base64,${Buffer.from(jpeg256()).toString("base64")}`;

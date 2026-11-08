@@ -477,9 +477,14 @@ function PhotoEditor({ profile, name, disabled, onSave }) {
   });
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
+  const [backupConsent, setBackupConsent] = useState(false);
+  const [backupStatus, setBackupStatus] = useState("ready");
   const canvas = useRef(null);
   const mini = useRef(null);
+  const originalFile = useRef(null);
+  const backupPending = useRef(false);
   const canSavePhoto = profile.photoAvailable;
+  const canBackUp = profile.photoBackupAvailable;
 
   useEffect(() => {
     if (canvas.current) drawAvatar(canvas.current, image, settings);
@@ -492,6 +497,9 @@ function PhotoEditor({ profile, name, disabled, onSave }) {
     if (!selected) return;
     setError("");
     setImage(null);
+    setBackupConsent(false);
+    setBackupStatus("ready");
+    originalFile.current = null;
     if (!photoTypes.has(photoMime(selected)))
       return setError("Scegli un file JPEG, PNG o WebP.");
     if (selected.size > originalLimit)
@@ -499,6 +507,7 @@ function PhotoEditor({ profile, name, disabled, onSave }) {
     setBusy("read");
     try {
       setImage(await loadPhoto(selected));
+      originalFile.current = selected;
       setSettings((current) => ({
         ...current,
         zoom: 1.15,
@@ -521,6 +530,63 @@ function PhotoEditor({ profile, name, disabled, onSave }) {
       setError(failure.message);
     } finally {
       setBusy("");
+    }
+  }
+
+  async function backUpOriginal() {
+    const file = originalFile.current;
+    if (
+      !canBackUp ||
+      !file ||
+      !backupConsent ||
+      backupStatus !== "ready" ||
+      backupPending.current
+    )
+      return;
+    backupPending.current = true;
+    try {
+      await act("backup", async () => {
+        let response;
+        try {
+          response = await fetch("/api/profile/photo-backup", {
+            method: "POST",
+            credentials: "same-origin",
+            headers: {
+              "Content-Type": photoMime(file),
+              "X-Photo-Consent": "yes",
+            },
+            body: file,
+          });
+        } catch {
+          setBackupStatus("uncertain");
+          throw new Error(
+            "La connessione si è interrotta. Chiedi al gestore se ha ricevuto la copia prima di inviarla di nuovo.",
+          );
+        }
+        if (response.status === 429)
+          throw new Error(
+            "Hai raggiunto il limite di invii. Aspetta prima di riprovare.",
+          );
+        if (response.status >= 500) {
+          setBackupStatus("uncertain");
+          throw new Error(
+            "Il servizio di copia privata è momentaneamente indisponibile. Chiedi al gestore se ha ricevuto la foto.",
+          );
+        }
+        if (!response.ok)
+          throw new Error("Non siamo riusciti a inviare la copia privata.");
+        const result = await response.json().catch(() => null);
+        if (result?.ok !== true) {
+          setBackupStatus("uncertain");
+          throw new Error(
+            "L’invio non è stato confermato. Chiedi al gestore se ha ricevuto la foto.",
+          );
+        }
+        originalFile.current = null;
+        setBackupStatus("sent");
+      });
+    } finally {
+      backupPending.current = false;
     }
   }
 
@@ -629,11 +695,48 @@ function PhotoEditor({ profile, name, disabled, onSave }) {
 
       <div className="photo-disclosure">
         <p>
-          Progetto a zero budget. La foto originale resta sul tuo dispositivo.
+          Progetto a zero budget. L’editor elabora la foto sul tuo dispositivo.
           Nel profilo conserviamo una sola miniatura alla volta. Ti consigliamo
           di scaricare il ritratto in alta risoluzione.
         </p>
       </div>
+      {canBackUp && (
+        <fieldset className="photo-backup">
+          <legend>Copia privata dell’originale</legend>
+          <p>
+            Se scegli di inviarla, la foto originale lascia il dispositivo. Il
+            gestore ne riceve una copia nel suo spazio privato. Puoi saltare
+            questo passaggio e scaricare comunque il ritratto.
+          </p>
+          {backupStatus === "sent" ? (
+            <Notice>Copia privata inviata.</Notice>
+          ) : (
+            <>
+              <Toggle
+                checked={backupConsent}
+                disabled={!image || isDisabled || backupStatus !== "ready"}
+                onChange={setBackupConsent}
+              >
+                Acconsento a inviare la foto originale al gestore.
+              </Toggle>
+              <Button
+                type="button"
+                variant="outline"
+                busy={busy === "backup"}
+                disabled={
+                  !image ||
+                  !backupConsent ||
+                  isDisabled ||
+                  backupStatus !== "ready"
+                }
+                onClick={backUpOriginal}
+              >
+                <Send size={15} aria-hidden="true" /> Invia la copia privata
+              </Button>
+            </>
+          )}
+        </fieldset>
+      )}
       <Notice error>{error}</Notice>
       <div className="form-actions photo-actions">
         <Button

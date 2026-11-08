@@ -7,3 +7,6 @@ ADMIN_EMAILS=admin@example.test,browser@example.test
 # TELEGRAM_BOT_TOKEN=
 # TELEGRAM_BOT_USERNAME=
 # TELEGRAM_WEBHOOK_SECRET=
+# Copia facoltativa delle foto, solo in locale. Usa un bot diverso e avvialo dalla chat privata di destinazione.
+# TELEGRAM_PHOTO_BOT_TOKEN=
+# TELEGRAM_OWNER_CHAT_ID=

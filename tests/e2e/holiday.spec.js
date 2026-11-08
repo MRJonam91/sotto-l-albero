@@ -141,12 +141,54 @@ test.describe("Profilo e caccia su schermo tattile", () => {
       fullPage: true,
     });
     await expect(page.locator(".photo-editor")).toContainText(
-      "Progetto a zero budget, le immagini non saranno salvate sul server, solo 1 avatar alla volta. è consigliato  di scaricare la foto in locale",
+      "L’editor elabora la foto sul tuo dispositivo.",
     );
-    await expect(page.locator(".photo-editor")).not.toContainText(
-      /telegram|copyright|copia di sicurezza/i,
-    );
+    const sendBackup = page.getByRole("button", {
+      name: "Invia la copia privata",
+    });
+    await expect(sendBackup).toHaveCount(0);
     expect(originalRequests).toEqual([]);
+
+    await page.route("**/api/profile", async (route) => {
+      const response = await route.fetch();
+      const profile = await response.json();
+      await route.fulfill({
+        response,
+        json: { ...profile, photoBackupAvailable: true },
+      });
+    });
+    const deliveries = [];
+    await page.route("**/api/profile/photo-backup", async (route) => {
+      const request = route.request();
+      deliveries.push({
+        mime: request.headers()["content-type"],
+        consent: request.headers()["x-photo-consent"],
+        body: request.postDataBuffer(),
+      });
+      await route.fulfill({ json: { ok: true } });
+    });
+    await page.reload();
+    await page.getByRole("button", { name: "Usa una foto" }).click();
+    const photo = Buffer.from(png, "base64");
+    await page.getByLabel("Scegli una foto").setInputFiles({
+      name: "ritratto-test.png",
+      mimeType: "image/png",
+      buffer: photo,
+    });
+    await expect(page.locator(".photo-editor")).not.toContainText(/telegram/i);
+    await expect(sendBackup).toBeDisabled();
+    const consent = page.getByRole("checkbox", {
+      name: "Acconsento a inviare la foto originale al gestore.",
+    });
+    await consent.check();
+    await expect(sendBackup).toBeEnabled();
+    expect(deliveries).toEqual([]);
+    await sendBackup.click();
+    await expect(page.getByText("Copia privata inviata.")).toBeVisible();
+    await expect(sendBackup).toHaveCount(0);
+    expect(deliveries).toEqual([
+      { mime: "image/png", consent: "yes", body: photo },
+    ]);
   });
 });
 

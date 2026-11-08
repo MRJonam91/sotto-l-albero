@@ -162,6 +162,21 @@
 .photo-disclosure p:last-child {
   margin-bottom: 0;
 }
+.photo-backup {
+  min-inline-size: 0;
+  margin: 0 0 14px;
+  padding: clamp(12px, 3vw, 20px);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.photo-backup legend {
+  padding: 0 0.35rem;
+  color: var(--gold);
+  font-weight: 700;
+}
+.photo-backup .button {
+  margin-top: 0.45rem;
+}
 .profile-telegram strong {
   margin-right: 8px;
 }

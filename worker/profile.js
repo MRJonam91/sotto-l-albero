@@ -1,13 +1,23 @@
-import { all, first, run } from "./auth.js";
-import { HttpError, id, json, safeText, validPhone } from "./security.js";
+import { all, currentUser, first, run } from "./auth.js";
+import {
+  HttpError,
+  id,
+  isLocalRequest,
+  json,
+  safeText,
+  validPhone,
+} from "./security.js";
 import {
   createTelegramLink,
   disconnectTelegram,
+  photoBackupConfigured,
   readBoundedBytes,
+  sendPhotoBackup,
   telegramAvailable,
 } from "./telegram.js";
 
 const avatarLimit = 64 * 1024;
+const photoBackupLimit = 5 * 1024 * 1024;
 const hour = 3_600_000;
 const presets = new Set([
   "elf",
@@ -131,6 +141,37 @@ function isAnimatedWebp(bytes) {
   return frame;
 }
 
+function validOriginalImage(bytes, mime) {
+  if (mime === "image/png") {
+    if (
+      bytes.length < 45 ||
+      !at(
+        bytes,
+        0,
+        [137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82],
+      )
+    )
+      return false;
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    return (
+      view.getUint32(16) > 0 &&
+      view.getUint32(20) > 0 &&
+      at(
+        bytes,
+        bytes.length - 12,
+        [0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130],
+      )
+    );
+  }
+  if (sniffImage(bytes) !== mime) return false;
+  if (mime === "image/jpeg")
+    return (
+      jpegSize(bytes)?.every((size) => size > 0) &&
+      at(bytes, bytes.length - 2, [255, 217])
+    );
+  return webpSize(bytes)?.every((size) => size > 0) || isAnimatedWebp(bytes);
+}
+
 function decodeAvatar(value) {
   if (typeof value !== "string")
     throw new HttpError("Scegli una foto per il tuo avatar.");
@@ -172,7 +213,7 @@ async function uploadPermit(db, userId, purpose, max) {
     );
 }
 
-async function profile(env, userId) {
+async function profile(request, env, userId) {
   const row = await first(
     env.DB,
     `SELECT u.phone,u.notify_email,u.notify_telegram,u.telegram_chat_id,
@@ -188,6 +229,8 @@ async function profile(env, userId) {
     telegramLinked: !!row.telegram_chat_id,
     telegramAvailable: telegramAvailable(env),
     photoAvailable: !!env.AVATAR_BUCKET,
+    photoBackupAvailable:
+      isLocalRequest(request, env) && photoBackupConfigured(env),
     avatar:
       row.kind === "photo"
         ? { kind: "photo", value: row.revision }
@@ -344,24 +387,60 @@ async function saveAvatar(env, userId, body) {
   if (previous?.kind === "photo") await cleanAvatar(env, previous.revision);
 }
 
+export async function photoBackupRoute(request, env) {
+  if (!isLocalRequest(request, env))
+    throw new HttpError("Questa azione non è disponibile.", 404);
+  if (request.method !== "POST")
+    throw new HttpError("Metodo non disponibile.", 405);
+  if (request.headers.get("Origin") !== new URL(request.url).origin)
+    throw new HttpError("Invia la copia privata da questa pagina.", 403);
+  const user = await currentUser(request, env);
+  if (!user) throw new HttpError("Accedi per continuare.", 401);
+  if (request.headers.get("X-Photo-Consent") !== "yes")
+    throw new HttpError("Conferma l’invio della copia privata.", 403);
+  if (!photoBackupConfigured(env))
+    throw new HttpError("La copia privata non è disponibile.", 503);
+  const mime = request.headers
+    .get("Content-Type")
+    ?.split(";")[0]
+    .trim()
+    .toLowerCase();
+  const formatError =
+    "Per la copia privata, scegli una foto JPEG, PNG o WebP valida.";
+  if (!["image/jpeg", "image/png", "image/webp"].includes(mime))
+    throw new HttpError(formatError, 415);
+  let bytes;
+  try {
+    bytes = await readBoundedBytes(request, photoBackupLimit);
+  } catch (error) {
+    if (error.status === 413)
+      throw new HttpError("La copia privata accetta foto fino a 5 MiB.", 413);
+    throw new HttpError("Non siamo riusciti a leggere la copia privata.");
+  }
+  if (!validOriginalImage(bytes, mime)) throw new HttpError(formatError, 415);
+  await uploadPermit(env.DB, user.id, "backup", 5);
+  await sendPhotoBackup(env, bytes, mime);
+  return json({ ok: true });
+}
+
 export async function profileRoute(request, env, path, body, user) {
   if (!user?.id) throw new HttpError("Accedi per continuare.", 401);
   if (path === "/api/profile") {
-    if (request.method === "GET") return profile(env, user.id);
+    if (request.method === "GET") return profile(request, env, user.id);
     if (request.method === "PUT") {
       await updateProfile(env, user.id, body);
-      return profile(env, user.id);
+      return profile(request, env, user.id);
     }
   } else if (request.method === "POST") {
     if (path === "/api/profile/telegram-link")
       return createTelegramLink(env, user.id);
     if (path === "/api/profile/telegram-disconnect") {
       await disconnectTelegram(env, user.id);
-      return profile(env, user.id);
+      return profile(request, env, user.id);
     }
     if (path === "/api/profile/avatar") {
       await saveAvatar(env, user.id, body);
-      return profile(env, user.id);
+      return profile(request, env, user.id);
     }
   }
   throw new HttpError("Questa azione non è disponibile.", 404);

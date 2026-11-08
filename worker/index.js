@@ -4,7 +4,12 @@ import { eventRoute, inviteRoute, scheduled } from "./events.js";
 import { stampRoute } from "./stamps.js";
 import { practiceRoute } from "./practice.js";
 import { competitionRoute } from "./competition.js";
-import { avatarRoute, cleanRetiredAvatars, profileRoute } from "./profile.js";
+import {
+  avatarRoute,
+  cleanRetiredAvatars,
+  photoBackupRoute,
+  profileRoute,
+} from "./profile.js";
 import { telegramWebhook } from "./telegram.js";
 import { notificationRoute, runNotifications } from "./notifications.js";
 export default {
@@ -27,6 +32,8 @@ export default {
         throw new HttpError("Metodo non disponibile.", 405);
       if (path === "/api/telegram/webhook")
         return await telegramWebhook(request, env);
+      if (path === "/api/profile/photo-backup")
+        return await photoBackupRoute(request, env);
       let body = {};
       if (request.method !== "GET") {
         const origin = request.headers.get("Origin");

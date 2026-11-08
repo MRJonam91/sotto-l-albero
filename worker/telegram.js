@@ -10,15 +10,24 @@ export function privateChatId(value) {
     : null;
 }
 
-function hasBotToken(env) {
-  return /^\d+:[A-Za-z0-9_-]+$/.test(env.TELEGRAM_BOT_TOKEN || "");
+function botId(botToken) {
+  return /^([1-9]\d*):[A-Za-z0-9_-]+$/.exec(botToken || "")?.[1];
 }
 
 export function telegramAvailable(env) {
   return (
-    hasBotToken(env) &&
+    !!botId(env.TELEGRAM_BOT_TOKEN) &&
     /^[A-Za-z0-9_]{5,32}$/.test(env.TELEGRAM_BOT_USERNAME || "") &&
     /^[A-Za-z0-9_-]{1,256}$/.test(env.TELEGRAM_WEBHOOK_SECRET || "")
+  );
+}
+
+export function photoBackupConfigured(env) {
+  const photoBot = botId(env.TELEGRAM_PHOTO_BOT_TOKEN);
+  return (
+    !!photoBot &&
+    photoBot !== botId(env.TELEGRAM_BOT_TOKEN) &&
+    !!privateChatId(env.TELEGRAM_OWNER_CHAT_ID)
   );
 }
 
@@ -30,30 +39,27 @@ export class TelegramError extends HttpError {
   }
 }
 
-async function telegramCall(env, method, data) {
-  if (!hasBotToken(env)) throw new TelegramError(401);
+async function telegramCall(botToken, method, data) {
+  if (!botId(botToken)) throw new TelegramError(401);
   const multipart = data instanceof FormData;
   let response;
   let payload;
   try {
-    response = await fetch(
-      `${apiRoot}/bot${env.TELEGRAM_BOT_TOKEN}/${method}`,
-      {
-        method: "POST",
-        headers: multipart ? undefined : { "Content-Type": "application/json" },
-        body: multipart ? data : JSON.stringify(data),
-        redirect: "error",
-        signal: AbortSignal.timeout(12000),
-      },
-    );
+    response = await fetch(`${apiRoot}/bot${botToken}/${method}`, {
+      method: "POST",
+      headers: multipart ? undefined : { "Content-Type": "application/json" },
+      body: multipart ? data : JSON.stringify(data),
+      redirect: "error",
+      signal: AbortSignal.timeout(12000),
+    });
     payload = await response.json();
   } catch {
     throw new TelegramError();
   }
-  if (!response.ok || !payload.ok) {
+  if (!response.ok || !payload?.ok) {
     throw new TelegramError(
-      payload.error_code || response.status,
-      payload.parameters?.retry_after,
+      payload?.error_code || response.status,
+      payload?.parameters?.retry_after,
     );
   }
   return payload.result;
@@ -62,12 +68,35 @@ async function telegramCall(env, method, data) {
 export function telegramMessage(env, chatId, text) {
   const chat = privateChatId(chatId);
   if (!chat) throw new TelegramError(400);
-  return telegramCall(env, "sendMessage", {
+  return telegramCall(env.TELEGRAM_BOT_TOKEN, "sendMessage", {
     chat_id: chat,
     text,
     protect_content: true,
     link_preview_options: { is_disabled: true },
   });
+}
+
+export async function sendPhotoBackup(env, bytes, mime) {
+  if (!photoBackupConfigured(env))
+    throw new HttpError("La copia privata non è disponibile.", 503);
+  const extension = mime === "image/jpeg" ? "jpg" : mime.split("/")[1];
+  const body = new FormData();
+  body.set("chat_id", privateChatId(env.TELEGRAM_OWNER_CHAT_ID));
+  body.set(
+    "document",
+    new Blob([bytes], { type: mime }),
+    `copia-originale.${extension}`,
+  );
+  body.set("disable_content_type_detection", "true");
+  body.set("caption", "Copia privata richiesta su Sotto l’Albero");
+  try {
+    await telegramCall(env.TELEGRAM_PHOTO_BOT_TOKEN, "sendDocument", body);
+  } catch {
+    throw new HttpError(
+      "Non siamo riusciti a inviare la copia privata. Riprova tra poco.",
+      503,
+    );
+  }
 }
 
 export async function readBoundedBytes(source, limit) {
