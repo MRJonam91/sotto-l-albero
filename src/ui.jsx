@@ -1,8 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
 import { X, LoaderCircle } from "lucide-react";
 export function Button({
   children,
   busy,
+  disabled,
   variant = "",
   className = "",
   ...props
@@ -10,7 +11,8 @@ export function Button({
   return (
     <button
       className={`button ${variant} ${className}`}
-      disabled={busy || props.disabled}
+      disabled={busy || disabled}
+      aria-busy={busy || undefined}
       {...props}
     >
       {busy ? <LoaderCircle size={18} className="spin" /> : null}
@@ -38,6 +40,7 @@ export function Notice({ children, error }) {
 }
 export function Modal({ title, onClose, children, wide = false }) {
   const ref = useRef(null);
+  const titleId = useId();
   useEffect(() => {
     const before = document.activeElement;
     ref.current.showModal();
@@ -49,6 +52,7 @@ export function Modal({ title, onClose, children, wide = false }) {
   return (
     <dialog
       ref={ref}
+      aria-labelledby={titleId}
       className={`modal ${wide ? "wide" : ""}`}
       onCancel={(e) => {
         e.preventDefault();
@@ -59,7 +63,7 @@ export function Modal({ title, onClose, children, wide = false }) {
       }}
     >
       <div className="modal-head">
-        <h2>{title}</h2>
+        <h2 id={titleId}>{title}</h2>
         <button className="icon-button" aria-label="Chiudi" onClick={onClose}>
           <X />
         </button>

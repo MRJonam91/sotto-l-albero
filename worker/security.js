@@ -31,6 +31,15 @@ export function validEmail(value) {
     throw new HttpError("Controlla l’indirizzo email.");
   return email;
 }
+export function validPhone(value) {
+  const text = safeText(value, 32).replace(/[\s().-]/g, "");
+  const phone = text.startsWith("00") ? "+" + text.slice(2) : text;
+  if (!/^\+[1-9][0-9]{6,14}$/.test(phone))
+    throw new HttpError(
+      "Inserisci il numero con il prefisso internazionale, per esempio +39.",
+    );
+  return phone;
+}
 export function safeText(value, max = 1000, required = false) {
   if (typeof value !== "string" && value != null)
     throw new HttpError("Questo campo deve contenere del testo.");

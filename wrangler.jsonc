@@ -16,6 +16,8 @@
       "migrations_dir": "migrations",
     },
   ],
+  // Optional private R2 bucket. Enable this binding after creating the bucket.
+  // "r2_buckets": [{ "binding": "AVATAR_BUCKET", "bucket_name": "sotto-l-albero-avatars" }],
   "triggers": { "crons": ["* * * * *"] },
   "vars": { "APP_URL": "https://sotto-l-albero.sotto-l-albero.workers.dev" },
 }

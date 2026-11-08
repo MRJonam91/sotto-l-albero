@@ -40,10 +40,10 @@ export default function Reveal({
     return (
       <div className="empty-state">
         <Gift />
-        <h2>La sorpresa è per chi partecipa.</h2>
+        <h2>Estrazione riservata ai partecipanti</h2>
         <p>
-          Se organizzi senza partecipare, puoi controllare gli abbinamenti dalla
-          sezione Organizza.
+          Se organizzi lo scambio senza partecipare, trovi gli abbinamenti in
+          Organizza.
         </p>
       </div>
     );
@@ -56,13 +56,13 @@ export default function Reveal({
         <span className="waiting-tree">
           <TreePine size={54} />
         </span>
-        <h2>Il tuo nome è ancora sotto l’albero.</h2>
+        <h2>I nomi non sono ancora usciti.</h2>
         <p>
           {status === "archived"
             ? "Questo evento è stato archiviato."
             : status === "cancelled"
-              ? "L’estrazione precedente è stata annullata. Aspettiamo la nuova."
-              : `Ci ritroviamo qui il ${date(drawAt)}.`}
+              ? "Chi organizza ha annullato l’estrazione. Torna qui per quella nuova."
+              : `L’estrazione è prevista per il ${date(drawAt)}.`}
         </p>
         {left > 0 ? (
           <div className="countdown">
@@ -76,8 +76,8 @@ export default function Reveal({
           </div>
         ) : (
           <p className="quiet">
-            Se l’ora è arrivata, stiamo aspettando che l’organizzatore completi
-            il gruppo e l’estrazione.
+            L’estrazione è ancora in attesa. Chi organizza può controllare lo
+            stato del gruppo.
           </p>
         )}
       </div>
@@ -96,11 +96,8 @@ export default function Reveal({
         {phase !== "open" ? (
           <>
             <span className="eyebrow">La tua lettera è arrivata</span>
-            <h2>Hai un nome da custodire.</h2>
-            <p>
-              Da qui comincia la parte più bella: pensare a un regalo per
-              qualcuno.
-            </p>
+            <h2>Il nome è nella busta.</h2>
+            <p>Aprila per scoprire a chi farai il regalo.</p>
             <button
               className="sealed-letter"
               onClick={() => setPhase("opening")}
@@ -116,7 +113,7 @@ export default function Reveal({
               <p className="seal-caption">Tocca il sigillo.</p>
             ) : (
               <p className="seal-caption" role="status">
-                Un attimo… stiamo aprendo la lettera.
+                La lettera si sta aprendo…
               </p>
             )}
             <button className="text-button" onClick={() => setPhase("open")}>
@@ -126,13 +123,10 @@ export default function Reveal({
           </>
         ) : (
           <div className="recipient-letter paper">
-            <span className="eyebrow">Quest’anno pensi tu a</span>
+            <span className="eyebrow">Il tuo regalo è per</span>
             <h2>{recipient.name}</h2>
             <Star size={26} className="recipient-star" />
-            <p>
-              Un regalo scelto con cura.
-              <br />E il tuo nome resta un segreto.
-            </p>
+            <p>Scegli il regalo con cura e tieni il nome per te.</p>
             <Button onClick={() => setWishes(true)}>
               <Mail size={17} />
               Leggi i suoi desideri
@@ -153,7 +147,7 @@ export default function Reveal({
       {phase === "open" && wishes ? (
         <div className="recipient-wishes">
           <div className="section-title">
-            <h2>Qualche indizio da {recipient.name}.</h2>
+            <h2>I desideri di {recipient.name}</h2>
             <span />
           </div>
           {recipient.wishlist?.length ? (
@@ -164,14 +158,14 @@ export default function Reveal({
             <div className="empty-state">
               <Mail />
               <p>
-                La lettera è ancora da scrivere. Torna tra qualche giorno: nel
-                frattempo, puoi pensare a ciò che conoscete l’uno dell’altra.
+                La lettera è ancora vuota. Intanto puoi pensare a un regalo
+                partendo da quello che sai di questa persona.
               </p>
             </div>
           )}
           <div className="gift-progress">
             <h3>A che punto sei?</h3>
-            <p>Un promemoria tutto tuo, salvato su questo dispositivo.</p>
+            <p>Il promemoria resta su questo dispositivo.</p>
             <div className="button-row">
               {[
                 ["idea", "Ci sto pensando"],

@@ -3,9 +3,13 @@ const contexts = [];
 const clients = new Map();
 async function client(email, name) {
   if (clients.has(email)) return clients.get(email);
-  const c = await request.newContext({ baseURL: "http://127.0.0.1:8787" });
+  const c = await request.newContext({
+    baseURL: process.env.QA_BASE_URL || "http://127.0.0.1:8790",
+  });
   contexts.push(c);
-  const res = await c.post("/api/auth/request", { data: { email, name } });
+  const res = await c.post("/api/auth/request", {
+    data: { email, name, phone: "+393200000000" },
+  });
   expect(res.ok(), await res.text()).toBeTruthy();
   const { devCode } = await res.json();
   expect(devCode).toBeTruthy();

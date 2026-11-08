@@ -39,8 +39,8 @@ export default function EventEdit({ event: currentEvent, onClose, onSaved }) {
   return (
     <Modal title="Rivediamo i preparativi" onClose={onClose} wide>
       <p>
-        Puoi cambiare i dettagli finché i nomi non sono stati estratti. Se
-        sposti le date, avvisa anche il gruppo.
+        Puoi cambiare i dettagli fino all’estrazione. Se sposti una data, avvisa
+        il gruppo.
       </p>
       <form onSubmit={submit}>
         <Field
@@ -60,9 +60,9 @@ export default function EventEdit({ event: currentEvent, onClose, onSaved }) {
             defaultValue={event.budget}
             required
           />
-          <Field label="Scambi da evitare">
+          <Field label="Abbinamenti da non ripetere">
             <select name="historyDepth" defaultValue={event.historyDepth ?? 1}>
-              <option value="0">Non usare lo storico automatico</option>
+              <option value="0">Non considerare le edizioni precedenti</option>
               <option value="1">L’ultima edizione</option>
               <option value="2">Le ultime 2 edizioni</option>
               <option value="3">Le ultime 3 edizioni</option>
@@ -95,9 +95,9 @@ export default function EventEdit({ event: currentEvent, onClose, onSaved }) {
           />
         </div>
         <p className="quiet">
-          Gli orari seguono il fuso del tuo dispositivo:{" "}
-          {Intl.DateTimeFormat().resolvedOptions().timeZone}. Gli scambi
-          inseriti a mano restano esclusi finché non li rimuovi.
+          Gli orari seguono il fuso del tuo dispositivo (
+          {Intl.DateTimeFormat().resolvedOptions().timeZone}). Gli abbinamenti
+          che hai inserito a mano restano esclusi finché non li rimuovi.
         </p>
         <Field label="Un messaggio per il gruppo">
           <textarea

@@ -1,0 +1,324 @@
+.competition {
+  max-width: 62rem;
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.competition-header,
+.competition-duel-form,
+.competition-duels li {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.1rem;
+}
+
+.competition-header > svg {
+  color: var(--gold);
+  flex: none;
+}
+
+.competition :is(h2, h3, h4, p) {
+  margin: 0;
+}
+
+.competition-section,
+.competition-play,
+.competition-form,
+.competition-callout {
+  display: grid;
+  gap: 0.85rem;
+  justify-items: start;
+}
+
+.competition-play,
+.competition-callout {
+  width: 100%;
+  padding: clamp(1rem, 3vw, 1.5rem);
+}
+
+.competition-games {
+  display: grid;
+  width: 100%;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
+  gap: 0.7rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.competition-game {
+  display: grid;
+  justify-items: start;
+  gap: 0.55rem;
+  padding: 1rem;
+}
+
+.competition-game h4 {
+  font-size: 1.18rem;
+}
+
+.competition-options {
+  display: grid;
+  gap: 0.5rem;
+  justify-items: start;
+}
+
+.competition-ranks,
+.competition-duels {
+  width: 100%;
+}
+
+.competition-standings {
+  width: 100%;
+  padding: clamp(0.9rem, 3vw, 1.6rem);
+  border: 1px solid var(--line);
+  border-radius: 0.9rem;
+  background:
+    radial-gradient(ellipse at 50% 15%, #30463a, transparent 68%),
+    repeating-linear-gradient(
+      90deg,
+      transparent 0 3rem,
+      #d9ac6c0b 3rem 3.05rem,
+      transparent 3.05rem 3.15rem
+    ),
+    #102620;
+}
+
+.competition-standings-head {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: end;
+  gap: 0.8rem 1.5rem;
+}
+
+.competition-standings-head p {
+  margin-top: 0.28rem;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.competition-standings-head .field {
+  width: 100%;
+  margin: 0;
+}
+
+.vessel-tools {
+  display: grid;
+  justify-items: end;
+  gap: 0.25rem;
+  width: min(100%, 15rem);
+}
+
+.vessel-replay.button {
+  min-height: 44px;
+  padding: 0.35rem 0;
+}
+
+.hourglass-board {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.65rem;
+}
+
+.hourglass-board li {
+  flex: 1 1 7rem;
+  min-width: 0;
+  max-width: 11rem;
+  position: relative;
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  justify-items: center;
+  align-items: start;
+  gap: 0.35rem;
+  text-align: center;
+  padding: 0.65rem 0.35rem;
+  border: 1px solid var(--line);
+  border-radius: 4.75rem 4.75rem 0.7rem 0.7rem;
+  padding-top: 1.4rem;
+  background:
+    radial-gradient(ellipse at 50% 19%, #57745a24, transparent 55%),
+    linear-gradient(165deg, #6e51231f, transparent 36%), #0a1c18;
+  box-shadow: inset 0 0 0 3px #a8783515;
+}
+
+.hourglass-board .competition-rank {
+  position: absolute;
+  inset: 0.45rem auto auto 50%;
+  transform: translateX(-50%);
+  font-size: 0.76rem;
+  font-weight: 700;
+  z-index: 1;
+}
+
+.hourglass-art {
+  width: min(100%, 8.5rem);
+  height: auto;
+  color: var(--hourglass-color);
+  filter: drop-shadow(0 4px 9px #040c09);
+}
+
+.vessel-fill-window {
+  transition:
+    y 640ms cubic-bezier(0.17, 0.72, 0.28, 1),
+    height 640ms cubic-bezier(0.17, 0.72, 0.28, 1);
+}
+
+.vessel-meniscus {
+  transition:
+    transform 640ms cubic-bezier(0.17, 0.72, 0.28, 1),
+    opacity 240ms ease;
+}
+
+.vessel-sweep,
+.vessel-particle {
+  opacity: 0;
+}
+
+.vessel-sweep {
+  animation: vessel-reflection 2.55s ease-in-out var(--vessel-delay) both;
+}
+
+.vessel-particle {
+  animation: vessel-fall 1.5s cubic-bezier(0.34, 0.13, 0.72, 0.88)
+    var(--vessel-delay) both;
+}
+
+.vessel-glint {
+  fill: #ffebbc;
+  opacity: 0.32;
+  transform-origin: center;
+  transform-box: fill-box;
+  animation: vessel-flash 1.45s ease-in-out var(--vessel-delay) both;
+}
+
+@keyframes vessel-reflection {
+  0%,
+  10% {
+    opacity: 0;
+    transform: translateX(-23px);
+  }
+  30% {
+    opacity: 0.6;
+  }
+  58% {
+    opacity: 0.94;
+  }
+  96%,
+  100% {
+    opacity: 0;
+    transform: translateX(95px);
+  }
+}
+
+@keyframes vessel-fall {
+  0% {
+    opacity: 0;
+    transform: translateY(-8px) rotate(-20deg);
+  }
+  18%,
+  68% {
+    opacity: 0.92;
+  }
+  88% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--drift), var(--fall)) rotate(66deg);
+  }
+}
+
+@keyframes vessel-flash {
+  0%,
+  100% {
+    opacity: 0.32;
+    transform: scale(0.8);
+  }
+  37% {
+    opacity: 0.92;
+    transform: scale(1.24);
+  }
+  64% {
+    opacity: 0.42;
+    transform: scale(0.94);
+  }
+}
+
+.hourglass-board .competition-name {
+  font-size: 0.85rem;
+}
+
+.competition-points {
+  font-variant-numeric: tabular-nums;
+}
+
+.hourglass-board .competition-points {
+  color: var(--gold);
+  font-size: 0.82rem;
+}
+
+.hourglass-board .button {
+  max-width: 100%;
+  padding: 0.48rem 0.55rem;
+  min-height: 44px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vessel-fill-window,
+  .vessel-meniscus {
+    transition: none;
+  }
+  .vessel-sweep,
+  .vessel-particle,
+  .vessel-glint {
+    animation: none;
+  }
+  .vessel-tools .vessel-replay {
+    display: none;
+  }
+}
+
+.competition-ranks li {
+  display: grid;
+  grid-template-columns: 2.2rem auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.competition :is(.competition-ranks, .competition-duels) li {
+  border-bottom: 1px solid var(--line);
+  padding: 0.65rem 0;
+}
+
+.competition-name {
+  overflow-wrap: anywhere;
+}
+
+.competition-rank {
+  color: var(--gold);
+  font-variant-numeric: tabular-nums;
+}
+
+.competition-duels li {
+  justify-content: space-between;
+}
+
+.competition-duel-form {
+  align-items: end;
+}
+
+@media (max-width: 450px) {
+  .competition-ranks li {
+    grid-template-columns: 1.8rem auto minmax(0, 1fr) auto;
+  }
+  .competition-ranks li > .button {
+    grid-column: 3 / -1;
+    justify-self: start;
+  }
+}

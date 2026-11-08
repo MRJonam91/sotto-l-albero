@@ -3,3 +3,7 @@ ADMIN_EMAILS=admin@example.test,browser@example.test
 # Per provare gli invii reali, configurare un mittente verificato e la chiave:
 # RESEND_API_KEY=
 # MAIL_FROM=Natale <inviti@example.com>
+# Avvisi Telegram:
+# TELEGRAM_BOT_TOKEN=
+# TELEGRAM_BOT_USERNAME=
+# TELEGRAM_WEBHOOK_SECRET=

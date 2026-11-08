@@ -5,6 +5,8 @@ import { Button, Field, Notice } from "./ui.jsx";
 export default function Auth({ onLogin, local, mailConfigured }) {
   const [email, setEmail] = useState(""),
     [name, setName] = useState(""),
+    [phone, setPhone] = useState(""),
+    [register, setRegister] = useState(true),
     [code, setCode] = useState(""),
     [sent, setSent] = useState(false),
     [devCode, setDevCode] = useState(""),
@@ -16,7 +18,10 @@ export default function Auth({ onLogin, local, mailConfigured }) {
     setError("");
     try {
       if (!sent) {
-        const r = await api("/auth/request", "POST", { email, name });
+        const r = await api("/auth/request", "POST", {
+          email,
+          ...(register ? { name, phone } : {}),
+        });
         setDevCode(r.devCode || "");
         setSent(true);
       } else {
@@ -41,15 +46,15 @@ export default function Auth({ onLogin, local, mailConfigured }) {
           <em>Un piccolo segreto.</em>
         </h1>
         <p>
-          Ritrovarsi, pensare a un regalo, aspettare Natale. Qui c’è spazio per
-          tutti i preparativi.
+          Ritrovati con il tuo gruppo, scegli un regalo e tieni il nome per te
+          fino al giorno dello scambio.
         </p>
         <div className="auth-note">
           <LockKeyhole size={18} />
           <span>
             Un posto riservato al tuo gruppo.
             <br />
-            Entra con l’email con cui hai ricevuto l’invito.
+            Entra con l’indirizzo a cui hai ricevuto l’invito.
           </span>
         </div>
       </div>
@@ -67,20 +72,22 @@ export default function Auth({ onLogin, local, mailConfigured }) {
         <p>
           {sent
             ? devCode
-              ? `Stai provando il sito in locale: per ${email} usa il codice qui sotto. Non abbiamo inviato email.`
-              : `Abbiamo inviato un codice a ${email}. Ti aspettiamo qui.`
-            : "Lascia il tuo indirizzo: ti mandiamo un codice per entrare."}
+              ? `Per la prova in locale, usa il codice qui sotto per ${email}. Non riceverai un’email.`
+              : `Abbiamo mandato un codice a ${email}. Inseriscilo qui per entrare.`
+            : "Inserisci il tuo indirizzo e ti mandiamo un codice per entrare."}
         </p>
         {!sent ? (
           <>
-            <Field
-              label="Come ti chiami?"
-              autoComplete="name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              maxLength={80}
-              required
-            />
+            {register && (
+              <Field
+                label="Come ti chiami?"
+                autoComplete="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                maxLength={80}
+                required
+              />
+            )}
             <Field
               label="La tua email"
               type="email"
@@ -89,6 +96,18 @@ export default function Auth({ onLogin, local, mailConfigured }) {
               onChange={(e) => setEmail(e.target.value)}
               required
             />
+            {register && (
+              <Field
+                label="Numero di telefono"
+                hint="Usa il prefisso internazionale, per esempio +39. Il numero resta nel tuo profilo."
+                type="tel"
+                autoComplete="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                maxLength={32}
+                required
+              />
+            )}
           </>
         ) : (
           <Field
@@ -106,13 +125,13 @@ export default function Auth({ onLogin, local, mailConfigured }) {
         <Notice error>{error}</Notice>
         {devCode ? (
           <p className="local-code">
-            Solo per la prova in locale: <strong>{devCode}</strong>
+            Codice di prova <strong>{devCode}</strong>
           </p>
         ) : null}
         {!mailConfigured && !local ? (
           <Notice error>
-            L’invio email non è ancora configurato. Chiedi a chi gestisce il
-            sito di completare l’attivazione.
+            L’accesso via email non è ancora attivo. Contatta chi gestisce il
+            sito.
           </Notice>
         ) : null}
         <Button busy={busy} type="submit">
@@ -131,10 +150,21 @@ export default function Auth({ onLogin, local, mailConfigured }) {
           >
             Usa un’altra email
           </button>
-        ) : null}
+        ) : (
+          <button
+            className="text-button"
+            type="button"
+            onClick={() => {
+              setRegister(!register);
+              setError("");
+            }}
+          >
+            {register ? "Ho già un account" : "Crea un account"}
+          </button>
+        )}
         <small>
-          Il tuo indirizzo serve per accedere e ricevere gli aggiornamenti degli
-          eventi a cui partecipi.
+          Il codice di accesso arriva via email. Dal profilo puoi scegliere come
+          ricevere gli avvisi del gruppo.
         </small>
       </form>
     </section>

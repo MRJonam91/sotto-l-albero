@@ -1,0 +1,450 @@
+import { useEffect, useId, useRef, useState } from "react";
+import { BookOpen, Gift, Medal, Puzzle, Swords } from "lucide-react";
+import { activeMember, api } from "./api.js";
+import FestivalLeaderboard from "./FestivalLeaderboard.jsx";
+import MemoryBoard from "./MemoryBoard.jsx";
+import { Button, Field, Modal, Notice } from "./ui.jsx";
+import "./competition.css";
+
+function PlayCard({ attempt, onMove, onClose, busy, error }) {
+  const heading = useRef(null);
+  const board = attempt.cards;
+  useEffect(() => {
+    heading.current?.focus();
+  }, [attempt.id, attempt.progress, attempt.done]);
+  return (
+    <div className="competition-play paper">
+      {attempt.done ? (
+        <>
+          <h3 tabIndex={-1} ref={heading}>
+            Partita conclusa
+          </h3>
+          {attempt.duelId ? (
+            <p>
+              La tua prova è registrata. Trovi il confronto nei duelli quando
+              avete giocato entrambi o scade l’invito.
+            </p>
+          ) : (
+            <p>
+              Hai ottenuto <strong>{attempt.score} punti</strong> con questo
+              tentativo. In classifica conta il risultato migliore.
+            </p>
+          )}
+        </>
+      ) : board ? (
+        <>
+          <h3 ref={heading} tabIndex={-1}>
+            Memory di Natale
+          </h3>
+          <p>Trova le coppie, due carte alla volta.</p>
+          <MemoryBoard
+            key={attempt.id}
+            cards={board}
+            revision={attempt.revision}
+            needsCover={attempt.needsCover}
+            done={attempt.done}
+            busy={busy}
+            onMove={onMove}
+          />
+        </>
+      ) : (
+        <>
+          <p>
+            Domanda {attempt.progress + 1} di {attempt.total}
+          </p>
+          <h3 ref={heading} tabIndex={-1}>
+            {attempt.question.text}
+          </h3>
+          <div className="competition-options">
+            {attempt.question.options.map((option, index) => (
+              <Button
+                type="button"
+                variant="outline"
+                key={option}
+                disabled={busy}
+                onClick={() => onMove({ choice: index })}
+              >
+                {option}
+              </Button>
+            ))}
+          </div>
+        </>
+      )}
+      <Notice error>{error}</Notice>
+      <Button type="button" variant="outline" disabled={busy} onClick={onClose}>
+        Torna alle sfide
+      </Button>
+    </div>
+  );
+}
+
+function Adjustment({ row, onSubmit, onClose, busy, error }) {
+  const [kind, setKind] = useState("add");
+  return (
+    <Modal title={`Punti di ${row.name}`} onClose={onClose}>
+      <form
+        className="competition-form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          const fields = new FormData(event.currentTarget);
+          onSubmit({
+            userId: row.userId,
+            kind,
+            points: kind === "reset" ? 0 : Number(fields.get("points")),
+            reason: fields.get("reason"),
+          });
+        }}
+      >
+        <Field label="Modifica">
+          <select
+            value={kind}
+            onChange={(event) => setKind(event.target.value)}
+          >
+            <option value="add">Aggiungi punti</option>
+            <option value="subtract">Sottrai punti</option>
+            <option value="reset">Azzera il totale</option>
+          </select>
+        </Field>
+        {kind === "reset" ? (
+          <p>I tentativi già usati restano registrati.</p>
+        ) : (
+          <Field
+            label="Punti"
+            name="points"
+            type="number"
+            min="1"
+            max="1000"
+            required
+          />
+        )}
+        <Field
+          label="Motivo della modifica"
+          name="reason"
+          maxLength={300}
+          required
+        />
+        <Notice error>{error}</Notice>
+        <Button type="submit" busy={busy}>
+          Salva la modifica
+        </Button>
+      </form>
+    </Modal>
+  );
+}
+
+export default function Competition({ event, user, members = [], onStamp }) {
+  const headingId = useId();
+  const [board, setBoard] = useState(null);
+  const [attempt, setAttempt] = useState(null);
+  const [adjustment, setAdjustment] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const path = `/competition/${event.id}`;
+  useEffect(() => {
+    let live = true;
+    setBoard(null);
+    setAttempt(null);
+    setError("");
+    api(path)
+      .then((data) => {
+        if (live) setBoard(data);
+      })
+      .catch((failure) => {
+        if (live) setError(failure.message);
+      });
+    return () => {
+      live = false;
+    };
+  }, [path]);
+  async function refresh() {
+    setBoard(await api(path));
+  }
+  async function perform(action) {
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      await action();
+      return true;
+    } catch (failure) {
+      setError(failure.message);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+  const start = (game, duelId) =>
+    perform(async () => {
+      const data = await api(`${path}/start`, "POST", { game, duelId });
+      setAttempt(data.attempt);
+    });
+  const move = (selection) =>
+    perform(async () => {
+      const data = await api(`${path}/action`, "POST", {
+        attemptId: attempt.id,
+        revision: attempt.revision,
+        ...selection,
+      });
+      setAttempt(data.attempt);
+      if (data.stamp) onStamp?.(data.stamp);
+      if (data.attempt.done) await refresh();
+    });
+  const memberById = new Map(members.map((member) => [member.userId, member]));
+  const opponents =
+    board?.leaderboard.filter(
+      (row) =>
+        row.userId !== user.id &&
+        activeMember(memberById.get(row.userId)?.status),
+    ) || [];
+
+  return (
+    <section className="competition" aria-labelledby={headingId}>
+      <div className="competition-header">
+        <Medal aria-hidden="true" size={30} />
+        <div>
+          <h2 id={headingId}>Babbo Natale segreto dell’anno</h2>
+          {board && (
+            <p>
+              Edizione {board.year} ·{" "}
+              {board.closed ? "Conclusa" : "Sfide aperte"}
+            </p>
+          )}
+        </div>
+      </div>
+      {!attempt && !adjustment && <Notice error>{error}</Notice>}
+      <Notice>{notice}</Notice>
+      {!board && !error && <p role="status">Stiamo caricando le sfide…</p>}
+      {!board && error && (
+        <Button
+          type="button"
+          variant="outline"
+          busy={busy}
+          onClick={() => perform(refresh)}
+        >
+          Riprova
+        </Button>
+      )}
+      {board && (
+        <>
+          {!board.canPlay && (
+            <p>
+              Puoi consultare la classifica. Per giocare, devi avere
+              un’iscrizione approvata all’evento.
+            </p>
+          )}
+          {board.canPlay && !board.joined && !board.closed && (
+            <div className="competition-callout paper">
+              <p>
+                Metti alla prova la memoria, rispondi al quiz e risolvi quattro
+                piccoli enigmi. Puoi giocare quando vuoi fino alla fine
+                dell’edizione.
+              </p>
+              <Button
+                type="button"
+                busy={busy}
+                onClick={() =>
+                  perform(async () => {
+                    await api(`${path}/join`, "POST", {});
+                    await refresh();
+                  })
+                }
+              >
+                Iscriviti alle sfide
+              </Button>
+            </div>
+          )}
+          <FestivalLeaderboard
+            rows={board.leaderboard}
+            memberById={memberById}
+            userId={user.id}
+            busy={busy}
+            onAdjust={
+              event.isAdmin
+                ? (row) => {
+                    setError("");
+                    setAdjustment(row);
+                  }
+                : undefined
+            }
+          />
+          {attempt ? (
+            <PlayCard
+              attempt={attempt}
+              onMove={move}
+              busy={busy}
+              error={error}
+              onClose={() => {
+                setAttempt(null);
+                perform(refresh);
+              }}
+            />
+          ) : (
+            board.canPlay &&
+            board.joined &&
+            !board.closed && (
+              <>
+                <div className="competition-section">
+                  <h3>Giochi e mini sfide</h3>
+                  <p>
+                    Ogni prova ha tre tentativi. Il primo vale per intero, il
+                    secondo al 95% e il terzo al 90%. In classifica resta il
+                    migliore.
+                  </p>
+                  <ul className="competition-games">
+                    {board.games.map((game) => {
+                      const resume = board.active.some(
+                        (active) => active.game === game.id,
+                      );
+                      const remaining = game.limit - game.attempts;
+                      const Icon =
+                        game.id === "quiz"
+                          ? BookOpen
+                          : game.id === "memory"
+                            ? Puzzle
+                            : Gift;
+                      return (
+                        <li key={game.id} className="competition-game paper">
+                          <Icon size={22} aria-hidden="true" />
+                          <h4>{game.name}</h4>
+                          <p>
+                            {game.best === null
+                              ? `Fino a ${game.points} punti`
+                              : `Miglior risultato: ${game.best} punti`}
+                          </p>
+                          <p>
+                            {remaining === 1
+                              ? "1 tentativo nuovo"
+                              : `${remaining} tentativi nuovi`}
+                          </p>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            disabled={busy || (!resume && remaining <= 0)}
+                            aria-label={`${resume ? "Riprendi" : "Gioca"}: ${game.name}`}
+                            onClick={() => start(game.id)}
+                          >
+                            {resume ? "Riprendi" : "Gioca"}
+                          </Button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+                <div className="competition-section">
+                  <h3>Duelli amichevoli</h3>
+                  <p>
+                    Invita una persona a rispondere alle tue stesse domande.
+                    Avete fino a due giorni e il risultato resta fuori dalla
+                    classifica.
+                  </p>
+                  {opponents.length ? (
+                    <form
+                      className="competition-duel-form"
+                      onSubmit={(submission) => {
+                        submission.preventDefault();
+                        const form = submission.currentTarget;
+                        const userId = new FormData(form).get("opponent");
+                        perform(async () => {
+                          await api(`${path}/duels`, "POST", { userId });
+                          await refresh();
+                          form.reset();
+                          setNotice("Duello lanciato.");
+                        });
+                      }}
+                    >
+                      <Field label="Chi vuoi sfidare?">
+                        <select name="opponent" required defaultValue="">
+                          <option value="" disabled>
+                            Scegli una persona
+                          </option>
+                          {opponents.map((row) => (
+                            <option value={row.userId} key={row.userId}>
+                              {row.name}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                      <Button type="submit" disabled={busy}>
+                        <Swords aria-hidden="true" size={18} /> Lancia un duello
+                      </Button>
+                    </form>
+                  ) : (
+                    <p>
+                      Potrai lanciare un duello appena si iscrive un’altra
+                      persona.
+                    </p>
+                  )}
+                </div>
+              </>
+            )
+          )}
+          {!attempt && !!board.duels.length && (
+            <ul className="competition-duels">
+              {board.duels.map((duel) => (
+                <li key={duel.id}>
+                  <div>
+                    <strong>Duello con {duel.opponent.name}</strong>
+                    {duel.scores ? (
+                      <p>
+                        Tu: {duel.scores[user.id] ?? "prova assente"} ·{" "}
+                        {duel.opponent.name}:{" "}
+                        {duel.scores[duel.opponent.userId] ?? "prova assente"}
+                      </p>
+                    ) : (
+                      <p>
+                        {duel.myDone
+                          ? "Aspettiamo l’altra prova."
+                          : duel.fromMe
+                            ? "Hai lanciato il duello."
+                            : "Hai ricevuto un invito."}
+                      </p>
+                    )}
+                  </div>
+                  {!duel.expired && !duel.myDone && board.canPlay && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={busy}
+                      onClick={() => start("duel", duel.id)}
+                    >
+                      {board.active.some((active) => active.duelId === duel.id)
+                        ? "Riprendi"
+                        : "Gioca il duello"}
+                    </Button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+      {adjustment && (
+        <Adjustment
+          row={adjustment}
+          busy={busy}
+          error={error}
+          onClose={() => {
+            if (!busy) {
+              setAdjustment(null);
+              setError("");
+            }
+          }}
+          onSubmit={(fields) =>
+            perform(async () => {
+              const data = await api(`${path}/adjust`, "POST", fields);
+              setBoard((previous) => ({
+                ...previous,
+                leaderboard: data.leaderboard,
+              }));
+              setAdjustment(null);
+              setNotice("Punti aggiornati.");
+            })
+          }
+        />
+      )}
+    </section>
+  );
+}
+
+export { Competition };

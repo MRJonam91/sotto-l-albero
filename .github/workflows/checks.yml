@@ -14,13 +14,12 @@ jobs:
       - run: npm run build
       - run: npm audit --audit-level=high
       - run: npx playwright install --with-deps chromium
-      - run: cp .dev.vars.example .dev.vars
-      - run: npm run db:local
+      - run: npx wrangler d1 migrations apply DB --local --persist-to .wrangler/e2e
       - name: Verifica dell’istanza locale
         run: |
-          npm start > /tmp/sotto-l-albero.log 2>&1 &
+          npx wrangler dev --ip 127.0.0.1 --port 8790 --persist-to .wrangler/e2e --env-file .dev.vars.example --var APP_URL:http://127.0.0.1:8790 > /tmp/sotto-l-albero.log 2>&1 &
           for attempt in $(seq 1 30); do
-            if curl --fail --silent http://127.0.0.1:8787/api/me; then break; fi
+            if curl --fail --silent http://127.0.0.1:8790/api/me; then break; fi
             sleep 1
           done
           npm run test:e2e

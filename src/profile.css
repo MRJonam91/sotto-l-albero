@@ -1,0 +1,248 @@
+.member-avatar {
+  width: var(--avatar-size);
+  height: var(--avatar-size);
+  flex: 0 0 var(--avatar-size);
+  display: inline-grid;
+  place-items: center;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #253c32;
+  color: var(--gold);
+  font-size: 0.85rem;
+  font-weight: 700;
+  vertical-align: middle;
+}
+
+.member-avatar img,
+.member-avatar svg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.profile .member-avatar {
+  width: 28px;
+  height: 28px;
+}
+
+.profile-settings,
+.profile-panel {
+  display: grid;
+  min-width: 0;
+  gap: 20px;
+}
+
+.profile-settings {
+  margin-bottom: 28px;
+}
+.profile-intro,
+.profile-heading,
+.profile-mini-preview,
+.profile-avatar-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.profile-intro {
+  overflow-wrap: anywhere;
+}
+.profile-intro p,
+.profile-heading p,
+.profile-heading h2 {
+  margin-bottom: 0;
+}
+.profile-identity {
+  color: var(--gold);
+}
+.profile-heading {
+  align-items: flex-start;
+}
+.profile-heading > svg {
+  flex: 0 0 auto;
+  margin-top: 7px;
+  color: var(--gold);
+}
+.profile-heading p,
+.profile-footnote {
+  color: var(--muted);
+}
+.profile-panel {
+  background: #102822;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: clamp(16px, 4vw, 34px);
+}
+.profile-panel h2 {
+  font-size: clamp(26px, 5vw, 37px);
+}
+
+.profile-mode,
+.profile-preset-grid {
+  display: grid;
+  gap: 8px;
+}
+.profile-mode {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.profile-preset-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(108px, 100%), 1fr));
+}
+.profile-mode button,
+.profile-preset-grid button {
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px 7px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--pine);
+}
+.profile-mode button[aria-pressed="true"],
+.profile-preset-grid button[aria-pressed="true"] {
+  border-color: var(--gold);
+  background: #23382d;
+  color: var(--gold);
+}
+.profile-preset-grid button {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 7px;
+  overflow-wrap: anywhere;
+  font-size: 0.8rem;
+}
+.profile-preset-check {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+}
+.profile-avatar-actions {
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+.profile-mini-preview {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.profile-mini-preview strong {
+  color: var(--paper);
+  overflow-wrap: anywhere;
+}
+.profile-remove {
+  justify-self: start;
+}
+.profile-options {
+  display: grid;
+  gap: 4px;
+  margin: 16px 0;
+}
+.profile-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+}
+.profile-toggle input {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  accent-color: var(--gold);
+}
+.profile-telegram,
+.photo-disclosure {
+  border: 1px solid var(--line);
+  padding: clamp(12px, 3vw, 20px);
+  border-radius: 8px;
+  margin-bottom: 14px;
+}
+.profile-telegram p:last-child,
+.photo-disclosure p:last-child {
+  margin-bottom: 0;
+}
+.profile-telegram strong {
+  margin-right: 8px;
+}
+.profile-telegram strong + span {
+  color: var(--gold);
+}
+.profile-footnote {
+  font-size: 0.85rem;
+}
+.photo-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 20px;
+  margin-bottom: 18px;
+}
+.photo-preview > canvas {
+  display: block;
+  width: 100%;
+  max-width: 430px;
+  aspect-ratio: 1;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  margin-bottom: 12px;
+}
+.photo-preview .profile-mini-preview canvas {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+}
+.profile-file {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  color: var(--gold);
+  font-weight: 700;
+  margin-bottom: 9px;
+}
+.profile-file input {
+  width: 100%;
+  min-width: 0;
+  color: var(--paper);
+  font-size: 0.83rem;
+}
+.profile-file input::file-selector-button {
+  background: var(--pine);
+  color: var(--paper);
+  border: 1px solid var(--gold);
+  border-radius: 6px;
+  padding: 7px;
+}
+.photo-range-controls {
+  min-width: 0;
+  border: 1px solid var(--line);
+  margin: 10px 0;
+}
+.photo-range-controls label:not(.profile-toggle) {
+  display: block;
+  margin: 8px 0;
+  font-size: 0.85rem;
+}
+.photo-range-controls input[type="range"] {
+  width: 100%;
+  display: block;
+  accent-color: var(--gold);
+}
+.photo-range-controls output {
+  color: var(--gold);
+  margin-left: 5px;
+}
+.photo-actions {
+  flex-wrap: wrap;
+}
+@media (max-width: 620px) {
+  .photo-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .profile-panel .form-actions .button {
+    max-width: 100%;
+    white-space: normal;
+  }
+}

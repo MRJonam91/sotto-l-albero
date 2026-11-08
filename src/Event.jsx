@@ -15,11 +15,15 @@ import {
   Trash2,
   ChevronDown,
   Send,
+  Trophy,
 } from "lucide-react";
 import { api, date, money, statusLabel, activeMember } from "./api.js";
 import { Button, Field, Notice, Modal } from "./ui.jsx";
 import EventEdit from "./EventEdit.jsx";
+import Avatar from "./Avatar.jsx";
+import EventTools from "./EventTools.jsx";
 const Reveal = lazy(() => import("./Reveal.jsx"));
+const Competition = lazy(() => import("./Competition.jsx"));
 const types = {
   object: "Un oggetto",
   theme: "Un interesse",
@@ -35,6 +39,7 @@ export default function Event({
   user,
   onOpen,
   onChange,
+  onStamp,
   initialTab = "overview",
 }) {
   const [data, setData] = useState(null),
@@ -61,7 +66,7 @@ export default function Event({
     }, 20000);
     return () => clearInterval(t);
   }, [data?.event.status, load]);
-  async function action(path, body = {}, message = "Fatto, tutto salvato.") {
+  async function action(path, body = {}, message = "Fatto.") {
     setBusy(true);
     setError("");
     setNotice("");
@@ -82,7 +87,7 @@ export default function Event({
     return (
       <div className="loading">
         <Notice error>{error}</Notice>
-        {!error ? "Apriamo la lettera…" : null}
+        {!error ? "Caricamento dell’evento…" : null}
       </div>
     );
   const { event, members = [], recipient } = data;
@@ -94,13 +99,18 @@ export default function Event({
     ["overview", "L’evento", Users],
     ["wishlist", "La mia lettera", Mail],
     ["reveal", "Il nome segreto", Gift],
+    ...(event.isAdmin || own?.status === "approved"
+      ? [["competition", "Sfide e classifica", Trophy]]
+      : []),
     ...(event.isAdmin ? [["admin", "Organizza", Settings2]] : []),
   ];
   return (
     <article className="event-page">
       <div className="event-heading">
         <div>
-          <span className="eyebrow">{event.groupName || "Il tuo gruppo"}</span>
+          {event.groupName && event.groupName !== event.name ? (
+            <span className="eyebrow">{event.groupName}</span>
+          ) : null}
           <h1>{event.name}</h1>
         </div>
         <span className="status">{statusLabel(event.status)}</span>
@@ -125,6 +135,7 @@ export default function Event({
           <button
             key={value}
             className={tab === value ? "selected" : ""}
+            aria-current={tab === value ? "page" : undefined}
             onClick={() => {
               setTab(value);
               setError("");
@@ -141,10 +152,10 @@ export default function Event({
       {tab === "overview" ? (
         <div className="event-columns">
           <section>
-            <h2>Ci prepariamo al Natale.</h2>
+            <h2>Lo scambio di Natale</h2>
             <p className="event-description">
               {event.description ||
-                "Un pensiero scelto con cura e la curiosità di scoprire chi ha pensato a te."}
+                "Prepara un regalo per la persona che hai pescato. Il resto è una sorpresa."}
             </p>
             <dl className="details-list">
               <div>
@@ -192,8 +203,8 @@ export default function Event({
             ) : null}
             <p className="privacy-note">
               <LockKeyhole size={16} />
-              Il nome che estrai resta tra te e l’organizzatore. Gli altri
-              avranno la loro sorpresa.
+              Ogni partecipante vede il nome che ha pescato. Chi organizza può
+              consultare tutti gli abbinamenti.
             </p>
           </section>
           <aside className="paper guest-list">
@@ -204,12 +215,12 @@ export default function Event({
                 .filter((m) => m.status !== "removed")
                 .map((m) => (
                   <div className="guest" key={m.id}>
-                    <span className="avatar">{m.name?.slice(0, 1)}</span>
+                    <Avatar userId={m.userId} name={m.name} avatar={m.avatar} />
                     <span>
                       {m.name}
                       <small>
                         {m.status === "pending"
-                          ? "Aspetta una conferma"
+                          ? "In attesa di conferma"
                           : m.hasWishlist
                             ? "Ha lasciato qualche indizio"
                             : "La lettera è ancora da scrivere"}
@@ -219,10 +230,7 @@ export default function Event({
                   </div>
                 ))
             ) : (
-              <p>
-                Le persone che accetteranno l’invito compariranno qui. Si
-                comincia con un messaggio.
-              </p>
+              <p>Qui vedrai chi accetta l’invito.</p>
             )}
           </aside>
         </div>
@@ -235,7 +243,7 @@ export default function Event({
             onSaved={() => {
               load();
               setNotice(
-                "La tua lettera è pronta. Puoi tornare a modificarla quando vuoi.",
+                "La tua lettera è pronta. Puoi modificarla quando vuoi.",
               );
             }}
           />
@@ -245,8 +253,8 @@ export default function Event({
             <h2>Una lettera per chi partecipa.</h2>
             <p>
               {own?.status === "pending"
-                ? "Appena l’organizzatore conferma il tuo posto, potrai scrivere i tuoi desideri."
-                : "Prima unisciti allo scambio, poi scrivi cosa ti farebbe piacere ricevere."}
+                ? "Potrai scrivere la lettera appena chi organizza conferma il tuo posto."
+                : "Partecipa allo scambio per lasciare qualche idea a chi ti farà il regalo."}
             </p>
           </div>
         )
@@ -275,6 +283,17 @@ export default function Event({
           onOpen={onOpen}
           setError={setError}
         />
+      ) : null}
+      {tab === "competition" &&
+      (event.isAdmin || own?.status === "approved") ? (
+        <Suspense fallback={<p role="status">Carichiamo la classifica…</p>}>
+          <Competition
+            event={event}
+            user={user}
+            members={members}
+            onStamp={onStamp}
+          />
+        </Suspense>
       ) : null}
       {confirm ? (
         <Modal title={confirm.title} onClose={() => setConfirm(null)}>
@@ -344,8 +363,8 @@ function Wishlist({ initial, id, onSaved }) {
         <div>
           <h2>Cosa ti farebbe piacere?</h2>
           <p>
-            Puoi essere preciso o lasciare spazio alla sorpresa. Scrivi come
-            parleresti a una persona che ti conosce.
+            Lascia qualche idea a chi ti farà il regalo. Basta un titolo, un
+            colore o qualcosa che ti piacerebbe provare.
           </p>
         </div>
         <Button
@@ -410,8 +429,8 @@ function Wishlist({ initial, id, onSaved }) {
                 required
                 placeholder={
                   item.type === "theme"
-                    ? "Per esempio, le serate con un buon libro"
-                    : "Un pensiero che ti somiglia"
+                    ? "Per esempio, una serata con un buon libro"
+                    : "Per esempio, una tazza blu"
                 }
               />
               <Field label="Racconta qualcosa in più">
@@ -446,7 +465,7 @@ function Wishlist({ initial, id, onSaved }) {
                       value={item.answer || ""}
                       onChange={(e) => update(i, "answer", e.target.value)}
                       maxLength={1000}
-                      hint="Chi riceve la tua lettera potrà leggerla se ha bisogno di una mano."
+                      hint="Chi ti fa il regalo può aprire la soluzione quando vuole."
                     />
                   ) : null}
                 </>
@@ -458,14 +477,13 @@ function Wishlist({ initial, id, onSaved }) {
             <Mail />
             <h3>Il foglio è tutto tuo.</h3>
             <p>
-              Parti da una cosa semplice: qualcosa che ti piace, che ti serve o
-              che ti incuriosisce.
+              Comincia da qualcosa che ti piace, ti serve o ti incuriosisce.
             </p>
           </div>
         )}
         <Notice error>{error}</Notice>
         <div className="form-actions">
-          <small>La lettera la leggerete tu e chi ti farà il regalo.</small>
+          <small>La lettera è visibile a te e a chi ti farà il regalo.</small>
           <Button busy={busy}>
             <Check size={17} />
             Salva la lettera
@@ -501,7 +519,7 @@ function Admin({ data, busy, action, load, setConfirm, onOpen, setError }) {
       setTimeout(() => setCopied(false), 2500);
     } catch {
       setError(
-        "Il browser non permette di copiare. Puoi selezionare il link qui sotto.",
+        "Non siamo riusciti a copiare. Seleziona il link e copialo a mano.",
       );
     }
   }
@@ -528,11 +546,8 @@ function Admin({ data, busy, action, load, setConfirm, onOpen, setError }) {
       ) : null}
       <section className="content-heading">
         <div>
-          <h2>Prima di cominciare.</h2>
-          <p>
-            Una data da spostare o un budget da rivedere? Puoi cambiare i
-            dettagli prima dell’estrazione.
-          </p>
+          <h2>Dettagli dello scambio</h2>
+          <p>Puoi cambiare date, budget e messaggio fino all’estrazione.</p>
         </div>
         <Button
           variant="outline"
@@ -547,10 +562,7 @@ function Admin({ data, busy, action, load, setConfirm, onOpen, setError }) {
         <div className="content-heading">
           <div>
             <h2>Invita il tuo gruppo.</h2>
-            <p>
-              Un messaggio nella chat e si comincia. Ogni persona confermerà il
-              proprio posto.
-            </p>
+            <p>Condividi il link in chat oppure manda un invito via email.</p>
           </div>
           <Mail className="section-icon" />
         </div>
@@ -565,7 +577,7 @@ function Admin({ data, busy, action, load, setConfirm, onOpen, setError }) {
               variant="ghost"
               onClick={() =>
                 copy(
-                  `Quest’anno ci scambiamo un regalo? Ti aspetto a ${event.name}. Budget: ${money(event.budget)}. Estraiamo i nomi il ${date(event.drawAt)}; ci scambiamo i regali il ${date(event.giftAt)}. Per partecipare: ${link}`,
+                  `Facciamo il Secret Santa? Ti aspetto a ${event.name}! Il budget è ${money(event.budget)} a persona. Peschiamo i nomi il ${date(event.drawAt)} e ci scambiamo i regali il ${date(event.giftAt)}. Apri il link per partecipare: ${link}`,
                 )
               }
             >
@@ -576,8 +588,8 @@ function Admin({ data, busy, action, load, setConfirm, onOpen, setError }) {
               busy={busy}
               onClick={() =>
                 setConfirm({
-                  title: "Creiamo un nuovo link?",
-                  text: "Il link precedente smetterà di funzionare. Chi è già iscritto rimarrà nel gruppo.",
+                  title: "Cambiare il link di invito?",
+                  text: "I link di invito già inviati smetteranno di funzionare. Chi si è già iscritto resta nel gruppo.",
                   path: "rotate-invite",
                   button: "Cambia il link",
                 })
@@ -594,7 +606,7 @@ function Admin({ data, busy, action, load, setConfirm, onOpen, setError }) {
             const r = await action(
               "invites",
               { emails: [...new Set(emails.split(/[\s,;]+/).filter(Boolean))] },
-              "Gli inviti sono in coda. Li invieremo rispettando i limiti del servizio email.",
+              "Gli inviti sono in coda. Puoi controllare lo stato qui sotto.",
             );
             if (r) setEmails("");
           }}
@@ -620,7 +632,7 @@ function Admin({ data, busy, action, load, setConfirm, onOpen, setError }) {
         {invites.length ? (
           <details className="disclosure">
             <summary>
-              Vedi gli inviti inviati <ChevronDown size={16} />
+              Stato degli inviti <ChevronDown size={16} />
             </summary>
             {invites.map((i, n) => (
               <div className="simple-row" key={i.id || n}>
@@ -629,7 +641,7 @@ function Admin({ data, busy, action, load, setConfirm, onOpen, setError }) {
                   {{
                     queued: "In coda",
                     sent: "Inviato",
-                    failed: "Invio da riprovare",
+                    failed: "Da inviare di nuovo",
                     accepted: "Accettato",
                   }[i.state || i.status] ||
                     i.state ||
@@ -640,6 +652,7 @@ function Admin({ data, busy, action, load, setConfirm, onOpen, setError }) {
           </details>
         ) : null}
       </section>
+      <EventTools event={event} locked={locked} action={action} />
       <section className="admin-section">
         <h2>Chi partecipa?</h2>
         {members.length ? (
@@ -681,7 +694,7 @@ function Admin({ data, busy, action, load, setConfirm, onOpen, setError }) {
                       action(
                         `members/${m.id}`,
                         { status: "removed" },
-                        "La persona è stata rimossa dallo scambio.",
+                        "Hai rimosso la persona dallo scambio.",
                       )
                     }
                   >
@@ -692,14 +705,15 @@ function Admin({ data, busy, action, load, setConfirm, onOpen, setError }) {
             </div>
           ))
         ) : (
-          <p>Non si è ancora iscritto nessuno. Manda il primo invito.</p>
+          <p>Nessuna iscrizione per ora. Manda il primo invito.</p>
         )}
       </section>
       <section className="admin-section">
-        <h2>Le regole degli abbinamenti.</h2>
+        <h2>Regole per l’estrazione</h2>
         <p>
-          Evita coppie già uscite o fissa un abbinamento. Lo storico del gruppo
-          aiuta a non ripetere gli scambi.
+          Qui puoi escludere o fissare un abbinamento. Per evitare di ripetere
+          gli scambi delle edizioni passate, controlla le impostazioni
+          dell’evento.
         </p>
         <form
           className="rule-form"
@@ -780,8 +794,9 @@ function Admin({ data, busy, action, load, setConfirm, onOpen, setError }) {
             Aggiungi gli scambi degli anni passati <ChevronDown size={16} />
           </summary>
           <p>
-            Una coppia per riga: email di chi ha fatto il regalo, email di chi
-            lo ha ricevuto. Usa gli indirizzi delle persone iscritte.
+            Scrivi una coppia per riga. Metti prima l’indirizzo di chi ha fatto
+            il regalo, poi quello di chi l’ha ricevuto. Usa le email con cui si
+            sono iscritti.
           </p>
           <form
             onSubmit={async (e) => {
@@ -798,7 +813,7 @@ function Admin({ data, busy, action, load, setConfirm, onOpen, setError }) {
               const r = await action(
                 "history",
                 { pairs },
-                "Gli scambi passati sono stati salvati.",
+                "Hai aggiunto gli scambi allo storico.",
               );
               if (r) setHistory("");
             }}
@@ -822,8 +837,8 @@ function Admin({ data, busy, action, load, setConfirm, onOpen, setError }) {
                 disabled={locked}
                 onClick={() =>
                   setConfirm({
-                    title: "Rimuoviamo gli scambi inseriti a mano?",
-                    text: "Lo storico delle edizioni organizzate sul sito rimane. Rimuoveremo soltanto le coppie che hai aggiunto a mano per questo gruppo.",
+                    title: "Rimuovere gli scambi inseriti a mano?",
+                    text: "Rimuoveremo le coppie che hai aggiunto a mano per questo gruppo. Lo storico delle edizioni organizzate sul sito rimane.",
                     path: "clear-history",
                     button: "Rimuovi lo storico importato",
                   })
@@ -837,11 +852,11 @@ function Admin({ data, busy, action, load, setConfirm, onOpen, setError }) {
       </section>
       <section className="admin-section draw-section">
         <div>
-          <span className="eyebrow">È arrivato il momento?</span>
-          <h2>Un nome per ciascuno.</h2>
+          <span className="eyebrow">Un nome per ciascuno</span>
+          <h2>Estrazione dei nomi</h2>
           <p>
-            L’estrazione parte alla data scelta. Puoi avviarla anche da qui:
-            servono almeno tre partecipanti confermati.
+            L’estrazione parte all’ora che hai scelto. Puoi avviarla anche da
+            qui quando ci sono almeno tre iscritti confermati.
           </p>
         </div>
         <Button
@@ -849,8 +864,8 @@ function Admin({ data, busy, action, load, setConfirm, onOpen, setError }) {
           disabled={locked || eligible.length < 3}
           onClick={() =>
             setConfirm({
-              title: "Possiamo estrarre i nomi?",
-              text: "Salveremo un destinatario per ogni persona confermata. Controlla che il gruppo sia al completo: dopo l’estrazione servirà annullarla per cambiare i partecipanti.",
+              title: "Estrarre i nomi adesso?",
+              text: "Controlla che il gruppo sia al completo. Assegneremo un nome a ogni partecipante confermato. Per cambiare i partecipanti dovrai annullare l’estrazione.",
               path: "draw",
               button: "Sì, estrai i nomi",
             })
@@ -864,8 +879,7 @@ function Admin({ data, busy, action, load, setConfirm, onOpen, setError }) {
         <section className="admin-section">
           <h2>Gli abbinamenti sono pronti.</h2>
           <p>
-            Apri l’elenco soltanto se hai bisogno di gestire lo scambio: vedrai
-            tutte le sorprese.
+            Nell’elenco vedrai chi fa il regalo a chi, anche chi farà il tuo.
           </p>
           <Button
             variant="outline"
@@ -873,7 +887,7 @@ function Admin({ data, busy, action, load, setConfirm, onOpen, setError }) {
             onClick={async () => {
               if (
                 !window.confirm(
-                  "Vedrai tutti gli abbinamenti, compreso chi farà un regalo a te. Vuoi continuare?",
+                  "Vedrai tutti gli abbinamenti, anche chi ti farà il regalo. Vuoi continuare?",
                 )
               )
                 return;
@@ -904,8 +918,10 @@ function Admin({ data, busy, action, load, setConfirm, onOpen, setError }) {
         </section>
       ) : null}
       <section className="admin-section maintenance">
-        <h2>Quando sarà passato Natale.</h2>
-        <p>Conserva il gruppo per l’anno prossimo o chiudi questo evento.</p>
+        <h2>Archivio e prossima edizione</h2>
+        <p>
+          Puoi archiviare questo scambio e ritrovare il gruppo l’anno prossimo.
+        </p>
         <div className="button-row">
           <Button
             variant="outline"
@@ -919,7 +935,7 @@ function Admin({ data, busy, action, load, setConfirm, onOpen, setError }) {
                 const r = await action(
                   "duplicate",
                   { name: name.trim() },
-                  "Nuovo evento creato.",
+                  "La prossima edizione è pronta.",
                 );
                 if (r) onOpen(r.event.id);
               }
@@ -934,8 +950,8 @@ function Admin({ data, busy, action, load, setConfirm, onOpen, setError }) {
             disabled={event.status === "archived"}
             onClick={() =>
               setConfirm({
-                title: "Mettiamo via questo Natale?",
-                text: "L’evento passerà nell’archivio. Potrai ritrovarlo e creare la prossima edizione.",
+                title: "Archiviare lo scambio?",
+                text: "Troverai lo scambio in archivio. Da lì potrai preparare la prossima edizione.",
                 path: "archive",
                 button: "Archivia l’evento",
               })
@@ -949,8 +965,8 @@ function Admin({ data, busy, action, load, setConfirm, onOpen, setError }) {
               variant="ghost danger"
               onClick={() =>
                 setConfirm({
-                  title: "Annulliamo questa estrazione?",
-                  text: "I nomi assegnati non saranno più validi. Avvisa il gruppo, soprattutto se qualcuno ha già comprato il regalo.",
+                  title: "Annullare l’estrazione?",
+                  text: "Gli abbinamenti verranno annullati. Avvisa il gruppo, soprattutto se qualcuno ha già comprato il regalo.",
                   path: "cancel",
                   version: event.version,
                   button: "Annulla l’estrazione",

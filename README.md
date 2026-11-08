@@ -26,28 +26,55 @@ I dati locali sono in `.wrangler/`, esclusa da Git. Il database di produzione è
 npm test
 npm run build
 npx playwright install chromium
-npm run db:local
-npm start
+npx wrangler d1 migrations apply DB --local --persist-to .wrangler/e2e
+npx wrangler dev --ip 127.0.0.1 --port 8790 --persist-to .wrangler/e2e --env-file .dev.vars.example --var APP_URL:http://127.0.0.1:8790
 # In un altro terminale, con il server attivo:
 npm run test:e2e
 ```
 
-Le prove end-to-end usano indirizzi fittizi e aggiungono eventi nel database locale. Richiedono `.dev.vars` con `LOCAL_DEV=true` e `ADMIN_EMAILS=admin@example.test,browser@example.test`, come nel file di esempio. Usare un database locale di prova. Gli screenshot vengono salvati nella cartella temporanea del sistema, oppure nella cartella indicata da `ARTIFACT_DIR`.
+Le prove end-to-end creano gruppi fittizi nel database isolato `.wrangler/e2e`. Il server di test usa gli account del file di esempio, senza credenziali di invio. Il runner rifiuta la porta 8787 dell’anteprima e gli URL remoti. Per usare un’altra porta locale di test, imposta `QA_BASE_URL`. Gli screenshot finiscono nella cartella temporanea o in quella indicata da `ARTIFACT_DIR`.
 
 ## Pubblicazione su Cloudflare
 
 1. Accedere con `npx wrangler login`.
 2. Creare il database: `npx wrangler d1 create sotto-l-albero`.
-3. Copiare il `database_id` restituito in `wrangler.jsonc`, al posto dell’ID composto da zeri.
+3. Verificare che il `database_id` in `wrangler.jsonc` corrisponda al database di destinazione. Per un primo deploy, inserire l’ID restituito dal comando precedente.
 4. Salvare l’indirizzo del gestore con `npx wrangler secret put ADMIN_EMAILS` e configurare `APP_URL` con l’URL definitivo HTTPS. Per più organizzatori separare le email con una virgola.
 5. Configurare il mittente verificato secondo le indicazioni del servizio email. Salvare la chiave con `npx wrangler secret put RESEND_API_KEY`; configurare `MAIL_FROM` con il mittente autorizzato.
-6. Applicare lo schema: `npx wrangler d1 migrations apply DB --remote`.
-7. Pubblicare: `npm run deploy`.
-8. Verificare accesso email, invito con un altro account, approvazione e una prima estrazione di prova.
+6. Preparare e verificare il pacchetto con `npm run build` e `npx wrangler deploy --dry-run --outdir .wrangler/deploy-check`.
+7. Dopo aver verificato il database di destinazione, esportarne una copia e applicare lo schema con `npx wrangler d1 migrations apply DB --remote`.
+8. Pubblicare con `npm run deploy`.
+9. Verificare accesso via email, invito con un altro account, approvazione, accesso ai giochi e una prima estrazione.
 
 Non impostare `LOCAL_DEV=true` in produzione. Senza il servizio email l’app non apre sessioni di produzione. Gli inviti copiabili funzionano insieme all’accesso verificato via email.
 
 Lo scheduler di Cloudflare controlla ogni minuto gli eventi in scadenza e gli invii in coda. La consegna dei messaggi dipende dal provider; lo stato non va confuso con l’accettazione dell’invito.
+
+## Account, classifica e Telegram
+
+Ci si registra dalla home o da un invito con nome, email e telefono con prefisso internazionale. L’email riceve sempre il codice di accesso. Nel profilo si scelgono a parte i canali per gli avvisi. Dal pannello dell’evento, chi organizza può preparare un account e aggiungerlo al gruppo. La persona conferma l’accesso col proprio codice. Il profilo di un account esistente rimane quello scelto dalla persona.
+
+Chi ha un posto confermato in almeno un gruppo può giocare al quiz e al Memory 4×4 nella sezione **Giochi**. Le sfide a punti si giocano nel singolo scambio. Quiz, Memory e quattro enigmi ammettono tre tentativi, con pesi del 100%, 95% e 90%. Conta il punteggio pesato migliore. I duelli amichevoli non assegnano punti. Chi organizza può aggiungere, sottrarre o azzerare i punti di chi partecipa alla classifica, indicando il motivo. L’azzeramento mantiene i tentativi già usati. La vista predefinita mostra ampolle con palline di Natale e colori assegnati in automatico. Si può passare a campanellini, fiocchi, polvere magica o lista. La preferenza si salva nel browser per account.
+
+1. Crea un bot con [@BotFather](https://t.me/BotFather), poi apri una chat privata con il bot e premi **Avvia** dal tuo account Telegram.
+2. Su Cloudflare imposta `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME` senza `@` e `TELEGRAM_WEBHOOK_SECRET` casuale con `npx wrangler secret put NOME`. Per una prova locale con un bot di test usa `.dev.vars`.
+3. Con il metodo Telegram `setWebhook`, configura il percorso HTTPS `/api/telegram/webhook`, lo stesso `secret_token` e `allowed_updates: ["message"]`. Dal profilo apri il bot e premi **Avvia** per associare il tuo account, poi attiva gli avvisi.
+
+Il bot invia aggiornamenti del gruppo, promemoria, riepiloghi della classifica, inviti alle sfide e il nome estratto in chat privata a chi ha attivato gli avvisi. L’email di estrazione contiene il link alla propria lettera. Su WhatsApp il link dell’evento si può condividere a mano. Per gli invii automatici fuori dalla finestra di assistenza, WhatsApp Business richiede modelli approvati e può applicare costi. [Telegram Bot API](https://core.telegram.org/bots/api#setwebhook) · [WhatsApp Business Messaging Policy](https://business.whatsapp.com/policy)
+
+Il ritratto si crea nel browser e si può scaricare come PNG. La foto originale resta sul dispositivo e non viene caricata sul server. Se si salva un avatar fotografico, l’app carica solo la miniatura da 256 × 256 pixel, al massimo 64 KiB. Per abilitare il salvataggio, configura un bucket Cloudflare R2 privato con il binding `AVATAR_BUCKET`. Mantieni l’accesso pubblico disattivato. Il gruppo vede un solo avatar per persona. Senza il bucket restano disponibili i personaggi pronti e il download del ritratto. [Binding R2 per Workers](https://developers.cloudflare.com/r2/get-started/workers-api/) · [Quote e tariffe R2](https://developers.cloudflare.com/r2/pricing/)
+
+La migrazione della classifica assegna i vecchi punteggi al primo scambio idoneo, senza duplicarli. Conserva separatamente i dati che non può attribuire. Gli avatar fotografici della versione precedente tornano alle iniziali, mentre i personaggi scelti restano visibili.
+
+### Accounts, scores and Telegram
+
+Register from the home page or an invitation with a name, email address and an international phone number. Sign-in codes always use email. In the profile, users choose whether to receive optional event notifications by email or Telegram. Event owners can prepare an account for a participant. The participant still signs in with their own code.
+
+Games require confirmed membership in a Secret Santa group. Practice includes a quiz and a 4×4 matching game. Each exchange has its own leaderboard. Ranked games count the best adjusted score out of three attempts, weighted at 100%, 95% and 90%. Friendly duels leave the ranking unchanged. Owners can add, subtract or reset points with an audit reason. Users can choose their hourglass motif or a list view.
+
+Create a bot with BotFather. Configure `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME` and `TELEGRAM_WEBHOOK_SECRET` as secrets. Set the HTTPS webhook to `/api/telegram/webhook` with the matching secret. Participants link their own private chat from the profile. WhatsApp sharing uses copied invitation links.
+
+Portraits are composed and downloaded in the browser. Original photos stay on the user’s device and are not uploaded to the server. An optional private R2 bucket bound as `AVATAR_BUCKET` stores only the selected avatar thumbnail. Replacing the avatar revokes access to the previous version.
 
 ## Dati e riservatezza
 
@@ -55,11 +82,11 @@ L’organizzatore può consultare gli abbinamenti del proprio evento. I partecip
 
 La repository è destinata a restare privata. Il sito usa inviti e accessi verificati anche quando il suo URL è raggiungibile. Un URL conosciuto non concede accesso agli eventi.
 
-## Prima pubblicazione
+## Ambiente di produzione
 
-L’app è distribuita su https://sotto-l-albero.sotto-l-albero.workers.dev, con database e scheduler attivi. L’organizzatore è configurato come segreto. Per attivare accessi e messaggi mancano `RESEND_API_KEY` e `MAIL_FROM`: fino a quel momento l’accesso online rimane chiuso. Le email reali non sono state inviate durante i test.
+Il Worker di riferimento è `sotto-l-albero`. Prima della pubblicazione, verifica che nell’ambiente di destinazione siano configurati `ADMIN_EMAILS`, `RESEND_API_KEY` e `MAIL_FROM`. Gli ultimi due servono anche per ricevere il codice di accesso.
 
-Verifica locale del 5 novembre 2026: 19 test di codice e 4 prove end-to-end passate; build e audit dipendenze superati. La suite include controlli desktop 1536×1024 e mobile 390×844, estrazione concorrente e programmata. Restano da provare la consegna delle email con mittente reale e il percorso autenticato sul dominio di produzione.
+Il collaudo locale copre desktop e mobile, estrazione concorrente e programmata, iscrizioni e accesso ai giochi. Per verificare la consegna effettiva dei messaggi, usa un mittente configurato e account di prova autorizzati nell’ambiente di destinazione.
 
 Per esportare il database: `npx wrangler d1 export DB --remote --output backup.sql`. Conservare il backup fuori dalla repository in uno spazio riservato. Provare il ripristino su un database separato prima di usarlo per recuperare dati reali.
 
@@ -67,4 +94,4 @@ Per esportare il database: `npx wrangler d1 export DB --remote --output backup.s
 
 Il progetto iniziale è in `docs/design/`; il piano di realizzazione è in `docs/implementation.md`. Il mockup documenta la direzione visiva. I testi finali seguono la revisione editoriale richiesta: italiano colloquiale, indicazioni dirette e piccoli richiami al Natale.
 
-L’immagine originale della home è generata con ImageGen. Titoli delle opere e brevi riferimenti a film ed episodi sono attribuiti nelle schermate dedicate. Nessun poster, fotogramma o brano musicale fa parte della distribuzione.
+L’immagine della home e le otto illustrazioni del Memory sono state generate con ImageGen. Titoli delle opere e brevi riferimenti a film ed episodi sono attribuiti nelle schermate dedicate. Nessun poster, fotogramma o brano musicale fa parte della distribuzione.

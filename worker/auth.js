@@ -3,6 +3,7 @@ import {
   token,
   digest,
   validEmail,
+  validPhone,
   safeText,
   HttpError,
   isLocalRequest,
@@ -54,18 +55,32 @@ export async function currentUser(request, env) {
   if (!raw) return null;
   const u = await first(
     env.DB,
-    "SELECT u.* FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.digest=? AND s.expires>?",
+    "SELECT u.*,av.kind AS avatar_kind,CASE WHEN av.kind='photo' THEN av.revision ELSE av.preset END AS avatar_value FROM sessions s JOIN users u ON u.id=s.user_id LEFT JOIN user_avatars av ON av.user_id=u.id WHERE s.digest=? AND s.expires>?",
     await digest(raw),
     Date.now(),
   );
   if (!u) return null;
   return { ...u, organizer: !!u.organizer };
 }
+function publicUser(user) {
+  return (
+    user && {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      avatar: user.avatar_value
+        ? { kind: user.avatar_kind, value: user.avatar_value }
+        : null,
+      organizer: !!user.organizer,
+    }
+  );
+}
 export async function authRoute(request, env, path, body, user) {
   const local = isLocalRequest(request, env);
   if (path === "/api/me")
     return json({
-      user,
+      user: publicUser(user),
       mailConfigured: !!(env.RESEND_API_KEY && env.MAIL_FROM),
       local,
     });
@@ -121,17 +136,24 @@ export async function authRoute(request, env, path, body, user) {
         "L’accesso via email deve ancora essere configurato.",
         503,
       );
-    const name = safeText(body.name, 80) || email.split("@")[0];
+    const existing = await first(
+      env.DB,
+      "SELECT name FROM users WHERE email=?",
+      email,
+    );
+    const name = existing?.name ?? safeText(body.name, 80, true);
+    const phone = existing ? null : validPhone(body.phone);
     const bytes = crypto.getRandomValues(new Uint32Array(1));
     const code = String(bytes[0] % 1000000).padStart(6, "0");
     await run(
       env.DB,
-      "INSERT INTO codes(email,digest,name,expires,attempts,requested) VALUES(?,?,?,?,0,?) ON CONFLICT(email) DO UPDATE SET digest=excluded.digest,name=excluded.name,expires=excluded.expires,attempts=0,requested=excluded.requested",
+      "INSERT INTO codes(email,digest,name,expires,attempts,requested,phone) VALUES(?,?,?,?,0,?,?) ON CONFLICT(email) DO UPDATE SET digest=excluded.digest,name=excluded.name,expires=excluded.expires,attempts=0,requested=excluded.requested,phone=excluded.phone",
       email,
       await digest(`${email}:${code}`),
       name,
       now + 600000,
       now,
+      phone,
     );
     if (!local)
       await sendMail(
@@ -171,8 +193,11 @@ export async function authRoute(request, env, path, body, user) {
           env.DB,
           "SELECT id FROM users WHERE organizer=1 LIMIT 1",
         )));
-    const uid = u?.id || id(),
-      session = token();
+    const session = token();
+    if (!u && !entry.phone)
+      throw new HttpError(
+        "Richiedi un nuovo codice indicando il tuo numero di telefono.",
+      );
     const statements = [
       env.DB.prepare(
         "DELETE FROM codes WHERE email=? AND digest=? AND expires>? AND attempts<=5",
@@ -185,23 +210,33 @@ export async function authRoute(request, env, path, body, user) {
     if (!u) {
       await run(
         env.DB,
-        "INSERT INTO users(id,email,name,organizer) VALUES(?,?,?,?)",
-        uid,
+        "INSERT INTO users(id,email,name,organizer,phone,notify_email) VALUES(?,?,?,?,?,0) ON CONFLICT(email) DO NOTHING",
+        id(),
         email,
         entry.name,
         organizer ? 1 : 0,
+        entry.phone,
       );
-    } else if (organizer && !u.organizer)
-      await run(env.DB, "UPDATE users SET organizer=1 WHERE id=?", uid);
+    }
+    if (organizer)
+      await run(
+        env.DB,
+        "UPDATE users SET organizer=1 WHERE email=? AND organizer=0",
+        email,
+      );
+    u = await first(
+      env.DB,
+      "SELECT u.*,av.kind AS avatar_kind,CASE WHEN av.kind='photo' THEN av.revision ELSE av.preset END AS avatar_value FROM users u LEFT JOIN user_avatars av ON av.user_id=u.id WHERE u.email=?",
+      email,
+    );
     await run(
       env.DB,
       "INSERT INTO sessions(digest,user_id,expires) VALUES(?,?,?)",
       await digest(session),
-      uid,
+      u.id,
       now + 30 * 86400000,
     );
-    u = await first(env.DB, "SELECT * FROM users WHERE id=?", uid);
-    return json({ user: { ...u, organizer: !!u.organizer } }, 200, {
+    return json({ user: publicUser(u) }, 200, {
       "Set-Cookie": `santa_session=${session}; HttpOnly; SameSite=Lax; Path=/; Max-Age=2592000${local ? "" : "; Secure"}`,
     });
   }

@@ -2,6 +2,7 @@ import {
   id,
   token,
   validEmail,
+  validPhone,
   safeText,
   safeUrl,
   HttpError,
@@ -124,6 +125,17 @@ export async function createEvent(db, user, body, groupId) {
       historyDepth,
     ),
   );
+  if (body.organizerParticipates === true)
+    batch.push(
+      stmt(
+        db,
+        "INSERT INTO members(id,event_id,user_id,status,updated_at) VALUES(?,?,?,'approved',?)",
+        id(),
+        eid,
+        user.id,
+        nowIso(),
+      ),
+    );
   await db.batch(batch);
   return first(
     db,
@@ -201,7 +213,7 @@ export async function drawEvent(env, e, actor = "scheduler") {
     batch.push(
       stmt(
         db,
-        "INSERT OR IGNORE INTO outbox(id,event_id,version,email,subject,html) SELECT ?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM events WHERE id=? AND draw_token=? AND status='drawn')",
+        "INSERT OR IGNORE INTO outbox(id,event_id,version,email,subject,html) SELECT ?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM events WHERE id=? AND draw_token=? AND status='drawn') AND EXISTS(SELECT 1 FROM users WHERE email=? AND notify_email=1)",
         id(),
         e.id,
         version,
@@ -210,6 +222,7 @@ export async function drawEvent(env, e, actor = "scheduler") {
         `<p>Abbiamo estratto i nomi per <strong>${escapeHtml(e.name)}</strong>.</p><p><a href="${escapeHtml(env.APP_URL || "")}/events/${e.id}">Apri la tua lettera</a> e scopri per chi preparerai il regalo.</p>`,
         e.id,
         claim,
+        m.email,
       ),
     );
   batch.push(
@@ -256,7 +269,13 @@ export async function eventRoute(request, env, path, body, user) {
     }
     if (method === "POST")
       return json(
-        { event: outputEvent(await createEvent(db, user, body), user, 0) },
+        {
+          event: outputEvent(
+            await createEvent(db, user, body),
+            user,
+            body.organizerParticipates === true ? 1 : 0,
+          ),
+        },
         201,
       );
   }
@@ -277,28 +296,42 @@ export async function eventRoute(request, env, path, body, user) {
       throw new HttpError(
         "Questo invito non è più valido o le iscrizioni sono chiuse.",
       );
-    const count = await first(
+    const existing = await first(
       db,
-      "SELECT COUNT(*) AS n FROM members WHERE event_id=? AND status!='removed'",
+      "SELECT status FROM members WHERE event_id=? AND user_id=? AND status!='removed'",
       eid,
+      user.id,
     );
-    if (count.n >= 50)
-      throw new HttpError("Questo evento ha già raggiunto 50 iscritti.");
-    await run(
+    if (existing) return json({ ok: true, membership: existing.status });
+    const changed = await run(
       db,
-      "INSERT INTO members(id,event_id,user_id,status,updated_at) VALUES(?,?,?,'pending',?) ON CONFLICT(event_id,user_id) DO UPDATE SET status=CASE WHEN members.status='removed' THEN 'pending' ELSE members.status END,updated_at=excluded.updated_at",
+      "INSERT INTO members(id,event_id,user_id,status,updated_at) SELECT ?,?,?,'pending',? WHERE EXISTS(SELECT 1 FROM events WHERE id=? AND status='open' AND version=?) AND ((SELECT COUNT(*) FROM members WHERE event_id=? AND status!='removed')<50) ON CONFLICT(event_id,user_id) DO UPDATE SET status='pending',updated_at=excluded.updated_at WHERE members.status='removed'",
       id(),
       eid,
       user.id,
       nowIso(),
+      eid,
+      e.version,
+      eid,
     );
-    return json({ ok: true });
+    const member = await first(
+      db,
+      "SELECT status FROM members WHERE event_id=? AND user_id=? AND status!='removed'",
+      eid,
+      user.id,
+    );
+    if (!changed.meta.changes && !member)
+      throw new HttpError(
+        "Le iscrizioni sono cambiate o il gruppo è al completo.",
+        409,
+      );
+    return json({ ok: true, membership: member?.status ?? "pending" });
   }
   const { e, member, admin } = await getEvent(db, eid, user);
   if (action === "" && method === "GET") {
     const members = await all(
       db,
-      "SELECT m.id,m.user_id AS userId,u.name,m.status,m.wishlist FROM members m JOIN users u ON u.id=m.user_id WHERE m.event_id=? AND m.status!='removed' ORDER BY m.updated_at",
+      "SELECT m.id,m.user_id AS userId,u.name,m.status,m.wishlist,av.kind AS avatar_kind,CASE WHEN av.kind='photo' THEN av.revision ELSE av.preset END AS avatar_value FROM members m JOIN users u ON u.id=m.user_id LEFT JOIN user_avatars av ON av.user_id=u.id WHERE m.event_id=? AND m.status!='removed' ORDER BY m.updated_at",
       eid,
     );
     const recipient =
@@ -345,10 +378,16 @@ export async function eventRoute(request, env, path, body, user) {
         user,
         members.filter((x) => x.status === "approved").length,
       ),
-      members: visibleMembers.map(({ wishlist, ...m }) => ({
-        ...m,
-        hasWishlist: JSON.parse(wishlist).length > 0,
-      })),
+      members: visibleMembers.map(
+        ({ wishlist, avatar_kind, avatar_value, ...m }) => ({
+          ...m,
+          hasWishlist: JSON.parse(wishlist).length > 0,
+          ...(avatar_value &&
+          (m.status === "approved" || admin || m.userId === user.id)
+            ? { avatar: { kind: avatar_kind, value: avatar_value } }
+            : {}),
+        }),
+      ),
       rules,
       wishlist: member ? JSON.parse(member.wishlist) : [],
       recipient: recipient
@@ -376,7 +415,7 @@ export async function eventRoute(request, env, path, body, user) {
       "preference",
     ];
     const items = body.items.map((x) => {
-      if (!types.includes(x.type))
+      if (!x || !types.includes(x.type))
         throw new HttpError("Scegli il tipo di desiderio.");
       return {
         id: id(),
@@ -399,6 +438,62 @@ export async function eventRoute(request, env, path, body, user) {
   }
   if (!admin)
     throw new HttpError("Questa azione spetta all’organizzatore.", 403);
+  if (action === "accounts" && method === "POST") {
+    mutable(e);
+    const name = safeText(body.name, 80, true),
+      email = validEmail(body.email),
+      phone = validPhone(body.phone),
+      claim = token();
+    const changed = await db.batch([
+      stmt(
+        db,
+        "UPDATE events SET version=version+1,draw_token=?,error=NULL WHERE id=? AND version=? AND status='open' AND ((SELECT COUNT(*) FROM members WHERE event_id=? AND status!='removed')<50 OR EXISTS(SELECT 1 FROM members m JOIN users u ON u.id=m.user_id WHERE m.event_id=? AND m.status!='removed' AND u.email=?))",
+        claim,
+        eid,
+        e.version,
+        eid,
+        eid,
+        email,
+      ),
+      stmt(
+        db,
+        "INSERT INTO users(id,email,name,phone,notify_email) SELECT ?,?,?,?,0 WHERE EXISTS(SELECT 1 FROM events WHERE id=? AND draw_token=?) ON CONFLICT(email) DO NOTHING",
+        id(),
+        email,
+        name,
+        phone,
+        eid,
+        claim,
+      ),
+      stmt(
+        db,
+        "INSERT INTO members(id,event_id,user_id,status,updated_at) SELECT ?,?,u.id,'approved',? FROM users u WHERE u.email=? AND EXISTS(SELECT 1 FROM events WHERE id=? AND draw_token=?) ON CONFLICT(event_id,user_id) DO UPDATE SET status='approved',updated_at=excluded.updated_at",
+        id(),
+        eid,
+        nowIso(),
+        email,
+        eid,
+        claim,
+      ),
+      stmt(
+        db,
+        "INSERT INTO audit(id,event_id,actor_id,action,created_at) SELECT ?,?,?,?,? WHERE EXISTS(SELECT 1 FROM events WHERE id=? AND draw_token=?)",
+        id(),
+        eid,
+        user.id,
+        "prepare_account",
+        nowIso(),
+        eid,
+        claim,
+      ),
+    ]);
+    if (!changed[0].meta.changes)
+      throw new HttpError(
+        "L’evento è cambiato o il gruppo è al completo.",
+        409,
+      );
+    return json({ ok: true }, 201);
+  }
   if (action === "" && method === "PUT") {
     mutable(e);
     if (!Number.isInteger(body.version) || body.version !== e.version)
@@ -768,7 +863,7 @@ export async function eventRoute(request, env, path, body, user) {
   }
   throw new HttpError("Questa azione non è disponibile.", 404);
 }
-export async function inviteRoute(env, t) {
+export async function inviteRoute(env, t, user) {
   const e = await first(
     env.DB,
     "SELECT e.*,u.name AS organizer_name FROM events e JOIN users u ON u.id=e.owner_id WHERE e.status='open' AND (e.invite_token=? OR EXISTS(SELECT 1 FROM invites i WHERE i.event_id=e.id AND i.token=?))",
@@ -777,6 +872,14 @@ export async function inviteRoute(env, t) {
   );
   if (!e || new Date(e.close_at).valueOf() <= Date.now())
     throw new HttpError("Questo invito è scaduto o è stato revocato.", 404);
+  const member =
+    user &&
+    (await first(
+      env.DB,
+      "SELECT status FROM members WHERE event_id=? AND user_id=? AND status!='removed'",
+      e.id,
+      user.id,
+    ));
   return json({
     event: {
       id: e.id,
@@ -787,6 +890,7 @@ export async function inviteRoute(env, t) {
       description: e.description,
     },
     organizerName: e.organizer_name,
+    membership: member?.status ?? null,
   });
 }
 export async function scheduled(env) {
@@ -826,6 +930,23 @@ export async function scheduled(env) {
         mail.id,
       );
       if (claim.meta.changes !== 1) continue;
+      if (
+        mail.version >= 0 &&
+        !(await first(
+          env.DB,
+          "SELECT 1 FROM events e JOIN members m ON m.event_id=e.id JOIN users u ON u.id=m.user_id WHERE e.id=? AND e.version=? AND m.status='approved' AND u.email=? AND u.notify_email=1",
+          mail.event_id,
+          mail.version,
+          mail.email,
+        ))
+      ) {
+        await run(
+          env.DB,
+          "UPDATE outbox SET state='cancelled' WHERE id=?",
+          mail.id,
+        );
+        continue;
+      }
       try {
         await sendMail(env, mail.email, mail.subject, mail.html, mail.id);
         await run(
@@ -865,4 +986,5 @@ export async function scheduled(env) {
   }
   await run(env.DB, "DELETE FROM sessions WHERE expires<?", Date.now());
   await run(env.DB, "DELETE FROM auth_limits WHERE expires<?", Date.now());
+  await run(env.DB, "DELETE FROM codes WHERE expires<?", Date.now());
 }

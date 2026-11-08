@@ -1,4 +1,4 @@
-import { beforeEach, describe, it, expect } from "vitest";
+import { beforeEach, describe, it, expect, vi } from "vitest";
 import { DatabaseSync } from "node:sqlite";
 import { readFileSync } from "node:fs";
 import worker from "../worker/index.js";
@@ -11,6 +11,12 @@ function database() {
     "0002_claims.sql",
     "0003_auth_limits.sql",
     "0004_event_editing.sql",
+    "0005_user_stamps.sql",
+    "0006_registration_and_practice.sql",
+    "0007_competition.sql",
+    "0008_notifications.sql",
+    "0009_event_competition.sql",
+    "0010_avatar_storage.sql",
   ])
     sql.exec(
       readFileSync(new URL(`../migrations/${file}`, import.meta.url), "utf8"),
@@ -73,9 +79,14 @@ async function login(email) {
   const r = await api("/auth/request", "POST", {
     email,
     name: email.split("@")[0],
+    phone: "+393200000000",
   });
   const v = await api("/auth/verify", "POST", { email, code: r.data.devCode });
   expect(v.status).toBe(200);
+  // Most existing fixtures exercise the legacy opt-in email flows.
+  await env.DB.prepare("UPDATE users SET notify_email=1 WHERE email=?")
+    .bind(email)
+    .run();
   return v.cookie;
 }
 async function event(cookie) {
@@ -99,6 +110,335 @@ beforeEach(() => {
 });
 
 describe("API privata", () => {
+  it("rifiuta registrazioni senza telefono e conserva il recapito dopo l’OTP", async () => {
+    const email = "nuovo@example.test";
+    const incomplete = await api("/auth/request", "POST", {
+      name: "Ada",
+      email,
+    });
+    expect(incomplete.status).toBe(400);
+    const requested = await api("/auth/request", "POST", {
+      name: "Ada",
+      email,
+      phone: "+39 320 000 0000",
+    });
+    expect(requested.status).toBe(200);
+    const session = await api("/auth/verify", "POST", {
+      email,
+      code: requested.data.devCode,
+    });
+    expect(session.data.user).toMatchObject({
+      name: "Ada",
+      phone: "+393200000000",
+    });
+    expect(session.data.user).not.toHaveProperty("telegram_chat_id");
+  });
+
+  it("restituisce lo stato effettivo sul link e preserva la conferma", async () => {
+    const owner = await login("owner@example.test");
+    const guest = await login("guest@example.test");
+    const e = await event(owner);
+    const invite = "/invite/" + e.inviteToken;
+    expect((await api(invite)).data.membership).toBe(null);
+    const joined = await api(
+      "/events/" + e.id + "/join",
+      "POST",
+      { token: e.inviteToken },
+      guest,
+    );
+    expect(joined.data.membership).toBe("pending");
+    expect((await api(invite, "GET", null, guest)).data.membership).toBe(
+      "pending",
+    );
+    const detail = await api("/events/" + e.id, "GET", null, owner);
+    await api(
+      "/events/" + e.id + "/members/" + detail.data.members[0].id,
+      "POST",
+      { status: "approved" },
+      owner,
+    );
+    expect((await api(invite, "GET", null, guest)).data.membership).toBe(
+      "approved",
+    );
+    expect(
+      (
+        await api(
+          "/events/" + e.id + "/join",
+          "POST",
+          { token: e.inviteToken },
+          guest,
+        )
+      ).data.membership,
+    ).toBe("approved");
+  });
+
+  it("prepara l’account dal gruppo senza sessione e senza sovrascrivere un profilo esistente", async () => {
+    const owner = await login("owner@example.test");
+    const stranger = await login("stranger@example.test");
+    const e = await event(owner);
+    const path = "/events/" + e.id;
+    const email = "preparato@example.test";
+    const fields = { name: "Ada", email, phone: "0039 320 000 0001" };
+    expect(
+      (await api(path + "/accounts", "POST", fields, stranger)).status,
+    ).toBe(403);
+    expect((await api(path + "/accounts", "POST", fields, owner)).status).toBe(
+      201,
+    );
+    const request = await api("/auth/request", "POST", { email });
+    expect(request.status).toBe(200);
+    const session = await api("/auth/verify", "POST", {
+      email,
+      code: request.data.devCode,
+    });
+    expect(session.data.user).toMatchObject({
+      name: "Ada",
+      phone: "+393200000001",
+      organizer: false,
+    });
+    expect(
+      (
+        await api(
+          path + "/accounts",
+          "POST",
+          { ...fields, name: "Altra", phone: "+393200000099" },
+          owner,
+        )
+      ).status,
+    ).toBe(201);
+    expect(
+      (await api("/me", "GET", null, session.cookie)).data.user,
+    ).toMatchObject({ name: "Ada", phone: "+393200000001" });
+    const group = (await api(path, "GET", null, session.cookie)).data.members;
+    expect(group).toHaveLength(1);
+    expect(group[0]).toMatchObject({ name: "Ada", status: "approved" });
+    expect(group[0]).not.toHaveProperty("phone");
+  });
+
+  it("respinge un desiderio nullo con 400 e impedisce timbri senza partita", async () => {
+    const owner = await login("owner@example.test");
+    const guest = await login("guest@example.test");
+    const e = await event(owner);
+    const base = "/events/" + e.id;
+    await api(base + "/join", "POST", { token: e.inviteToken }, guest);
+    const detail = await api(base, "GET", null, owner);
+    await api(
+      base + "/members/" + detail.data.members[0].id,
+      "POST",
+      { status: "approved" },
+      owner,
+    );
+    expect(
+      (await api(base + "/wishlist", "PUT", { items: [null] }, guest)).status,
+    ).toBe(400);
+    expect(
+      (await api("/stamps", "POST", { stamp: "quiz" }, guest)).status,
+    ).toBe(403);
+    expect(
+      (await api("/stamps", "POST", { stamp: "memory" }, guest)).status,
+    ).toBe(403);
+  });
+
+  it("consente giochi e timbri dei giochi soltanto a chi ha un’iscrizione approvata", async () => {
+    const owner = await login("owner@example.test");
+    const guest = await login("guest@example.test");
+    const e = await event(owner);
+    const base = "/events/" + e.id;
+    expect((await api("/practice/access")).status).toBe(401);
+    expect((await api("/practice/access", "GET", null, owner)).data).toEqual({
+      allowed: false,
+    });
+    await api(base + "/join", "POST", { token: e.inviteToken }, guest);
+    const member = (await api(base, "GET", null, owner)).data.members[0];
+    expect((await api("/practice/access", "GET", null, guest)).data).toEqual({
+      allowed: false,
+    });
+    for (const game of ["quiz", "memory"]) {
+      expect(
+        (await api(`/practice/${game}/start`, "POST", {}, guest)).status,
+      ).toBe(403);
+      expect(
+        (await api(`/practice/${game}/step`, "POST", {}, guest)).status,
+      ).toBe(403);
+    }
+    expect(
+      (await api("/stamps", "POST", { stamp: "cookie" }, guest)).status,
+    ).toBe(403);
+    await api(
+      base + "/members/" + member.id,
+      "POST",
+      { status: "approved" },
+      owner,
+    );
+    expect((await api("/practice/access", "GET", null, guest)).data).toEqual({
+      allowed: true,
+    });
+
+    const quiz = (await api("/practice/quiz/start", "POST", {}, guest)).data;
+    const memory = (await api("/practice/memory/start", "POST", {}, guest))
+      .data;
+    expect(memory.cards).toEqual(Array(16).fill({ name: null, paired: false }));
+    const names = new Set();
+    let current = memory;
+    for (let position = 0; position < 16; position++) {
+      if (current.cover)
+        current = (
+          await api(
+            "/practice/memory/step",
+            "POST",
+            { cover: true, revision: current.revision },
+            guest,
+          )
+        ).data;
+      if (current.cards[position].paired) continue;
+      current = (
+        await api(
+          "/practice/memory/step",
+          "POST",
+          { position, revision: current.revision },
+          guest,
+        )
+      ).data;
+      names.add(current.cards[position].name);
+    }
+    expect(names).toEqual(
+      new Set([
+        "Stella",
+        "Albero",
+        "Regalo",
+        "Campanella",
+        "Renna",
+        "Pupazzo di neve",
+        "Biscotto",
+        "Slitta",
+      ]),
+    );
+    await api(
+      base + "/members/" + member.id,
+      "POST",
+      { status: "removed" },
+      owner,
+    );
+    expect((await api("/practice/access", "GET", null, guest)).data).toEqual({
+      allowed: false,
+    });
+    expect(
+      (
+        await api(
+          "/practice/quiz/step",
+          "POST",
+          { choice: 0, revision: quiz.revision },
+          guest,
+        )
+      ).status,
+    ).toBe(403);
+    await env.DB.prepare(
+      "INSERT INTO user_stamps(user_id,stamp) SELECT id,'memory' FROM users WHERE email=?",
+    )
+      .bind("guest@example.test")
+      .run();
+    expect(
+      (await api("/stamps", "POST", { stamp: "memory" }, guest)).status,
+    ).toBe(403);
+    expect((await api("/stamps", "GET", null, guest)).data.stamps).toContain(
+      "memory",
+    );
+  });
+
+  it("riapre un Memory di allenamento da otto carte con la griglia aggiornata", async () => {
+    const owner = await login("owner@example.test");
+    const e = await event(owner);
+    const base = "/events/" + e.id;
+    await api(base + "/join", "POST", { token: e.inviteToken }, owner);
+    const member = (await api(base, "GET", null, owner)).data.members[0];
+    await api(
+      base + "/members/" + member.id,
+      "POST",
+      { status: "approved" },
+      owner,
+    );
+    const legacy = {
+      deck: [
+        "Stella",
+        "Albero",
+        "Regalo",
+        "Campanella",
+        "Stella",
+        "Albero",
+        "Regalo",
+        "Campanella",
+      ],
+      open: [0],
+      paired: [],
+      feedback: "Prova in corso",
+    };
+    await env.DB.prepare(
+      "INSERT INTO practice_games(user_id,game,revision,state) SELECT id,'memory','legacy',? FROM users WHERE email=?",
+    )
+      .bind(JSON.stringify(legacy), "owner@example.test")
+      .run();
+    const stale = await api(
+      "/practice/memory/step",
+      "POST",
+      { revision: "legacy", position: 4 },
+      owner,
+    );
+    expect(stale.status).toBe(409);
+    const fresh = await api("/practice/memory/start", "POST", {}, owner);
+    expect(fresh.data.cards).toEqual(
+      Array(16).fill({ name: null, paired: false }),
+    );
+    expect(fresh.data.revision).not.toBe("legacy");
+  });
+  it.each([
+    ["2026-12-24", "2026-12-25", "23", "00"],
+    ["2026-07-24", "2026-07-24", "22", "23"],
+  ])(
+    "rispetta la finestra di Babbo Natale in ora italiana (%s)",
+    async (previousDay, nextDay, startHour, endHour) => {
+      const clock = vi.spyOn(Date, "now");
+      try {
+        clock.mockReturnValue(Date.parse(`${previousDay}T${startHour}:04:59Z`));
+        const anna = await login("anna@example.com");
+        const luca = await login("luca@example.com");
+        const collect = (cookie) =>
+          api("/stamps", "POST", { stamp: "santa" }, cookie);
+        expect((await collect(anna)).status).toBe(409);
+        clock.mockReturnValue(Date.parse(`${previousDay}T${startHour}:05:00Z`));
+        expect((await collect(anna)).status).toBe(200);
+        clock.mockReturnValue(Date.parse(`${nextDay}T${endHour}:05:00Z`));
+        expect((await collect(luca)).status).toBe(409);
+        expect((await collect(anna)).status).toBe(200);
+        expect((await api("/stamps", "GET", null, anna)).data.stamps).toEqual([
+          "santa",
+        ]);
+        expect((await api("/stamps", "GET", null, luca)).data.stamps).toEqual(
+          [],
+        );
+      } finally {
+        clock.mockRestore();
+      }
+    },
+  );
+  it("salva ogni timbro una volta sola e lo mostra soltanto al suo proprietario", async () => {
+    expect((await api("/stamps")).status).toBe(401);
+    const anna = await login("anna@example.com");
+    const luca = await login("luca@example.com");
+    expect(
+      (await api("/stamps", "POST", { stamp: "sconosciuto" }, anna)).status,
+    ).toBe(400);
+    for (let i = 0; i < 2; i++) {
+      expect(
+        (await api("/stamps", "POST", { stamp: "star" }, anna)).status,
+      ).toBe(200);
+    }
+    expect((await api("/stamps", "GET", null, anna)).data).toEqual({
+      stamps: ["star"],
+    });
+    expect((await api("/stamps", "GET", null, luca)).data).toEqual({
+      stamps: [],
+    });
+  });
   it("nega accessi anonimi e crea un organizzatore locale", async () => {
     expect((await api("/events")).status).toBe(401);
     const cookie = await login("anna@example.com");
@@ -107,7 +447,11 @@ describe("API privata", () => {
     );
   });
   it("un OTP si può usare una sola volta", async () => {
-    const r = await api("/auth/request", "POST", { email: "anna@example.com" });
+    const r = await api("/auth/request", "POST", {
+      email: "anna@example.com",
+      name: "Anna",
+      phone: "+393200000000",
+    });
     expect(
       (
         await api("/auth/verify", "POST", {

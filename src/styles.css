@@ -214,7 +214,7 @@ main {
   padding: 0 52px;
 }
 .hero {
-  height: 470px;
+  min-height: 470px;
   position: relative;
   display: flex;
   align-items: center;
@@ -246,7 +246,7 @@ main {
   max-width: 620px;
 }
 .hero-copy h1 {
-  font-size: clamp(48px, 5vw, 72px);
+  font-size: clamp(45px, 4.7vw, 64px);
   margin: 0 0 22px;
 }
 .hero-copy h1 em {
@@ -258,6 +258,20 @@ main {
   line-height: 1.8;
   color: #d7ded4;
   margin-bottom: 30px;
+}
+.santa-rules-link {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: fit-content;
+  min-height: 44px;
+  margin-top: 0.3rem;
+  color: var(--gold);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+.santa-rules-link svg {
+  flex-shrink: 0;
 }
 .hidden-star {
   position: absolute;
@@ -821,6 +835,19 @@ input[type="datetime-local"] {
 .form-grid.three {
   grid-template-columns: 1fr 1fr 1fr;
 }
+.participation-choice {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.participation-choice input {
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  accent-color: var(--gold);
+}
 .form-actions {
   display: flex;
   align-items: center;
@@ -1357,6 +1384,8 @@ input[type="datetime-local"] {
   justify-content: center;
 }
 .recipient-letter h2 {
+  max-width: 100%;
+  overflow-wrap: anywhere;
   font-size: 70px;
   color: #59392b;
   line-height: 1.05;
@@ -1402,10 +1431,11 @@ input[type="datetime-local"] {
   color: #6c4931;
   margin: 5px 20px 5px 0;
 }
-.hint-text {
+.paper .hint-text {
   padding: 12px 15px;
   border-left: 2px solid #b89c69;
   background: #e5d4b6;
+  color: #493c2c;
   margin-top: 15px;
 }
 .gift-progress {
@@ -1592,8 +1622,8 @@ input[type="datetime-local"] {
   }
   .hero {
     margin: 0 -22px;
-    padding: 38px 22px 28px;
-    height: 530px;
+    padding: 36px 22px 180px;
+    min-height: 530px;
     align-items: flex-start;
   }
   .hero-copy {
@@ -1638,7 +1668,8 @@ input[type="datetime-local"] {
   .hidden-star {
     right: 19%;
     top: auto;
-    bottom: 170px;
+    bottom: 128px;
+    z-index: 2;
   }
   .section-title {
     gap: 15px;
@@ -1981,7 +2012,7 @@ input[type="datetime-local"] {
     width: 95%;
   }
   .recipient-letter h2 {
-    font-size: 60px;
+    font-size: clamp(34px, 10.5vw, 60px);
   }
   .recipient-wish {
     padding: 24px;
@@ -2041,6 +2072,70 @@ input[type="datetime-local"] {
       120px 310px,
       -50px 410px,
       90px 570px;
+  }
+}
+.site-header .icon-button,
+.profile,
+.hidden-star,
+.hunt-object,
+.text-button {
+  min-height: 44px;
+  min-width: 44px;
+}
+.profile {
+  justify-content: center;
+  padding: 0;
+}
+.paper :focus-visible {
+  outline-color: #713b32;
+}
+.tabs {
+  flex-wrap: wrap;
+  overflow: visible;
+}
+.tabs button {
+  min-height: 44px;
+}
+.event-heading > div,
+.form-grid > *,
+.rule-form > *,
+.field {
+  min-width: 0;
+}
+.event-heading h1,
+.event-name,
+.event-description {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 760px) {
+  .site-header nav {
+    height: auto;
+    min-height: 44px;
+    flex-wrap: wrap;
+    gap: 0 clamp(10px, 3vw, 24px);
+  }
+  .site-header nav button {
+    font-size: 13px;
+    min-height: 44px;
+  }
+  .hero-copy h1 {
+    font-size: clamp(34px, 8.6vw, 51px);
+  }
+  .hero-copy p {
+    font-size: 14px;
+  }
+  .tabs {
+    gap: 4px 16px;
+  }
+  .tabs button {
+    font-size: 13px;
+  }
+  .field input,
+  .field select,
+  .field textarea {
+    min-width: 0;
+    max-width: 100%;
+    font-size: 16px;
   }
 }
 @media (prefers-reduced-motion: reduce) {

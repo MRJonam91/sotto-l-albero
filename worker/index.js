@@ -1,6 +1,12 @@
 import { HttpError, json } from "./security.js";
 import { currentUser, authRoute } from "./auth.js";
 import { eventRoute, inviteRoute, scheduled } from "./events.js";
+import { stampRoute } from "./stamps.js";
+import { practiceRoute } from "./practice.js";
+import { competitionRoute } from "./competition.js";
+import { avatarRoute, cleanRetiredAvatars, profileRoute } from "./profile.js";
+import { telegramWebhook } from "./telegram.js";
+import { notificationRoute, runNotifications } from "./notifications.js";
 export default {
   async fetch(request, env) {
     const url = new URL(request.url),
@@ -12,13 +18,15 @@ export default {
       result.headers.set("Referrer-Policy", "same-origin");
       result.headers.set(
         "Content-Security-Policy",
-        "default-src 'self'; img-src 'self' data:; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+        "default-src 'self'; img-src 'self' data: blob:; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
       );
       return result;
     }
     try {
       if (!["GET", "POST", "PUT"].includes(request.method))
         throw new HttpError("Metodo non disponibile.", 405);
+      if (path === "/api/telegram/webhook")
+        return await telegramWebhook(request, env);
       let body = {};
       if (request.method !== "GET") {
         const origin = request.headers.get("Origin");
@@ -34,6 +42,8 @@ export default {
         } catch {
           throw new HttpError("I dati inviati non sono leggibili.");
         }
+        if (!body || typeof body !== "object" || Array.isArray(body))
+          throw new HttpError("I dati inviati devono essere un oggetto.");
       }
       const user = await currentUser(request, env);
       if (path === "/api/me" || path.startsWith("/api/auth/")) {
@@ -45,8 +55,20 @@ export default {
         return await authRoute(request, env, path, body, user);
       }
       if (path.startsWith("/api/invite/") && request.method === "GET")
-        return await inviteRoute(env, path.split("/").pop());
+        return await inviteRoute(env, path.split("/").pop(), user);
       if (!user) throw new HttpError("Accedi per continuare.", 401);
+      if (path === "/api/stamps")
+        return await stampRoute(request.method, env.DB, user.id, body);
+      if (path.startsWith("/api/practice/"))
+        return await practiceRoute(request, env, path, body, user);
+      if (path.startsWith("/api/competition/"))
+        return await competitionRoute(request, env, path, body, user);
+      if (path === "/api/profile" || path.startsWith("/api/profile/"))
+        return await profileRoute(request, env, path, body, user);
+      if (path.startsWith("/api/avatars/"))
+        return await avatarRoute(request, env, user);
+      if (path.startsWith("/api/notifications/"))
+        return await notificationRoute(request, env, path, body, user);
       return await eventRoute(request, env, path, body, user);
     } catch (error) {
       if (!(error instanceof HttpError))
@@ -63,6 +85,7 @@ export default {
     }
   },
   async scheduled(controller, env, ctx) {
-    ctx.waitUntil(scheduled(env));
+    ctx.waitUntil(scheduled(env).then(() => runNotifications(env)));
+    ctx.waitUntil(cleanRetiredAvatars(env));
   },
 };
