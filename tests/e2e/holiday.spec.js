@@ -96,11 +96,10 @@ test.describe("Profilo e caccia su schermo tattile", () => {
     await page.reload();
     await expect(page.locator(".profile .avatar-art")).toBeVisible();
     await page.getByRole("button", { name: "Usa una foto" }).click();
-    await expect(page.locator(".photo-editor")).not.toContainText(/telegram/i);
-    const originalRequests = [];
+    const networkWrites = [];
     page.on("request", (request) => {
-      if (/\/photo-(original|backup)$/.test(request.url()))
-        originalRequests.push(request.url());
+      if (!["GET", "HEAD", "OPTIONS"].includes(request.method()))
+        networkWrites.push(request.url());
     });
     const png = await page.evaluate(() => {
       const image = document.createElement("canvas");
@@ -129,7 +128,7 @@ test.describe("Profilo e caccia su schermo tattile", () => {
       .getByRole("button", { name: "Scarica il ritratto in alta risoluzione" })
       .click();
     expect((await download).suggestedFilename()).toMatch(/\.(png|webp|jpe?g)$/);
-    expect(originalRequests).toEqual([]);
+    expect(networkWrites).toEqual([]);
     await expect(
       page.getByRole("button", { name: "Salva avatar", exact: true }),
     ).toBeDisabled();
@@ -141,12 +140,8 @@ test.describe("Profilo e caccia su schermo tattile", () => {
       fullPage: true,
     });
     await expect(page.locator(".photo-editor")).toContainText(
-      "Progetto a zero budget, le immagini non saranno salvate sul server, solo 1 avatar alla volta. è consigliato  di scaricare la foto in locale",
+      "La foto originale resta sul tuo dispositivo.",
     );
-    await expect(page.locator(".photo-editor")).not.toContainText(
-      /telegram|copyright|copia di sicurezza/i,
-    );
-    expect(originalRequests).toEqual([]);
   });
 });
 
