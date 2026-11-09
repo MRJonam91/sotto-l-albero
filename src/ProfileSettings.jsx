@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowUpRight,
+  Camera,
   Check,
   Download,
   ImagePlus,
@@ -10,6 +11,7 @@ import {
   UserRound,
 } from "lucide-react";
 import Avatar, { avatarPresets } from "./Avatar.jsx";
+import AvatarCamera from "./AvatarCamera.jsx";
 import {
   avatarScenes,
   downloadAvatar,
@@ -467,7 +469,10 @@ async function loadPhoto(file) {
 }
 
 function PhotoEditor({ profile, name, disabled, onSave }) {
-  const [image, setImage] = useState(null);
+  const [portrait, setPortrait] = useState(null);
+  const [cropNotice, setCropNotice] = useState("");
+  const [cropping, setCropping] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
   const [settings, setSettings] = useState({
     scene: "elf",
     zoom: 1.15,
@@ -479,40 +484,81 @@ function PhotoEditor({ profile, name, disabled, onSave }) {
   const [error, setError] = useState("");
   const canvas = useRef(null);
   const mini = useRef(null);
+  const nativeCamera = useRef(null);
+  const photoRevision = useRef(0);
   const canSavePhoto = profile.photoAvailable;
 
   useEffect(() => {
-    if (canvas.current) drawAvatar(canvas.current, image, settings);
-    if (mini.current) drawAvatar(mini.current, image, settings, 72);
-  }, [image, settings]);
+    if (canvas.current) drawAvatar(canvas.current, portrait, settings);
+    if (mini.current) drawAvatar(mini.current, portrait, settings, 72);
+  }, [portrait, settings]);
 
-  async function pickPhoto(event) {
+  function pickPhoto(event) {
     const selected = event.target.files?.[0];
     event.target.value = "";
-    if (!selected) return;
+    if (selected) preparePhoto(selected);
+  }
+
+  async function preparePhoto(selected) {
     setError("");
-    setImage(null);
     if (!photoTypes.has(photoMime(selected)))
       return setError("Scegli un file JPEG, PNG o WebP.");
     if (selected.size > originalLimit)
       return setError("Scegli una foto da 5 MB o meno.");
+    const revision = ++photoRevision.current;
+    setCropNotice("");
+    setCropping(false);
     setBusy("read");
+    let source;
     try {
-      setImage(await loadPhoto(selected));
-      setSettings((current) => ({
-        ...current,
-        zoom: 1.15,
-        offsetX: 0,
-        offsetY: 0,
-      }));
+      source = await loadPhoto(selected);
     } catch (failure) {
       setError(failure.message);
+      return;
     } finally {
       setBusy("");
     }
+    setPortrait({ source, isolated: false });
+    setSettings((current) => ({
+      ...current,
+      zoom: 1.15,
+      offsetX: 0,
+      offsetY: 0,
+    }));
+    setCropping(true);
+    try {
+      const { isolateAvatarFace } = await import("./avatarSegmenter.js");
+      if (revision !== photoRevision.current) return;
+      const cutout = await isolateAvatarFace(source);
+      if (revision !== photoRevision.current) return;
+      if (cutout) {
+        setPortrait({ source: cutout, isolated: true });
+        setSettings((current) => ({ ...current, zoom: 1 }));
+      }
+      setCropNotice(
+        cutout
+          ? "Volto ritagliato. Ora scegli la scena."
+          : "Non riesco a isolare un solo volto. Prova un selfie di fronte o sistema il ritaglio a mano.",
+      );
+    } catch {
+      if (revision === photoRevision.current)
+        setCropNotice(
+          "Il ritaglio automatico non è disponibile qui. Puoi sistemare il viso a mano.",
+        );
+    } finally {
+      if (revision === photoRevision.current) setCropping(false);
+    }
+  }
+
+  function useManualCrop() {
+    if (!cropping) return;
+    photoRevision.current++;
+    setCropping(false);
+    setCropNotice("Stai usando il ritaglio manuale.");
   }
 
   async function act(key, operation) {
+    useManualCrop();
     setError("");
     setBusy(key);
     try {
@@ -525,15 +571,18 @@ function PhotoEditor({ profile, name, disabled, onSave }) {
   }
 
   const isDisabled = disabled || !!busy;
-  const setValue = (key, value) =>
+  const setValue = (key, value) => {
+    if (key === "zoom" || key === "offsetX" || key === "offsetY")
+      useManualCrop();
     setSettings((current) => ({ ...current, [key]: value }));
+  };
 
   return (
     <div className="photo-editor">
       <div className="photo-workspace">
         <div className="photo-preview">
           <canvas ref={canvas} role="img" aria-label="Anteprima dell’avatar" />
-          {image ? (
+          {portrait ? (
             <div className="profile-mini-preview">
               <canvas ref={mini} aria-hidden="true" />
               <span>
@@ -545,18 +594,45 @@ function PhotoEditor({ profile, name, disabled, onSave }) {
         <div className="photo-controls">
           <label className="profile-file">
             <ImagePlus size={19} aria-hidden="true" />
-            <span>{image ? "Scegli un’altra foto" : "Scegli una foto"}</span>
+            <span>{portrait ? "Scegli un’altra foto" : "Scegli una foto"}</span>
             <input
               type="file"
               accept="image/jpeg,image/png,image/webp"
               aria-label="Scegli una foto"
+              aria-describedby="avatar-selfie-hint"
               onChange={pickPhoto}
               disabled={isDisabled}
             />
           </label>
-          <p className="profile-footnote">
-            JPEG, PNG o WebP, fino a 5 MB. Con una foto di fronte è più facile
-            centrare il viso.
+          <Button
+            type="button"
+            variant="outline"
+            disabled={isDisabled}
+            onClick={() => {
+              if (navigator.mediaDevices?.getUserMedia) setCameraOpen(true);
+              else nativeCamera.current?.click();
+            }}
+          >
+            <Camera size={17} aria-hidden="true" /> Scatta una foto
+          </Button>
+          <input
+            ref={nativeCamera}
+            hidden
+            type="file"
+            accept="image/*"
+            capture="user"
+            onChange={pickPhoto}
+          />
+          <p className="profile-footnote" id="avatar-selfie-hint">
+            Scegli un selfie di fronte, con un solo viso ben illuminato. JPEG,
+            PNG o WebP, fino a 5 MB.
+          </p>
+          <p className="photo-crop-status" role="status">
+            {busy === "read"
+              ? "Sto aprendo la foto…"
+              : cropping
+                ? "Sto ritagliando il volto. Puoi già usare il ritaglio manuale."
+                : cropNotice}
           </p>
           <Field label="Scena natalizia">
             <select
@@ -573,15 +649,15 @@ function PhotoEditor({ profile, name, disabled, onSave }) {
           </Field>
           <fieldset
             className="photo-range-controls"
-            disabled={!image || isDisabled}
+            disabled={!portrait || isDisabled}
           >
             <legend>Sistema il ritaglio</legend>
             <label>
               Ingrandimento <output>{Math.round(settings.zoom * 100)}%</output>
               <input
                 type="range"
-                min="1"
-                max="4"
+                min={portrait?.isolated ? "0.8" : "1"}
+                max={portrait?.isolated ? "1.6" : "4"}
                 step=".05"
                 value={settings.zoom}
                 onChange={(event) =>
@@ -626,10 +702,19 @@ function PhotoEditor({ profile, name, disabled, onSave }) {
           </fieldset>
         </div>
       </div>
+      {cameraOpen && (
+        <AvatarCamera
+          onClose={() => setCameraOpen(false)}
+          onCapture={(photo) => {
+            setCameraOpen(false);
+            preparePhoto(photo);
+          }}
+        />
+      )}
 
       <div className="photo-disclosure">
         <p>
-          Progetto a zero budget. La foto originale resta sul tuo dispositivo.
+          Progetto a zero budget. L’editor elabora la foto sul tuo dispositivo.
           Nel profilo conserviamo una sola miniatura alla volta. Ti consigliamo
           di scaricare il ritratto in alta risoluzione.
         </p>
@@ -640,8 +725,10 @@ function PhotoEditor({ profile, name, disabled, onSave }) {
           type="button"
           variant="outline"
           busy={busy === "download"}
-          disabled={!image || isDisabled}
-          onClick={() => act("download", () => downloadAvatar(image, settings))}
+          disabled={!portrait || isDisabled}
+          onClick={() =>
+            act("download", () => downloadAvatar(portrait, settings))
+          }
         >
           <Download size={17} aria-hidden="true" />
           Scarica il ritratto in alta risoluzione
@@ -649,12 +736,12 @@ function PhotoEditor({ profile, name, disabled, onSave }) {
         <Button
           type="button"
           busy={busy === "save"}
-          disabled={!image || !canSavePhoto || isDisabled}
+          disabled={!portrait || !canSavePhoto || isDisabled}
           onClick={() =>
             act("save", async () =>
               onSave({
                 kind: "photo",
-                value: await makeAvatarThumbnail(image, settings),
+                value: await makeAvatarThumbnail(portrait, settings),
               }),
             )
           }

@@ -31,8 +31,10 @@ export function validEmail(value) {
     throw new HttpError("Controlla l’indirizzo email.");
   return email;
 }
-export function validPhone(value) {
-  const text = safeText(value, 32).replace(/[\s().-]/g, "");
+export function optionalPhone(value) {
+  const input = safeText(value, 32);
+  if (!input) return null;
+  const text = input.replace(/[\s().-]/g, "");
   const phone = text.startsWith("00") ? "+" + text.slice(2) : text;
   if (!/^\+[1-9][0-9]{6,14}$/.test(phone))
     throw new HttpError(

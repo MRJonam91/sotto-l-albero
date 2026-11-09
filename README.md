@@ -52,7 +52,7 @@ Lo scheduler di Cloudflare controlla ogni minuto gli eventi in scadenza e gli in
 
 ## Account, classifica e Telegram
 
-Ci si registra dalla home o da un invito con nome, email e telefono con prefisso internazionale. L’email riceve sempre il codice di accesso. Nel profilo si scelgono a parte i canali per gli avvisi. Dal pannello dell’evento, chi organizza può preparare un account e aggiungerlo al gruppo. La persona conferma l’accesso col proprio codice. Il profilo di un account esistente rimane quello scelto dalla persona.
+Ci si registra dalla home o da un invito con nome ed email. Chi organizza può aggiungere una persona usando gli stessi due dati. La persona entra con il codice ricevuto via email e il suo profilo resta invariato se ha già un account. Il telefono è facoltativo nel profilo. Gli avvisi Telegram usano la chat privata collegata dal profilo.
 
 Chi ha un posto confermato in almeno un gruppo può giocare al quiz e al Memory 4×4 nella sezione **Giochi**. Le sfide a punti si giocano nel singolo scambio. Quiz, Memory e quattro enigmi ammettono tre tentativi, con pesi del 100%, 95% e 90%. Conta il punteggio pesato migliore. I duelli amichevoli non assegnano punti. Chi organizza può aggiungere, sottrarre o azzerare i punti di chi partecipa alla classifica, indicando il motivo. L’azzeramento mantiene i tentativi già usati. La vista predefinita mostra ampolle con palline di Natale e colori assegnati in automatico. Si può passare a campanellini, fiocchi, polvere magica o lista. La preferenza si salva nel browser per account.
 
@@ -62,25 +62,25 @@ Chi ha un posto confermato in almeno un gruppo può giocare al quiz e al Memory 
 
 Il bot invia aggiornamenti del gruppo, promemoria, riepiloghi della classifica, inviti alle sfide e il nome estratto in chat privata a chi ha attivato gli avvisi. L’email di estrazione contiene il link alla propria lettera. Su WhatsApp il link dell’evento si può condividere a mano. Per gli invii automatici fuori dalla finestra di assistenza, WhatsApp Business richiede modelli approvati e può applicare costi. [Telegram Bot API](https://core.telegram.org/bots/api#setwebhook) · [WhatsApp Business Messaging Policy](https://business.whatsapp.com/policy)
 
-Il ritratto si crea nel browser e si può scaricare come PNG. La foto originale resta sul dispositivo e non viene caricata sul server. Se si salva un avatar fotografico, l’app carica solo la miniatura da 256 × 256 pixel, al massimo 64 KiB. Per abilitare il salvataggio, configura un bucket Cloudflare R2 privato con il binding `AVATAR_BUCKET`. Mantieni l’accesso pubblico disattivato. Il gruppo vede un solo avatar per persona. Senza il bucket restano disponibili i personaggi pronti e il download del ritratto. [Binding R2 per Workers](https://developers.cloudflare.com/r2/get-started/workers-api/) · [Quote e tariffe R2](https://developers.cloudflare.com/r2/pricing/)
+Puoi scegliere una foto o scattare un selfie. Il browser ritaglia il volto con MediaPipe e compone il ritratto con Canvas. Se il ritaglio automatico non riesce, puoi centrare il viso a mano. Il PNG scaricabile misura 1024 × 1024 pixel. Quando salvi l’avatar, l’app invia solo la miniatura da 256 × 256 pixel, al massimo 64 KiB. D1 conserva una sola miniatura corrente per persona. Se configuri il binding facoltativo `AVATAR_BUCKET`, le nuove miniature vanno nel bucket R2 privato. Applica le migrazioni D1 prima del deploy. [Binding R2 per Workers](https://developers.cloudflare.com/r2/get-started/workers-api/)
 
 La migrazione della classifica assegna i vecchi punteggi al primo scambio idoneo, senza duplicarli. Conserva separatamente i dati che non può attribuire. Gli avatar fotografici della versione precedente tornano alle iniziali, mentre i personaggi scelti restano visibili.
 
 ### Accounts, scores and Telegram
 
-Register from the home page or an invitation with a name, email address and an international phone number. Sign-in codes always use email. In the profile, users choose whether to receive optional event notifications by email or Telegram. Event owners can prepare an account for a participant. The participant still signs in with their own code.
+Register from the home page or an invitation with a name and email address. Event owners can add participants with the same two fields. The phone number is optional in the profile. Telegram notifications use the private chat linked from the profile.
 
 Games require confirmed membership in a Secret Santa group. Practice includes a quiz and a 4×4 matching game. Each exchange has its own leaderboard. Ranked games count the best adjusted score out of three attempts, weighted at 100%, 95% and 90%. Friendly duels leave the ranking unchanged. Owners can add, subtract or reset points with an audit reason. Users can choose their hourglass motif or a list view.
 
 Create a bot with BotFather. Configure `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME` and `TELEGRAM_WEBHOOK_SECRET` as secrets. Set the HTTPS webhook to `/api/telegram/webhook` with the matching secret. Participants link their own private chat from the profile. WhatsApp sharing uses copied invitation links.
 
-Portraits are composed and downloaded in the browser. Original photos stay on the user’s device and are not uploaded to the server. An optional private R2 bucket bound as `AVATAR_BUCKET` stores only the selected avatar thumbnail. Replacing the avatar revokes access to the previous version.
+Choose a photo or take a selfie. MediaPipe cuts out the face and Canvas composes the portrait in the browser, with a manual crop when automatic cutout is unavailable. Download the 1024 × 1024 PNG or save a 256 × 256 thumbnail of up to 64 KiB. D1 keeps one current thumbnail per person. When the optional private R2 binding `AVATAR_BUCKET` is set, new thumbnails are stored in that bucket. Apply the D1 migrations before deploying.
 
 ## Dati e riservatezza
 
 L’organizzatore può consultare gli abbinamenti del proprio evento. I partecipanti vedono il proprio destinatario e i suoi desideri. L’estrazione usa casualità crittografica e rispetta esclusioni e coppie fissate; con vincoli arbitrari non si promette che tutte le soluzioni abbiano la stessa probabilità.
 
-La repository è destinata a restare privata. Il sito usa inviti e accessi verificati anche quando il suo URL è raggiungibile. Un URL conosciuto non concede accesso agli eventi.
+Il portale usa inviti e accessi verificati. Conoscere l’indirizzo del sito non concede accesso agli eventi.
 
 ## Ambiente di produzione
 

@@ -30,6 +30,7 @@ import {
 } from "./Holiday.jsx";
 import { useStampCollection } from "./useStampCollection.js";
 import { stamps } from "../shared/stamps.js";
+import { version } from "../package.json";
 const ProfileSettings = lazy(() => import("./ProfileSettings.jsx"));
 
 const sectionPaths = {
@@ -561,7 +562,7 @@ export default function App() {
             Regolamento del Secret Santa
           </a>
           <span>
-            Sotto l’Albero <Heart size={12} />
+            Sotto l’Albero · v{version} <Heart size={12} aria-hidden="true" />
           </span>
         </footer>
       </div>

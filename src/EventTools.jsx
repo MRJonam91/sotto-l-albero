@@ -81,14 +81,6 @@ export default function EventTools({ event, locked, action }) {
                 required
               />
             </div>
-            <Field
-              label="Telefono della persona"
-              name="phone"
-              type="tel"
-              maxLength={32}
-              required
-              hint="Scrivi il prefisso internazionale, per esempio +39."
-            />
             <Button busy={preparing}>Prepara il posto</Button>
           </form>
         </details>

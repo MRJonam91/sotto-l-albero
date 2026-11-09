@@ -17,6 +17,7 @@ function database() {
     "0008_notifications.sql",
     "0009_event_competition.sql",
     "0010_avatar_storage.sql",
+    "0011_avatar_thumbnail.sql",
   ])
     sql.exec(
       readFileSync(new URL(`../migrations/${file}`, import.meta.url), "utf8"),
@@ -110,17 +111,11 @@ beforeEach(() => {
 });
 
 describe("API privata", () => {
-  it("rifiuta registrazioni senza telefono e conserva il recapito dopo l’OTP", async () => {
+  it("registra con nome ed email e permette di aggiungere il recapito dal profilo", async () => {
     const email = "nuovo@example.test";
-    const incomplete = await api("/auth/request", "POST", {
-      name: "Ada",
-      email,
-    });
-    expect(incomplete.status).toBe(400);
     const requested = await api("/auth/request", "POST", {
       name: "Ada",
       email,
-      phone: "+39 320 000 0000",
     });
     expect(requested.status).toBe(200);
     const session = await api("/auth/verify", "POST", {
@@ -129,9 +124,11 @@ describe("API privata", () => {
     });
     expect(session.data.user).toMatchObject({
       name: "Ada",
-      phone: "+393200000000",
+      phone: null,
     });
     expect(session.data.user).not.toHaveProperty("telegram_chat_id");
+    const updated = await api("/profile", "PUT", { phone: "+39 320 000 0000" }, session.cookie);
+    expect(updated.data.phone).toBe("+393200000000");
   });
 
   it("restituisce lo stato effettivo sul link e preserva la conferma", async () => {
@@ -178,7 +175,7 @@ describe("API privata", () => {
     const e = await event(owner);
     const path = "/events/" + e.id;
     const email = "preparato@example.test";
-    const fields = { name: "Ada", email, phone: "0039 320 000 0001" };
+    const fields = { name: "Ada", email };
     expect(
       (await api(path + "/accounts", "POST", fields, stranger)).status,
     ).toBe(403);
@@ -193,7 +190,7 @@ describe("API privata", () => {
     });
     expect(session.data.user).toMatchObject({
       name: "Ada",
-      phone: "+393200000001",
+      phone: null,
       organizer: false,
     });
     expect(
@@ -208,7 +205,7 @@ describe("API privata", () => {
     ).toBe(201);
     expect(
       (await api("/me", "GET", null, session.cookie)).data.user,
-    ).toMatchObject({ name: "Ada", phone: "+393200000001" });
+    ).toMatchObject({ name: "Ada", phone: null });
     const group = (await api(path, "GET", null, session.cookie)).data.members;
     expect(group).toHaveLength(1);
     expect(group[0]).toMatchObject({ name: "Ada", status: "approved" });

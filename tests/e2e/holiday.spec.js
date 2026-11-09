@@ -96,10 +96,11 @@ test.describe("Profilo e caccia su schermo tattile", () => {
     await page.reload();
     await expect(page.locator(".profile .avatar-art")).toBeVisible();
     await page.getByRole("button", { name: "Usa una foto" }).click();
-    const networkWrites = [];
+    await expect(page.locator(".photo-editor")).not.toContainText(/telegram/i);
+    const originalRequests = [];
     page.on("request", (request) => {
-      if (!["GET", "HEAD", "OPTIONS"].includes(request.method()))
-        networkWrites.push(request.url());
+      if (/\/photo-(original|backup)$/.test(request.url()))
+        originalRequests.push(request.url());
     });
     const png = await page.evaluate(() => {
       const image = document.createElement("canvas");
@@ -128,10 +129,16 @@ test.describe("Profilo e caccia su schermo tattile", () => {
       .getByRole("button", { name: "Scarica il ritratto in alta risoluzione" })
       .click();
     expect((await download).suggestedFilename()).toMatch(/\.(png|webp|jpe?g)$/);
-    expect(networkWrites).toEqual([]);
+    expect(originalRequests).toEqual([]);
+    const savePortrait = page.getByRole("button", {
+      name: "Salva avatar",
+      exact: true,
+    });
+    await expect(savePortrait).toBeEnabled();
+    await savePortrait.click();
     await expect(
-      page.getByRole("button", { name: "Salva avatar", exact: true }),
-    ).toBeDisabled();
+      page.locator('.profile img[src*="/api/avatars/"]').first(),
+    ).toBeVisible();
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth),
     ).toBeLessThanOrEqual(390);
@@ -140,8 +147,39 @@ test.describe("Profilo e caccia su schermo tattile", () => {
       fullPage: true,
     });
     await expect(page.locator(".photo-editor")).toContainText(
-      "La foto originale resta sul tuo dispositivo.",
+      "L’editor elabora la foto sul tuo dispositivo.",
     );
+    const sendBackup = page.getByRole("button", {
+      name: "Invia la copia privata",
+    });
+    await expect(sendBackup).toHaveCount(0);
+    await expect(page.locator(".photo-backup")).toHaveCount(0);
+    expect(originalRequests).toEqual([]);
+
+    await page.route("**/api/profile", async (route) => {
+      const response = await route.fetch();
+      const profile = await response.json();
+      await route.fulfill({
+        response,
+        json: { ...profile, photoBackupAvailable: true },
+      });
+    });
+    await page.reload();
+    await page.getByRole("button", { name: "Usa una foto" }).click();
+    const photo = Buffer.from(png, "base64");
+    await page.getByLabel("Scegli una foto").setInputFiles({
+      name: "ritratto-test.png",
+      mimeType: "image/png",
+      buffer: photo,
+    });
+    await expect(page.locator(".photo-editor")).not.toContainText(/telegram/i);
+    await expect(sendBackup).toHaveCount(0);
+    await expect(
+      page.getByRole("checkbox", {
+        name: "Acconsento a inviare la foto originale al gestore.",
+      }),
+    ).toHaveCount(0);
+    expect(originalRequests).toEqual([]);
   });
 });
 
@@ -170,7 +208,6 @@ test("Caccia, quiz e memory su telefono salvano i timbri nel profilo", async ({
   };
 
   await page.getByLabel("Come ti chiami?").fill("Ada");
-  await page.getByLabel("Numero di telefono").fill("+393200000000");
   await page
     .getByLabel("La tua email")
     .fill(`timbri-${Date.now()}@example.test`);

@@ -2,7 +2,7 @@ import {
   id,
   token,
   validEmail,
-  validPhone,
+  optionalPhone,
   safeText,
   safeUrl,
   HttpError,
@@ -442,7 +442,7 @@ export async function eventRoute(request, env, path, body, user) {
     mutable(e);
     const name = safeText(body.name, 80, true),
       email = validEmail(body.email),
-      phone = validPhone(body.phone),
+      phone = optionalPhone(body.phone),
       claim = token();
     const changed = await db.batch([
       stmt(

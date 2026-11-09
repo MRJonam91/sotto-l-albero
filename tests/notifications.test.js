@@ -230,6 +230,7 @@ it("conserva la miniatura solo in R2, la serve agli iscritti autorizzati e rimuo
     kind: "photo",
     preset: null,
     revision: saved.avatar.value,
+    thumbnail: null,
   });
   expect(JSON.stringify(row)).not.toContain(image);
   expect([...images.values()]).toEqual([jpeg256()]);
@@ -257,7 +258,7 @@ it("conserva la miniatura solo in R2, la serve agli iscritti autorizzati e rimuo
   expect(calls).toEqual([]);
 });
 
-it("mantiene i preset senza R2 e rifiuta le miniature oltre i limiti di formato o dimensione", async () => {
+it("senza R2 conserva in D1 solo la miniatura corrente e mantiene gli stessi controlli di accesso", async () => {
   const imageData = (bytes) =>
     `data:image/jpeg;base64,${Buffer.from(bytes).toString("base64")}`;
   const large = new Uint8Array(65537);
@@ -271,10 +272,28 @@ it("mantiene i preset senza R2 e rifiuta le miniature oltre i limiti di formato 
     profile("/avatar", "POST", { kind: "photo", value: imageData(wrongSize) }),
   ).rejects.toMatchObject({ status: 415 });
   delete env.AVATAR_BUCKET;
-  expect((await (await profile()).json()).photoAvailable).toBe(false);
+  expect((await (await profile()).json()).photoAvailable).toBe(true);
+  const upload = () =>
+    profile("/avatar", "POST", { kind: "photo", value: imageData(jpeg256()) });
+  const { avatar } = await (await upload()).json();
+  const path = `/api/avatars/anna?v=${avatar.value}`;
   await expect(
-    profile("/avatar", "POST", { kind: "photo", value: imageData(jpeg256()) }),
-  ).rejects.toMatchObject({ status: 503 });
+    avatarRoute(request(path), env, { id: "estraneo" }),
+  ).rejects.toMatchObject({ status: 404 });
+  const stored = await avatarRoute(request(path), env, { id: "bruno" });
+  expect(new Uint8Array(await stored.arrayBuffer())).toEqual(jpeg256());
+  const { avatar: replacement } = await (await upload()).json();
+  expect(replacement.value).not.toBe(avatar.value);
+  await expect(avatarRoute(request(path), env, user)).rejects.toMatchObject({
+    status: 404,
+  });
+  expect(
+    sql
+      .prepare(
+        "SELECT COUNT(*) AS n FROM user_avatars WHERE thumbnail IS NOT NULL",
+      )
+      .get().n,
+  ).toBe(1);
   const saved = await profile("/avatar", "POST", {
     kind: "preset",
     value: "snowman",
@@ -284,6 +303,13 @@ it("mantiene i preset senza R2 e rifiuta le miniature oltre i limiti di formato 
     value: "snowman",
   });
   expect(images.size).toBe(0);
+  expect(
+    sql
+      .prepare(
+        "SELECT COUNT(*) AS n FROM user_avatars WHERE thumbnail IS NOT NULL",
+      )
+      .get().n,
+  ).toBe(0);
   expect(calls).toEqual([]);
 });
 

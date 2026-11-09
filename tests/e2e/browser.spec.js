@@ -48,7 +48,7 @@ test("Browser desktop e mobile: accesso, creazione, desideri, rivelazione ed eff
   });
   await page.getByLabel("Come ti chiami?").fill("Organizzatore");
   await page.getByLabel("La tua email").fill("browser@example.test");
-  await page.getByLabel("Numero di telefono").fill("+393200000000");
+  await expect(page.getByLabel("Numero di telefono")).toHaveCount(0);
   await page.getByRole("button", { name: "Ricevi il codice" }).click();
   const code = await page.locator(".local-code strong").textContent();
   await page.getByLabel("Codice di accesso").fill(code);
