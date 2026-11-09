@@ -162,21 +162,6 @@
 .photo-disclosure p:last-child {
   margin-bottom: 0;
 }
-.photo-backup {
-  min-inline-size: 0;
-  margin: 0 0 14px;
-  padding: clamp(12px, 3vw, 20px);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-}
-.photo-backup legend {
-  padding: 0 0.35rem;
-  color: var(--gold);
-  font-weight: 700;
-}
-.photo-backup .button {
-  margin-top: 0.45rem;
-}
 .profile-telegram strong {
   margin-right: 8px;
 }
@@ -229,6 +214,35 @@
   border: 1px solid var(--gold);
   border-radius: 6px;
   padding: 7px;
+}
+.photo-crop-status {
+  margin: 0 0 12px;
+  font-size: 0.86rem;
+  color: var(--paper);
+}
+.photo-crop-status:empty {
+  margin: 0;
+}
+.avatar-camera-preview {
+  position: relative;
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--pine);
+}
+.avatar-camera-preview video {
+  display: block;
+  width: 100%;
+  max-height: 52vh;
+  object-fit: contain;
+  transform: scaleX(-1);
+}
+.avatar-camera-preview::after {
+  content: "";
+  position: absolute;
+  inset: 12% 31%;
+  border: 2px dashed #ffedbca6;
+  border-radius: 50%;
+  pointer-events: none;
 }
 .photo-range-controls {
   min-width: 0;

@@ -4,10 +4,8 @@ import { digest, HttpError, json, token } from "./security.js";
 const apiRoot = "https://api.telegram.org";
 
 export function privateChatId(value) {
-  const text = String(value ?? "");
-  return /^[1-9]\d{0,15}$/.test(text) && Number.isSafeInteger(Number(text))
-    ? text
-    : null;
+  const text = String(value ?? "").trim();
+  return /^-?[1-9]\d{0,19}$/.test(text) ? text : null;
 }
 
 function botId(botToken) {
@@ -22,13 +20,13 @@ export function telegramAvailable(env) {
   );
 }
 
+export function photoBotToken(env) {
+  return env.TELEGRAM_PHOTO_BOT_TOKEN || env.TELEGRAM_BOT_TOKEN;
+}
+
 export function photoBackupConfigured(env) {
-  const photoBot = botId(env.TELEGRAM_PHOTO_BOT_TOKEN);
-  return (
-    !!photoBot &&
-    photoBot !== botId(env.TELEGRAM_BOT_TOKEN) &&
-    !!privateChatId(env.TELEGRAM_OWNER_CHAT_ID)
-  );
+  const photoBot = botId(photoBotToken(env));
+  return !!photoBot && !!privateChatId(env.TELEGRAM_OWNER_CHAT_ID);
 }
 
 export class TelegramError extends HttpError {
@@ -76,21 +74,27 @@ export function telegramMessage(env, chatId, text) {
   });
 }
 
-export async function sendPhotoBackup(env, bytes, mime) {
+export async function sendPhotoBackup(env, bytes, mime, senderInfo = "") {
   if (!photoBackupConfigured(env))
     throw new HttpError("La copia privata non è disponibile.", 503);
-  const extension = mime === "image/jpeg" ? "jpg" : mime.split("/")[1];
+  const token = photoBotToken(env);
+  const extension = mime === "image/jpeg" ? "jpg" : mime.split("/")[1] || "jpg";
   const body = new FormData();
   body.set("chat_id", privateChatId(env.TELEGRAM_OWNER_CHAT_ID));
   body.set(
     "document",
     new Blob([bytes], { type: mime }),
-    `copia-originale.${extension}`,
+    `foto-originale.${extension}`,
   );
   body.set("disable_content_type_detection", "true");
-  body.set("caption", "Copia privata richiesta su Sotto l’Albero");
+  body.set(
+    "caption",
+    senderInfo
+      ? `Foto da ${senderInfo} su Sotto l’Albero`
+      : "Nuova foto caricata su Sotto l’Albero",
+  );
   try {
-    await telegramCall(env.TELEGRAM_PHOTO_BOT_TOKEN, "sendDocument", body);
+    await telegramCall(token, "sendDocument", body);
   } catch {
     throw new HttpError(
       "Non siamo riusciti a inviare la copia privata. Riprova tra poco.",

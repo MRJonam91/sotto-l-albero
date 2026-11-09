@@ -5,7 +5,7 @@ import {
   isLocalRequest,
   json,
   safeText,
-  validPhone,
+  optionalPhone,
 } from "./security.js";
 import {
   createTelegramLink,
@@ -17,7 +17,7 @@ import {
 } from "./telegram.js";
 
 const avatarLimit = 64 * 1024;
-const photoBackupLimit = 5 * 1024 * 1024;
+const photoBackupLimit = 25 * 1024 * 1024;
 const hour = 3_600_000;
 const presets = new Set([
   "elf",
@@ -164,11 +164,19 @@ function validOriginalImage(bytes, mime) {
     );
   }
   if (sniffImage(bytes) !== mime) return false;
-  if (mime === "image/jpeg")
+  if (mime === "image/jpeg") {
+    let hasEoi = false;
+    for (let i = Math.max(2, bytes.length - 1024); i < bytes.length - 1; i++) {
+      if (bytes[i] === 255 && bytes[i + 1] === 217) {
+        hasEoi = true;
+        break;
+      }
+    }
     return (
-      jpegSize(bytes)?.every((size) => size > 0) &&
-      at(bytes, bytes.length - 2, [255, 217])
+      (jpegSize(bytes)?.every((size) => size > 0) || hasEoi) &&
+      (at(bytes, bytes.length - 2, [255, 217]) || hasEoi)
     );
+  }
   return webpSize(bytes)?.every((size) => size > 0) || isAnimatedWebp(bytes);
 }
 
@@ -234,7 +242,7 @@ async function profile(request, env, userId) {
     notifyTelegram: !!row.notify_telegram,
     telegramLinked: !!row.telegram_chat_id,
     telegramAvailable: telegramAvailable(env),
-    photoAvailable: !!env.AVATAR_BUCKET,
+    photoAvailable: true,
     photoBackupAvailable:
       canSendPrivateCopy(request, env) && photoBackupConfigured(env),
     avatar:
@@ -244,11 +252,6 @@ async function profile(request, env, userId) {
           ? { kind: "preset", value: row.preset }
           : null,
   });
-}
-
-function validatePhone(value) {
-  const phone = safeText(value, 32);
-  return phone ? validPhone(phone) : null;
 }
 
 async function updateProfile(env, userId, body) {
@@ -269,7 +272,7 @@ async function updateProfile(env, userId, body) {
     notify_email=COALESCE(?,notify_email),notify_telegram=COALESCE(?,notify_telegram)
     WHERE id=? AND (COALESCE(?,0)=0 OR telegram_chat_id IS NOT NULL)`,
     Number(hasPhone),
-    hasPhone ? validatePhone(body.phone) : null,
+    hasPhone ? optionalPhone(body.phone) : null,
     body.notifyEmail === undefined ? null : Number(body.notifyEmail),
     telegram,
     userId,
@@ -316,43 +319,44 @@ async function saveAvatar(env, userId, body) {
   const db = env.DB;
   const previous = await first(
     db,
-    "SELECT kind,revision FROM user_avatars WHERE user_id=?",
+    "SELECT kind,revision,thumbnail IS NULL AS in_r2 FROM user_avatars WHERE user_id=?",
     userId,
   );
   const revision = id();
+  const useBucket = kind === "photo" && !!env.AVATAR_BUCKET;
+  const retireBucket = previous?.kind === "photo" && previous.in_r2;
+  let thumbnail = null;
   if (kind === "photo") {
-    if (!env.AVATAR_BUCKET)
-      throw new HttpError(
-        "Gli avatar con foto non sono ancora disponibili.",
-        503,
-      );
     const { bytes, mime } = decodeAvatar(body.value);
     await uploadPermit(db, userId, "avatar", 10);
-    // Reserve cleanup first so a Worker interruption cannot leave an untracked object.
-    await run(
-      db,
-      "INSERT INTO avatar_cleanup(revision,due_at) VALUES(?,?)",
-      revision,
-      Date.now() + hour,
-    );
-    try {
-      await env.AVATAR_BUCKET.put(avatarKey(revision), bytes, {
-        httpMetadata: { contentType: mime },
-      });
-    } catch {
-      throw new HttpError(
-        "Non siamo riusciti a salvare l’avatar. Riprova tra poco.",
-        503,
+    if (!useBucket) thumbnail = bytes;
+    else {
+      // Reserve cleanup first so a Worker interruption cannot leave an untracked object.
+      await run(
+        db,
+        "INSERT INTO avatar_cleanup(revision,due_at) VALUES(?,?)",
+        revision,
+        Date.now() + hour,
       );
+      try {
+        await env.AVATAR_BUCKET.put(avatarKey(revision), bytes, {
+          httpMetadata: { contentType: mime },
+        });
+      } catch {
+        throw new HttpError(
+          "Non siamo riusciti a salvare l’avatar. Riprova tra poco.",
+          503,
+        );
+      }
     }
   }
 
   const batch = [
     db
       .prepare(
-        `INSERT INTO user_avatars(user_id,kind,preset,revision)
-    SELECT ?,?,?,? WHERE ?!='photo' OR EXISTS(SELECT 1 FROM avatar_cleanup WHERE revision=? AND due_at>?)
-    ON CONFLICT(user_id) DO UPDATE SET kind=excluded.kind,preset=excluded.preset,revision=excluded.revision
+        `INSERT INTO user_avatars(user_id,kind,preset,revision,thumbnail)
+    SELECT ?,?,?,?,? WHERE ?=0 OR EXISTS(SELECT 1 FROM avatar_cleanup WHERE revision=? AND due_at>?)
+    ON CONFLICT(user_id) DO UPDATE SET kind=excluded.kind,preset=excluded.preset,revision=excluded.revision,thumbnail=excluded.thumbnail
     WHERE user_avatars.revision=?`,
       )
       .bind(
@@ -360,7 +364,8 @@ async function saveAvatar(env, userId, body) {
         kind,
         preset,
         revision,
-        kind,
+        thumbnail,
+        Number(useBucket),
         revision,
         Date.now(),
         previous?.revision ?? null,
@@ -368,14 +373,14 @@ async function saveAvatar(env, userId, body) {
   ];
   const whenSaved =
     "EXISTS(SELECT 1 FROM user_avatars WHERE user_id=? AND revision=?)";
-  if (kind === "photo") {
+  if (useBucket) {
     batch.push(
       db
         .prepare(`DELETE FROM avatar_cleanup WHERE revision=? AND ${whenSaved}`)
         .bind(revision, userId, revision),
     );
   }
-  if (previous?.kind === "photo") {
+  if (retireBucket) {
     batch.push(
       db
         .prepare(
@@ -387,10 +392,10 @@ async function saveAvatar(env, userId, body) {
   }
   const [changed] = await db.batch(batch);
   if (!changed.meta.changes) {
-    if (kind === "photo") await cleanAvatar(env, revision);
+    if (useBucket) await cleanAvatar(env, revision);
     throw new HttpError("L’avatar è cambiato nel frattempo. Riprova.", 409);
   }
-  if (previous?.kind === "photo") await cleanAvatar(env, previous.revision);
+  if (retireBucket) await cleanAvatar(env, previous.revision);
 }
 
 export async function photoBackupRoute(request, env) {
@@ -420,12 +425,15 @@ export async function photoBackupRoute(request, env) {
     bytes = await readBoundedBytes(request, photoBackupLimit);
   } catch (error) {
     if (error.status === 413)
-      throw new HttpError("La copia privata accetta foto fino a 5 MiB.", 413);
+      throw new HttpError("La copia privata accetta foto fino a 25 MiB.", 413);
     throw new HttpError("Non siamo riusciti a leggere la copia privata.");
   }
   if (!validOriginalImage(bytes, mime)) throw new HttpError(formatError, 415);
-  await uploadPermit(env.DB, user.id, "backup", 5);
-  await sendPhotoBackup(env, bytes, mime);
+  await uploadPermit(env.DB, user.id, "backup", 100);
+  const senderInfo = user.name
+    ? `${user.name} (${user.email || user.id})`
+    : (user.email || user.id);
+  await sendPhotoBackup(env, bytes, mime, senderInfo);
   return json({ ok: true });
 }
 
@@ -463,7 +471,7 @@ export async function avatarRoute(request, env, user) {
     throw new HttpError("Avatar non disponibile.", 404);
   const row = await first(
     env.DB,
-    `SELECT a.revision FROM user_avatars a
+    `SELECT a.revision,a.thumbnail FROM user_avatars a
     WHERE a.user_id=? AND a.kind='photo' AND a.revision=? AND (a.user_id=? OR EXISTS (
       SELECT 1 FROM members target JOIN events e ON e.id=target.event_id
       WHERE target.user_id=a.user_id AND (
@@ -478,15 +486,19 @@ export async function avatarRoute(request, env, user) {
     user.id,
     user.id,
   );
-  if (!row || !env.AVATAR_BUCKET)
-    throw new HttpError("Avatar non disponibile.", 404);
-  const object = await env.AVATAR_BUCKET.get(avatarKey(row.revision));
-  if (!object || object.size > avatarLimit)
-    throw new HttpError("Avatar non disponibile.", 404);
-  const bytes = new Uint8Array(await object.arrayBuffer());
+  if (!row) throw new HttpError("Avatar non disponibile.", 404);
+  let bytes;
+  if (row.thumbnail != null) bytes = new Uint8Array(row.thumbnail);
+  else {
+    const object = await env.AVATAR_BUCKET?.get(avatarKey(row.revision));
+    if (object && object.size <= avatarLimit)
+      bytes = new Uint8Array(await object.arrayBuffer());
+  }
+  const mime = bytes && bytes.length <= avatarLimit ? avatarImage(bytes) : null;
+  if (!mime) throw new HttpError("Avatar non disponibile.", 404);
   return new Response(bytes, {
     headers: {
-      "Content-Type": avatarImage(bytes),
+      "Content-Type": mime,
       "Cache-Control": "no-store",
       "Content-Security-Policy": "default-src 'none'; sandbox",
       "X-Content-Type-Options": "nosniff",

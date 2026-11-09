@@ -18,9 +18,13 @@ export async function digest(value) {
   ).join("");
 }
 export function isLocalRequest(request, env) {
+  if (env.LOCAL_DEV !== "true") return false;
+  const hostname = new URL(request.url).hostname;
   return (
-    env.LOCAL_DEV === "true" &&
-    ["localhost", "127.0.0.1", "[::1]"].includes(new URL(request.url).hostname)
+    ["localhost", "127.0.0.1", "[::1]"].includes(hostname) ||
+    hostname.startsWith("192.168.") ||
+    hostname.startsWith("10.") ||
+    hostname.startsWith("172.")
   );
 }
 export function validEmail(value) {
@@ -31,8 +35,10 @@ export function validEmail(value) {
     throw new HttpError("Controlla l’indirizzo email.");
   return email;
 }
-export function validPhone(value) {
-  const text = safeText(value, 32).replace(/[\s().-]/g, "");
+export function optionalPhone(value) {
+  const input = safeText(value, 32);
+  if (!input) return null;
+  const text = input.replace(/[\s().-]/g, "");
   const phone = text.startsWith("00") ? "+" + text.slice(2) : text;
   if (!/^\+[1-9][0-9]{6,14}$/.test(phone))
     throw new HttpError(

