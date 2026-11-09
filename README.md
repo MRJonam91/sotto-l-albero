@@ -62,7 +62,7 @@ Chi ha un posto confermato in almeno un gruppo può giocare al quiz e al Memory 
 
 Il bot invia aggiornamenti del gruppo, promemoria, riepiloghi della classifica, inviti alle sfide e il nome estratto in chat privata a chi ha attivato gli avvisi. L’email di estrazione contiene il link alla propria lettera. Su WhatsApp il link dell’evento si può condividere a mano. Per gli invii automatici fuori dalla finestra di assistenza, WhatsApp Business richiede modelli approvati e può applicare costi. [Telegram Bot API](https://core.telegram.org/bots/api#setwebhook) · [WhatsApp Business Messaging Policy](https://business.whatsapp.com/policy)
 
-Puoi scegliere una foto o scattare un selfie. Il browser ritaglia il volto con MediaPipe e compone il ritratto con Canvas. Se il ritaglio automatico non riesce, puoi centrare il viso a mano. Il PNG scaricabile misura 1024 × 1024 pixel. Quando salvi l’avatar, l’app invia solo la miniatura da 256 × 256 pixel, al massimo 64 KiB. D1 conserva una sola miniatura corrente per persona. Se configuri il binding facoltativo `AVATAR_BUCKET`, le nuove miniature vanno nel bucket R2 privato. Applica le migrazioni D1 prima del deploy. [Binding R2 per Workers](https://developers.cloudflare.com/r2/get-started/workers-api/)
+Puoi scegliere una foto o scattare un selfie. Il browser ritaglia il volto con MediaPipe e compone il ritratto con Canvas. Se il ritaglio automatico non riesce, puoi centrare il viso a mano. Il PNG scaricabile misura 1024 × 1024 pixel. La foto originale resta sul dispositivo. Quando salvi l’avatar, l’app invia solo la miniatura da 256 × 256 pixel, al massimo 64 KiB. D1 conserva una sola miniatura corrente per persona. Se configuri il binding facoltativo `AVATAR_BUCKET`, le nuove miniature vanno nel bucket R2 privato. Applica le migrazioni D1 prima del deploy. [Binding R2 per Workers](https://developers.cloudflare.com/r2/get-started/workers-api/)
 
 La migrazione della classifica assegna i vecchi punteggi al primo scambio idoneo, senza duplicarli. Conserva separatamente i dati che non può attribuire. Gli avatar fotografici della versione precedente tornano alle iniziali, mentre i personaggi scelti restano visibili.
 
@@ -74,7 +74,7 @@ Games require confirmed membership in a Secret Santa group. Practice includes a 
 
 Create a bot with BotFather. Configure `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME` and `TELEGRAM_WEBHOOK_SECRET` as secrets. Set the HTTPS webhook to `/api/telegram/webhook` with the matching secret. Participants link their own private chat from the profile. WhatsApp sharing uses copied invitation links.
 
-Choose a photo or take a selfie. MediaPipe cuts out the face and Canvas composes the portrait in the browser, with a manual crop when automatic cutout is unavailable. Download the 1024 × 1024 PNG or save a 256 × 256 thumbnail of up to 64 KiB. D1 keeps one current thumbnail per person. When the optional private R2 binding `AVATAR_BUCKET` is set, new thumbnails are stored in that bucket. Apply the D1 migrations before deploying.
+Choose a photo or take a selfie. MediaPipe cuts out the face and Canvas composes the portrait in the browser, with a manual crop when automatic cutout is unavailable. The original photo stays on the device. Download the 1024 × 1024 PNG or save a 256 × 256 thumbnail of up to 64 KiB. D1 keeps one current thumbnail per person. When the optional private R2 binding `AVATAR_BUCKET` is set, new thumbnails are stored in that bucket. Apply the D1 migrations before deploying.
 
 ## Dati e riservatezza
 

@@ -202,12 +202,28 @@ it("consuma il collegamento Telegram una sola volta e soltanto nella chat privat
   });
 });
 
-it("rifiuta l’upload dell’originale anche in presenza di un bucket e del consenso precedente", async () => {
-  const path = "/api/profile/photo-original";
-  const headers = { "Content-Type": "image/png", "X-Photo-Consent": "yes" };
-  await expect(
-    profileRoute(request(path, "POST", png, headers), env, path, {}, user),
-  ).rejects.toMatchObject({ status: 404 });
+it("non espone percorsi per l’upload dell’originale nell’edizione pubblica", async () => {
+  const session = "a".repeat(64);
+  sql
+    .prepare("INSERT INTO sessions(digest,user_id,expires) VALUES(?,?,?)")
+    .run(
+      createHash("sha256").update(session).digest("hex"),
+      user.id,
+      Date.now() + 60_000,
+    );
+  for (const path of [
+    "/api/profile/photo-original",
+    "/api/profile/photo-backup",
+  ]) {
+    const response = await worker.fetch(
+      request(path, "POST", JSON.stringify({}), {
+        "Content-Type": "application/json",
+        Cookie: "santa_session=" + session,
+      }),
+      env,
+    );
+    expect(response.status).toBe(404);
+  }
   expect(calls).toEqual([]);
   expect(images.size).toBe(0);
 });

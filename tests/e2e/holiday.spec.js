@@ -99,8 +99,13 @@ test.describe("Profilo e caccia su schermo tattile", () => {
     await expect(page.locator(".photo-editor")).not.toContainText(/telegram/i);
     const originalRequests = [];
     page.on("request", (request) => {
-      if (/\/photo-(original|backup)$/.test(request.url()))
-        originalRequests.push(request.url());
+      const path = new URL(request.url()).pathname;
+      if (
+        request.method() === "POST" &&
+        path.startsWith("/api/") &&
+        path !== "/api/profile/avatar"
+      )
+        originalRequests.push(path);
     });
     const png = await page.evaluate(() => {
       const image = document.createElement("canvas");
@@ -176,7 +181,7 @@ test.describe("Profilo e caccia su schermo tattile", () => {
     await expect(sendBackup).toHaveCount(0);
     await expect(
       page.getByRole("checkbox", {
-        name: "Acconsento a inviare la foto originale al gestore.",
+        name: /invia.*originale/i,
       }),
     ).toHaveCount(0);
     expect(originalRequests).toEqual([]);
