@@ -42,7 +42,7 @@ async function telegramCall(env, method, data) {
         method: "POST",
         headers: multipart ? undefined : { "Content-Type": "application/json" },
         body: multipart ? data : JSON.stringify(data),
-        redirect: "error",
+        redirect: "manual",
         signal: AbortSignal.timeout(12000),
       },
     );
