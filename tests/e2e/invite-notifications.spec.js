@@ -1,5 +1,11 @@
 import { test, expect } from "@playwright/test";
 
+test.use({
+  viewport: { width: 320, height: 844 },
+  hasTouch: true,
+  isMobile: true,
+});
+
 async function signIn(client, email, name) {
   const response = await client.post("/api/auth/request", {
     data: { email, name },
@@ -61,6 +67,14 @@ test("dopo l’adesione mostra le preferenze reali e propone Telegram senza atti
     "Gli avvisi via email sono attivati nelle tue preferenze.",
   );
   await expect(hint).toContainText("Telegram è facoltativo");
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(320);
+  if (process.env.ARTIFACT_DIR)
+    await page.screenshot({
+      path: process.env.ARTIFACT_DIR + "/avvisi-invito-mobile.png",
+      fullPage: true,
+    });
   expect(preferenceWrites).toEqual([]);
   await hint
     .getByRole("button", { name: "Configura gli avvisi", exact: true })
