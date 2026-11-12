@@ -2,6 +2,7 @@
   "name": "sotto-l-albero",
   "main": "worker/index.js",
   "compatibility_date": "2026-11-05",
+  "keep_vars": true,
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
