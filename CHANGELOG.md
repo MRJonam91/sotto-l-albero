@@ -1,5 +1,11 @@
 # Sotto l’Albero
 
+## 1.3.3
+
+- Le email degli scambi sono attive per i nuovi account, anche quando preparati da chi organizza. Una successiva disattivazione viene conservata.
+- Dopo la richiesta di partecipazione compare un riepilogo degli avvisi, con accesso diretto alle preferenze per collegare e attivare Telegram facoltativamente.
+- I collegamenti diretti agli eventi propongono subito l’accesso con un account esistente.
+
 ## 1.3.2
 
 - Chi è già iscritto ritrova l’evento dal vecchio invito anche dopo la chiusura delle iscrizioni e dopo l’estrazione. Se la sessione è scaduta, il sito invita ad accedere con la stessa email senza perdere il posto.

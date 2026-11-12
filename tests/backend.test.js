@@ -285,6 +285,13 @@ describe("API privata", () => {
       phone: null,
     });
     expect(session.data.user).not.toHaveProperty("telegram_chat_id");
+    expect(
+      await env.DB.prepare(
+        "SELECT notify_email,notify_telegram FROM users WHERE email=?",
+      )
+        .bind(email)
+        .first(),
+    ).toEqual({ notify_email: 1, notify_telegram: 0 });
     const updated = await api(
       "/profile",
       "PUT",
@@ -292,6 +299,41 @@ describe("API privata", () => {
       session.cookie,
     );
     expect(updated.data.phone).toBe("+393200000000");
+  });
+
+  it("non riattiva l’email disabilitata quando un account esistente accede di nuovo", async () => {
+    const email = "email-spenta@example.test";
+    const firstCode = await api("/auth/request", "POST", {
+      email,
+      name: "Ada",
+    });
+    expect(
+      (
+        await api("/auth/verify", "POST", {
+          email,
+          code: firstCode.data.devCode,
+        })
+      ).status,
+    ).toBe(200);
+    await env.DB.prepare("UPDATE users SET notify_email=0 WHERE email=?")
+      .bind(email)
+      .run();
+    const secondCode = await api("/auth/request", "POST", { email });
+    expect(
+      (
+        await api("/auth/verify", "POST", {
+          email,
+          code: secondCode.data.devCode,
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      await env.DB.prepare(
+        "SELECT notify_email,notify_telegram FROM users WHERE email=?",
+      )
+        .bind(email)
+        .first(),
+    ).toEqual({ notify_email: 0, notify_telegram: 0 });
   });
 
   it("restituisce lo stato effettivo sul link e preserva la conferma", async () => {
@@ -345,6 +387,13 @@ describe("API privata", () => {
     expect((await api(path + "/accounts", "POST", fields, owner)).status).toBe(
       201,
     );
+    expect(
+      await env.DB.prepare(
+        "SELECT notify_email,notify_telegram FROM users WHERE email=?",
+      )
+        .bind(email)
+        .first(),
+    ).toEqual({ notify_email: 1, notify_telegram: 0 });
     const request = await api("/auth/request", "POST", { email });
     expect(request.status).toBe(200);
     const session = await api("/auth/verify", "POST", {
@@ -356,6 +405,9 @@ describe("API privata", () => {
       phone: null,
       organizer: false,
     });
+    await env.DB.prepare("UPDATE users SET notify_email=0 WHERE email=?")
+      .bind(email)
+      .run();
     expect(
       (
         await api(
@@ -366,6 +418,13 @@ describe("API privata", () => {
         )
       ).status,
     ).toBe(201);
+    expect(
+      await env.DB.prepare(
+        "SELECT notify_email,notify_telegram FROM users WHERE email=?",
+      )
+        .bind(email)
+        .first(),
+    ).toEqual({ notify_email: 0, notify_telegram: 0 });
     expect(
       (await api("/me", "GET", null, session.cookie)).data.user,
     ).toMatchObject({ name: "Ada", phone: null });

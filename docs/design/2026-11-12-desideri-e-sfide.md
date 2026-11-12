@@ -44,6 +44,8 @@ Esempio: «Mi accompagno a storie che stanno in una tasca» → aiuto «Leggo sp
 
 ## Cinque sfide da progettare
 
+**Direzione rivista:** dopo le prime anteprime, la richiesta è diventata cinque avventure natalizie interattive, con domande incorporate nelle azioni e soluzioni libere. Per la proposta attuale leggere [Cinque avventure natalizie](2026-11-12-avventure-natalizie.md). Le schede sotto conservano la prima proposta per confronto.
+
 Queste attività hanno uno scopo diverso dai puzzle natalizi già presenti: rendere comprensibili gusti e abitudini reali. Non sostituiscono le sfide ufficiali né cambiano la classifica esistente. Durata indicativa: 2–5 minuti; nessuna penalità per chi passa. Per la prima sperimentazione userei solo distintivi di partecipazione, senza premiare la popolarità o l’accuratezza dei gusti indovinati.
 
 ### 1. Il bivio dei gusti

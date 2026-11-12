@@ -92,6 +92,16 @@ export default function ProfileSettings({ user, onChange }) {
   }, [refresh]);
 
   useEffect(() => {
+    if (loading || location.hash !== "#telegram") return;
+    const frame = requestAnimationFrame(() => {
+      const section = document.getElementById("profile-telegram-setup");
+      section?.scrollIntoView({ block: "center", behavior: "instant" });
+      section?.querySelector("button, a")?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [loading]);
+
+  useEffect(() => {
     if (!telegramLink) return;
     async function check() {
       if (document.visibilityState !== "visible") return;
@@ -331,7 +341,7 @@ export default function ProfileSettings({ user, onChange }) {
               Ricevi gli avvisi degli scambi su Telegram
             </Toggle>
           </div>
-          <div className="profile-telegram">
+          <div className="profile-telegram" id="profile-telegram-setup">
             <p>
               <strong>Telegram</strong>{" "}
               <span>

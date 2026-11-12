@@ -511,7 +511,7 @@ export async function eventRoute(request, env, path, body, user) {
       ),
       stmt(
         db,
-        "INSERT INTO users(id,email,name,phone,notify_email) SELECT ?,?,?,?,0 WHERE EXISTS(SELECT 1 FROM events WHERE id=? AND draw_token=?) ON CONFLICT(email) DO NOTHING",
+        "INSERT INTO users(id,email,name,phone,notify_email) SELECT ?,?,?,?,1 WHERE EXISTS(SELECT 1 FROM events WHERE id=? AND draw_token=?) ON CONFLICT(email) DO NOTHING",
         id(),
         email,
         name,

@@ -33,6 +33,7 @@ import { treasureStories } from "./treasureStories.js";
 import { stamps } from "../shared/stamps.js";
 import { version } from "../package.json";
 import AppUpdateNotice from "./AppUpdateNotice.jsx";
+import InviteNotificationHint from "./InviteNotificationHint.jsx";
 const ProfileSettings = lazy(() => import("./ProfileSettings.jsx"));
 
 const sectionPaths = {
@@ -83,6 +84,7 @@ export default function App() {
     [secret, setSecret] = useState(null),
     [invite, setInvite] = useState(null),
     [inviteError, setInviteError] = useState(""),
+    [showInviteNotice, setShowInviteNotice] = useState(false),
     [joining, setJoining] = useState(false),
     [snow, setSnow] = useState(
       () => localStorage.getItem("sla-snow") !== "off",
@@ -129,6 +131,7 @@ export default function App() {
     setSession((s) => ({ ...s, user: null }));
     setEvents([]);
     setEventId(null);
+    setShowInviteNotice(false);
   }
   async function join() {
     setJoining(true);
@@ -138,6 +141,7 @@ export default function App() {
         token,
       });
       setInvite((current) => ({ ...current, membership: result.membership }));
+      setShowInviteNotice(true);
       await loadEvents();
     } catch (e) {
       setError(e.message);
@@ -347,11 +351,26 @@ export default function App() {
                       Accedi qui sotto per partecipare.
                     </p>
                   )}
+                  {showInviteNotice && session?.user ? (
+                    <InviteNotificationHint
+                      key={session.user.id}
+                      onConfigure={() => {
+                        setShowInviteNotice(false);
+                        navigate("profile");
+                        history.replaceState(
+                          history.state,
+                          "",
+                          "/profilo#telegram",
+                        );
+                      }}
+                      onDismiss={() => setShowInviteNotice(false)}
+                    />
+                  ) : null}
                 </section>
               ) : null}
               {!session?.user ? (
                 <Auth
-                  preferExisting={!!invite?.requiresSignIn}
+                  preferExisting={!!invite?.requiresSignIn || !!eventId}
                   local={session?.local}
                   mailConfigured={session?.mailConfigured}
                   onLogin={(user) => {
