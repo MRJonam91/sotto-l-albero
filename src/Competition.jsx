@@ -1,15 +1,16 @@
 import { useEffect, useEffectEvent, useId, useRef, useState } from "react";
 import { BookOpen, Gift, Medal, Puzzle, Swords } from "lucide-react";
-import { activeMember, api } from "./api.js";
+import { api } from "./api.js";
+import CompetitionChallenge from "./CompetitionChallenge.jsx";
 import FestivalLeaderboard from "./FestivalLeaderboard.jsx";
 import MemoryBoard from "./MemoryBoard.jsx";
 import { Button, Field, Modal, Notice } from "./ui.jsx";
 import "./competition.css";
 
-function PlayCard({ attempt, onMove, onClose, busy, error }) {
+function PlayCard({ attempt, title, onMove, onClose, busy, error }) {
   const heading = useRef(null);
   const board = attempt.cards;
-  const isQuestion = !attempt.done && !board && attempt.question;
+  const isQuestion = !attempt.done && Boolean(attempt.question);
   const { timeLimit, deadline } = attempt;
   const [timeLeft, setTimeLeft] = useState(timeLimit);
   const expire = useEffectEvent(() => onMove({ timeout: true }));
@@ -43,6 +44,9 @@ function PlayCard({ attempt, onMove, onClose, busy, error }) {
           <h3 tabIndex={-1} ref={heading}>
             Partita conclusa
           </h3>
+          {attempt.lost === 3 && (
+            <p>Hai perso tre pacchi. Il nastro si è fermato.</p>
+          )}
           {attempt.duelId ? (
             <p>
               La tua prova è registrata. Trovi il confronto nei duelli quando
@@ -71,7 +75,23 @@ function PlayCard({ attempt, onMove, onClose, busy, error }) {
             onMove={onMove}
           />
         </>
-      ) : (
+      ) : attempt.challenge ? (
+        <>
+          <h3 ref={heading} tabIndex={-1}>
+            {{ cipher: "Cartolina cifrata", order: "Addobbi in ordine" }[
+              attempt.challenge.type
+            ] ??
+              title ??
+              "Mini sfida"}
+          </h3>
+          <CompetitionChallenge
+            key={attempt.id}
+            challenge={attempt.challenge}
+            onMove={onMove}
+            busy={busy}
+          />
+        </>
+      ) : attempt.question ? (
         <>
           <div className="quiz-timer-wrap">
             <div className="quiz-timer-header">
@@ -113,6 +133,8 @@ function PlayCard({ attempt, onMove, onClose, busy, error }) {
             ))}
           </div>
         </>
+      ) : (
+        <Notice error>Questa prova è momentaneamente indisponibile.</Notice>
       )}
       <Notice error>{error}</Notice>
       <Button type="button" variant="outline" disabled={busy} onClick={onClose}>
@@ -176,6 +198,55 @@ function Adjustment({ row, onSubmit, onClose, busy, error }) {
   );
 }
 
+function DuelInvitation({ opponents, busy, onInvite }) {
+  return (
+    <section className="competition-callout competition-duel-invite paper">
+      <div className="competition-duel-title">
+        <Swords aria-hidden="true" size={25} />
+        <div>
+          <h3>Sfida un amico</h3>
+          <p>
+            Le stesse domande per entrambi, due giorni per giocare. I punti del
+            duello restano fuori dalla classifica.
+          </p>
+        </div>
+      </div>
+      {opponents.length ? (
+        <form
+          className="competition-duel-form"
+          onSubmit={async (submission) => {
+            submission.preventDefault();
+            const form = submission.currentTarget;
+            const opponent = new FormData(form).get("opponent");
+            if (await onInvite(opponent)) form.reset();
+          }}
+        >
+          <Field label="Chi vuoi sfidare?">
+            <select name="opponent" required defaultValue="" disabled={busy}>
+              <option value="" disabled>
+                Scegli una persona
+              </option>
+              {opponents.map((row) => (
+                <option value={row.userId} key={row.userId}>
+                  {row.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Button type="submit" disabled={busy}>
+            <Swords aria-hidden="true" size={18} /> Lancia un duello
+          </Button>
+        </form>
+      ) : (
+        <p>
+          Potrai lanciare un duello quando ci sarà un’altra iscrizione
+          approvata.
+        </p>
+      )}
+    </section>
+  );
+}
+
 export default function Competition({ event, user, members = [], onStamp }) {
   const headingId = useId();
   const [board, setBoard] = useState(null);
@@ -230,9 +301,13 @@ export default function Competition({ event, user, members = [], onStamp }) {
         : {}),
     });
   }
-  const start = (game, duelId) =>
+  const start = (game, duelId, replaceLegacyAttempt) =>
     perform(async () => {
-      const data = await api(`${path}/start`, "POST", { game, duelId });
+      const data = await api(`${path}/start`, "POST", {
+        game,
+        duelId,
+        replaceLegacyAttempt,
+      });
       showAttempt(data.attempt);
     });
   const move = (selection) =>
@@ -247,12 +322,9 @@ export default function Competition({ event, user, members = [], onStamp }) {
       if (data.attempt.done) await refresh();
     });
   const memberById = new Map(members.map((member) => [member.userId, member]));
-  const opponents =
-    board?.leaderboard.filter(
-      (row) =>
-        row.userId !== user.id &&
-        activeMember(memberById.get(row.userId)?.status),
-    ) || [];
+  const opponents = (board?.leaderboard ?? [])
+    .filter((row) => row.userId !== user.id)
+    .sort((a, b) => a.name.localeCompare(b.name, "it"));
 
   return (
     <section className="competition" aria-labelledby={headingId}>
@@ -283,32 +355,24 @@ export default function Competition({ event, user, members = [], onStamp }) {
       )}
       {board && (
         <>
-          {!board.canPlay && (
+          {!board.canPlay && !board.closed && (
             <p>
               Puoi consultare la classifica. Per giocare, devi avere
               un’iscrizione approvata all’evento.
             </p>
           )}
-          {board.canPlay && !board.joined && !board.closed && (
-            <div className="competition-callout paper">
-              <p>
-                Metti alla prova la memoria, rispondi al quiz e risolvi quattro
-                piccoli enigmi. Puoi giocare quando vuoi fino alla fine
-                dell’edizione.
-              </p>
-              <Button
-                type="button"
-                busy={busy}
-                onClick={() =>
-                  perform(async () => {
-                    await api(`${path}/join`, "POST", {});
-                    await refresh();
-                  })
-                }
-              >
-                Iscriviti alle sfide
-              </Button>
-            </div>
+          {board.canPlay && !board.closed && !attempt && (
+            <DuelInvitation
+              opponents={opponents}
+              busy={busy}
+              onInvite={(userId) =>
+                perform(async () => {
+                  await api(`${path}/duels`, "POST", { userId });
+                  await refresh();
+                  setNotice("Duello lanciato.");
+                })
+              }
+            />
           )}
           <FestivalLeaderboard
             rows={board.leaderboard}
@@ -316,7 +380,7 @@ export default function Competition({ event, user, members = [], onStamp }) {
             userId={user.id}
             busy={busy}
             onAdjust={
-              event.isAdmin
+              event.isAdmin && event.status !== "archived"
                 ? (row) => {
                     setError("");
                     setAdjustment(row);
@@ -327,6 +391,7 @@ export default function Competition({ event, user, members = [], onStamp }) {
           {attempt ? (
             <PlayCard
               attempt={attempt}
+              title={board.games.find((game) => game.id === attempt.game)?.name}
               onMove={move}
               busy={busy}
               error={error}
@@ -337,141 +402,134 @@ export default function Competition({ event, user, members = [], onStamp }) {
             />
           ) : (
             board.canPlay &&
-            board.joined &&
             !board.closed && (
-              <>
-                <div className="competition-section">
-                  <h3>Giochi e mini sfide</h3>
-                  <p>
-                    Ogni prova ha tre tentativi. Il primo vale per intero, il
-                    secondo al 95% e il terzo al 90%. In classifica resta il
-                    migliore.
-                  </p>
-                  <ul className="competition-games">
-                    {board.games.map((game) => {
-                      const resume = board.active.some(
-                        (active) => active.game === game.id,
-                      );
-                      const remaining = game.limit - game.attempts;
-                      const Icon =
-                        game.id === "quiz"
-                          ? BookOpen
-                          : game.id === "memory"
-                            ? Puzzle
-                            : Gift;
-                      return (
-                        <li key={game.id} className="competition-game paper">
-                          <Icon size={22} aria-hidden="true" />
-                          <h4>{game.name}</h4>
-                          <p>
-                            {game.best === null
-                              ? `Fino a ${game.points} punti`
-                              : `Miglior risultato: ${game.best} punti`}
-                          </p>
-                          <p>
-                            {remaining === 1
-                              ? "1 tentativo nuovo"
-                              : `${remaining} tentativi nuovi`}
-                          </p>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            disabled={busy || (!resume && remaining <= 0)}
-                            aria-label={`${resume ? "Riprendi" : "Gioca"}: ${game.name}`}
-                            onClick={() => start(game.id)}
-                          >
-                            {resume ? "Riprendi" : "Gioca"}
-                          </Button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
-                <div className="competition-section">
-                  <h3>Duelli amichevoli</h3>
-                  <p>
-                    Invita una persona a rispondere alle tue stesse domande.
-                    Avete fino a due giorni e il risultato resta fuori dalla
-                    classifica.
-                  </p>
-                  {opponents.length ? (
-                    <form
-                      className="competition-duel-form"
-                      onSubmit={(submission) => {
-                        submission.preventDefault();
-                        const form = submission.currentTarget;
-                        const userId = new FormData(form).get("opponent");
-                        perform(async () => {
-                          await api(`${path}/duels`, "POST", { userId });
-                          await refresh();
-                          form.reset();
-                          setNotice("Duello lanciato.");
-                        });
-                      }}
-                    >
-                      <Field label="Chi vuoi sfidare?">
-                        <select name="opponent" required defaultValue="">
-                          <option value="" disabled>
-                            Scegli una persona
-                          </option>
-                          {opponents.map((row) => (
-                            <option value={row.userId} key={row.userId}>
-                              {row.name}
-                            </option>
-                          ))}
-                        </select>
-                      </Field>
-                      <Button type="submit" disabled={busy}>
-                        <Swords aria-hidden="true" size={18} /> Lancia un duello
-                      </Button>
-                    </form>
-                  ) : (
-                    <p>
-                      Potrai lanciare un duello appena si iscrive un’altra
-                      persona.
-                    </p>
-                  )}
-                </div>
-              </>
+              <div className="competition-section">
+                <h3>Giochi e mini sfide</h3>
+                <p>
+                  Ogni prova ha tre tentativi. Il primo vale per intero, il
+                  secondo al 95% e il terzo al 90%. In classifica resta il
+                  migliore.
+                </p>
+                <ul className="competition-games">
+                  {board.games.map((game) => {
+                    const active = board.active.find(
+                      (active) => active.game === game.id,
+                    );
+                    const legacy =
+                      active &&
+                      game.edition &&
+                      (active.challenge?.type !== game.type ||
+                        active.challenge?.edition !== game.edition);
+                    const playLabel = legacy
+                      ? "Gioca la nuova prova"
+                      : active
+                        ? "Riprendi"
+                        : "Gioca";
+                    const remaining = game.limit - game.attempts;
+                    const Icon =
+                      game.id === "quiz"
+                        ? BookOpen
+                        : game.id === "memory"
+                          ? Puzzle
+                          : Gift;
+                    return (
+                      <li key={game.id} className="competition-game paper">
+                        <Icon size={22} aria-hidden="true" />
+                        <h4>{game.name}</h4>
+                        <p>
+                          {game.best === null
+                            ? `Fino a ${game.points} punti`
+                            : `Miglior risultato: ${game.best} punti`}
+                        </p>
+                        <p>
+                          {remaining === 1
+                            ? "1 tentativo nuovo"
+                            : `${remaining} tentativi nuovi`}
+                        </p>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={busy || (!active && remaining <= 0)}
+                          aria-label={`${playLabel}: ${game.name}`}
+                          onClick={() =>
+                            start(
+                              game.id,
+                              undefined,
+                              legacy ? active.id : undefined,
+                            )
+                          }
+                        >
+                          {playLabel}
+                        </Button>
+                        {legacy && (
+                          <>
+                            <small>
+                              Passare alla nuova prova usa lo stesso tentativo e
+                              sostituisce la partita in corso.
+                            </small>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              disabled={busy}
+                              aria-label={`Riprendi la prova precedente: ${game.name}`}
+                              onClick={() => start(game.id)}
+                            >
+                              Riprendi la prova precedente
+                            </Button>
+                          </>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
             )
           )}
           {!attempt && !!board.duels.length && (
-            <ul className="competition-duels">
-              {board.duels.map((duel) => (
-                <li key={duel.id}>
-                  <div>
-                    <strong>Duello con {duel.opponent.name}</strong>
-                    {duel.scores ? (
-                      <p>
-                        Tu: {duel.scores[user.id] ?? "prova assente"} ·{" "}
-                        {duel.opponent.name}:{" "}
-                        {duel.scores[duel.opponent.userId] ?? "prova assente"}
-                      </p>
-                    ) : (
-                      <p>
-                        {duel.myDone
-                          ? "Aspettiamo l’altra prova."
-                          : duel.fromMe
-                            ? "Hai lanciato il duello."
-                            : "Hai ricevuto un invito."}
-                      </p>
-                    )}
-                  </div>
-                  {!duel.expired && !duel.myDone && board.canPlay && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={busy}
-                      onClick={() => start("duel", duel.id)}
-                    >
-                      {board.active.some((active) => active.duelId === duel.id)
-                        ? "Riprendi"
-                        : "Gioca il duello"}
-                    </Button>
-                  )}
-                </li>
-              ))}
-            </ul>
+            <section className="competition-section">
+              <h3>I tuoi duelli</h3>
+              <ul className="competition-duels" role="list">
+                {board.duels.map((duel) => (
+                  <li key={duel.id}>
+                    <div>
+                      <strong>Duello con {duel.opponent.name}</strong>
+                      {duel.scores ? (
+                        <p>
+                          Tu: {duel.scores[user.id] ?? "prova assente"} ·{" "}
+                          {duel.opponent.name}:{" "}
+                          {duel.scores[duel.opponent.userId] ?? "prova assente"}
+                        </p>
+                      ) : (
+                        <p>
+                          {duel.myDone
+                            ? "Aspettiamo l’altra prova."
+                            : duel.fromMe
+                              ? "Hai lanciato il duello."
+                              : "Hai ricevuto un invito."}
+                        </p>
+                      )}
+                    </div>
+                    {!duel.expired &&
+                      !duel.myDone &&
+                      board.canPlay &&
+                      !board.closed && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          disabled={busy}
+                          onClick={() => start("duel", duel.id)}
+                        >
+                          {board.active.some(
+                            (active) => active.duelId === duel.id,
+                          )
+                            ? "Riprendi"
+                            : "Gioca il duello"}
+                        </Button>
+                      )}
+                  </li>
+                ))}
+              </ul>
+            </section>
           )}
         </>
       )}

@@ -1,4 +1,11 @@
-import { useState, useEffect, useCallback, lazy, Suspense } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  lazy,
+  Suspense,
+} from "react";
 import {
   CalendarDays,
   Gift,
@@ -22,6 +29,7 @@ import { Button, Field, Notice, Modal } from "./ui.jsx";
 import EventEdit from "./EventEdit.jsx";
 import Avatar from "./Avatar.jsx";
 import EventTools from "./EventTools.jsx";
+import DrawExplanation from "./DrawExplanation.jsx";
 const Reveal = lazy(() => import("./Reveal.jsx"));
 const Competition = lazy(() => import("./Competition.jsx"));
 const types = {
@@ -43,22 +51,40 @@ export default function Event({
   initialTab = "overview",
 }) {
   const [data, setData] = useState(null),
-    [tab, setTab] = useState(initialTab),
+    [selectedTab, setTab] = useState(initialTab),
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false),
     [confirm, setConfirm] = useState(null);
-  const load = useCallback(
-    async (reveal = false) => {
-      const r = await api(`/events/${id}${reveal ? "?reveal=1" : ""}`);
-      setData(r);
+  const loadId = useRef(0);
+  const isAdmin = data?.event.isAdmin;
+  const tab = selectedTab === "admin" && !isAdmin ? "overview" : selectedTab;
+  const load = useCallback(async () => {
+    const requestId = ++loadId.current;
+    try {
+      const r = await api(`/events/${id}`);
+      if (requestId === loadId.current) setData(r);
       return r;
-    },
-    [id],
-  );
+    } catch (error) {
+      if (
+        requestId === loadId.current &&
+        [401, 403, 404].includes(error.status)
+      ) {
+        setError(error.message);
+        setData(null);
+      }
+      throw error;
+    }
+  }, [id]);
   useEffect(() => {
     load().catch((e) => setError(e.message));
   }, [load]);
+  useEffect(() => {
+    if (tab !== "admin" || initialTab !== "admin") return;
+    const section = location.hash.slice(1);
+    if (!["event-settings", "event-members"].includes(section)) return;
+    document.getElementById(section)?.focus();
+  }, [initialTab, tab]);
   useEffect(() => {
     if (!data || data.event.status === "archived") return;
     const t = setInterval(() => {
@@ -90,7 +116,7 @@ export default function Event({
         {!error ? "Caricamento dell’evento…" : null}
       </div>
     );
-  const { event, members = [], recipient } = data;
+  const { event, members = [] } = data;
   const own = members.find(
     (m) => m.userId === user.id || m.id === user.id || m.email === user.email,
   );
@@ -98,7 +124,9 @@ export default function Event({
   const tabs = [
     ["overview", "L’evento", Users],
     ["wishlist", "La mia lettera", Mail],
-    ["reveal", "Il nome segreto", Gift],
+    ...(event.isAdmin || own?.status === "approved"
+      ? [["reveal", "Il nome segreto", Gift]]
+      : []),
     ...(event.isAdmin || own?.status === "approved"
       ? [["competition", "Sfide e classifica", Trophy]]
       : []),
@@ -197,9 +225,19 @@ export default function Event({
               </Button>
             ) : null}
             {own && activeMember(own.status) ? (
-              <Button onClick={() => setTab("wishlist")}>
-                Scrivi la tua lettera <ArrowRight size={17} />
-              </Button>
+              <div className="button-row">
+                <Button onClick={() => setTab("wishlist")}>
+                  Scrivi la tua lettera <ArrowRight size={17} />
+                </Button>
+                {event.status !== "archived" && (
+                  <Button
+                    variant="outline"
+                    onClick={() => setTab("competition")}
+                  >
+                    <Trophy size={17} aria-hidden="true" /> Gioca con il gruppo
+                  </Button>
+                )}
+              </div>
             ) : null}
             <p className="privacy-note">
               <LockKeyhole size={16} />
@@ -265,7 +303,14 @@ export default function Event({
         >
           <Reveal
             key={`${id}:${event.version}`}
-            recipient={recipient}
+            openRecipient={async () => {
+              const { recipient } = await api(
+                `/events/${id}/recipient`,
+                "POST",
+                { version: event.version },
+              );
+              return recipient;
+            }}
             drawAt={event.drawAt}
             status={event.status}
             isMember={!!own && activeMember(own.status)}
@@ -506,7 +551,10 @@ function Admin({ data, busy, action, load, setConfirm, onOpen, setError }) {
     }),
     [ruleBusy, setRuleBusy] = useState(false),
     [revealing, setRevealing] = useState(false),
+    [assignmentView, setAssignmentView] = useState(null),
     [editing, setEditing] = useState(false);
+  const assignments =
+    assignmentView?.version === event.version ? assignmentView.items : null;
   const eligible = members.filter((m) => activeMember(m.status)),
     names = Object.fromEntries(members.map((m) => [m.id, m.name]));
   const link = event.inviteToken
@@ -546,7 +594,9 @@ function Admin({ data, busy, action, load, setConfirm, onOpen, setError }) {
       ) : null}
       <section className="content-heading">
         <div>
-          <h2>Dettagli dello scambio</h2>
+          <h2 id="event-settings" tabIndex={-1}>
+            Dettagli dello scambio
+          </h2>
           <p>Puoi cambiare date, budget e messaggio fino all’estrazione.</p>
         </div>
         <Button
@@ -654,7 +704,9 @@ function Admin({ data, busy, action, load, setConfirm, onOpen, setError }) {
       </section>
       <EventTools event={event} locked={locked} action={action} />
       <section className="admin-section">
-        <h2>Chi partecipa?</h2>
+        <h2 id="event-members" tabIndex={-1}>
+          Chi partecipa?
+        </h2>
         {members.length ? (
           members.map((m) => (
             <div className="simple-row" key={m.id}>
@@ -858,6 +910,7 @@ function Admin({ data, busy, action, load, setConfirm, onOpen, setError }) {
             L’estrazione parte all’ora che hai scelto. Puoi avviarla anche da
             qui quando ci sono almeno tre iscritti confermati.
           </p>
+          <DrawExplanation />
         </div>
         <Button
           busy={busy}
@@ -875,7 +928,7 @@ function Admin({ data, busy, action, load, setConfirm, onOpen, setError }) {
           Estrai i nomi
         </Button>
       </section>
-      {event.status === "drawn" ? (
+      {["drawn", "archived"].includes(event.status) ? (
         <section className="admin-section">
           <h2>Gli abbinamenti sono pronti.</h2>
           <p>
@@ -885,6 +938,10 @@ function Admin({ data, busy, action, load, setConfirm, onOpen, setError }) {
             variant="outline"
             busy={revealing}
             onClick={async () => {
+              if (assignments) {
+                setAssignmentView(null);
+                return;
+              }
               if (
                 !window.confirm(
                   "Vedrai tutti gli abbinamenti, anche chi ti farà il regalo. Vuoi continuare?",
@@ -893,7 +950,18 @@ function Admin({ data, busy, action, load, setConfirm, onOpen, setError }) {
                 return;
               setRevealing(true);
               try {
-                await load(true);
+                const result = await api(
+                  `/events/${event.id}/assignments`,
+                  "POST",
+                  {
+                    version: event.version,
+                    confirm: true,
+                  },
+                );
+                setAssignmentView({
+                  version: event.version,
+                  items: result.assignments,
+                });
               } catch (e) {
                 setError(e.message);
               } finally {
@@ -902,11 +970,13 @@ function Admin({ data, busy, action, load, setConfirm, onOpen, setError }) {
             }}
           >
             <LockKeyhole size={16} />
-            Mostra gli abbinamenti
+            {assignments
+              ? "Nascondi gli abbinamenti"
+              : "Mostra gli abbinamenti"}
           </Button>
-          {data.assignments ? (
+          {assignments ? (
             <div className="assignment-list">
-              {data.assignments.map((a, i) => (
+              {assignments.map((a, i) => (
                 <div className="simple-row" key={i}>
                   <span>{names[a.giverId] || a.giverName}</span>
                   <ArrowRight size={15} />

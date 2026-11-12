@@ -18,6 +18,7 @@ import HolidayFigure from "./HolidayFigure.jsx";
 import MemoryBoard from "./MemoryBoard.jsx";
 import { Button, Notice } from "./ui.jsx";
 import { api } from "./api.js";
+import { treasureStories } from "./treasureStories.js";
 import "./holiday.css";
 
 const stampIcons = {
@@ -108,7 +109,7 @@ export function StampReward({ id, collection }) {
   );
 }
 
-export function StampAlbum({ user, collection, onLogout, children }) {
+export function StampAlbum({ user, collection, onLogout, onStory, children }) {
   return (
     <section className="holiday-page" aria-labelledby="profile-heading">
       <div className="holiday-heading">
@@ -126,9 +127,9 @@ export function StampAlbum({ user, collection, onLogout, children }) {
           <div>
             <h2>Album dei timbri</h2>
             <p>
-              Segui i ritornelli per trovare le figure nascoste e i timbri dei
-              giochi. Le apparizioni a orario si ripetono ogni giorno, secondo
-              l’ora italiana.
+              Segui i ritornelli. Alcune figure sbucano solo a certe ore
+              (seguiamo l’ora italiana). Se trovi una citazione o una scena,
+              puoi rileggerla da qui.
             </p>
           </div>
           <span className="stamp-count" role="status">
@@ -160,7 +161,23 @@ export function StampAlbum({ user, collection, onLogout, children }) {
                   <span className="stamp-time">A orario</span>
                 )}
                 {collected ? (
-                  <p>Raccolto</p>
+                  <>
+                    <p>
+                      {["quiz", "memory"].includes(id)
+                        ? "Raccolto"
+                        : "Raccolto · 5 punti"}
+                    </p>
+                    {(treasureStories[id] || stamp.story) && (
+                      <button
+                        type="button"
+                        className="text-button"
+                        aria-label={`Rileggi la sorpresa: ${stamp.name}`}
+                        onClick={() => onStory(id)}
+                      >
+                        Rileggi la sorpresa
+                      </button>
+                    )}
+                  </>
                 ) : (
                   <details>
                     <summary>Mostra il ritornello</summary>
@@ -414,7 +431,7 @@ function Memory({ collection }) {
   );
 }
 
-export function HolidayGames({ collection, onAlbum, onDiscover }) {
+export function HolidayGames({ collection, onAlbum, onDiscover, onGroups }) {
   const [access, setAccess] = useState("checking");
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
@@ -446,6 +463,7 @@ export function HolidayGames({ collection, onAlbum, onDiscover }) {
         collection={collection}
         onAlbum={onAlbum}
         onDiscover={onDiscover}
+        onGroups={onGroups}
       />
     );
   return (
@@ -486,7 +504,7 @@ export function HolidayGames({ collection, onAlbum, onDiscover }) {
   );
 }
 
-function Games({ collection, onAlbum, onDiscover }) {
+function Games({ collection, onAlbum, onDiscover, onGroups }) {
   const [game, setGame] = useState(null);
   const playArea = useRef(null);
   useEffect(() => {
@@ -498,14 +516,18 @@ function Games({ collection, onAlbum, onDiscover }) {
         <div>
           <h1 id="games-heading">Giochi di Natale</h1>
           <p>
-            Un quiz sulle feste e un Memory da giocare con calma. Qui puoi
-            allenarti e raccogliere timbri.
+            Qui puoi allenarti e raccogliere timbri. Per far valere Quiz e
+            Memory in classifica, apri il tuo Secret Santa e vai a «Sfide e
+            classifica».
           </p>
         </div>
         <Button type="button" variant="outline" onClick={onAlbum}>
           <Stamp size={18} aria-hidden="true" /> Il mio album
         </Button>
       </div>
+      <Button type="button" variant="ghost" onClick={onGroups}>
+        Vai ai miei gruppi
+      </Button>
       <div className="game-choices">
         <Button
           type="button"

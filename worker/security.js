@@ -18,13 +18,9 @@ export async function digest(value) {
   ).join("");
 }
 export function isLocalRequest(request, env) {
-  if (env.LOCAL_DEV !== "true") return false;
-  const hostname = new URL(request.url).hostname;
   return (
-    ["localhost", "127.0.0.1", "[::1]"].includes(hostname) ||
-    hostname.startsWith("192.168.") ||
-    hostname.startsWith("10.") ||
-    hostname.startsWith("172.")
+    env.LOCAL_DEV === "true" &&
+    ["localhost", "127.0.0.1", "[::1]"].includes(new URL(request.url).hostname)
   );
 }
 export function validEmail(value) {

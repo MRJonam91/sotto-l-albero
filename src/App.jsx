@@ -29,7 +29,10 @@ import {
   TimedTreasures,
 } from "./Holiday.jsx";
 import { useStampCollection } from "./useStampCollection.js";
+import { treasureStories } from "./treasureStories.js";
 import { stamps } from "../shared/stamps.js";
+import { version } from "../package.json";
+import AppUpdateNotice from "./AppUpdateNotice.jsx";
 const ProfileSettings = lazy(() => import("./ProfileSettings.jsx"));
 
 const sectionPaths = {
@@ -51,7 +54,11 @@ function currentSection() {
 }
 
 function focusMain() {
-  requestAnimationFrame(() => document.getElementById("main")?.focus());
+  requestAnimationFrame(() => {
+    // Focus must not scroll the header out of view, especially on iOS.
+    document.getElementById("main")?.focus({ preventScroll: true });
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+  });
 }
 
 export default function App() {
@@ -236,6 +243,7 @@ export default function App() {
           </div>
         </header>
         <main id="main" tabIndex={-1}>
+          <AppUpdateNotice idlePage={!eventId && ["events", "wishes", "archive"].includes(section)} />
           <Notice error>{error}</Notice>
           {section === "rules" ? (
             <SecretSantaRules />
@@ -314,8 +322,11 @@ export default function App() {
                     key={eventId}
                     id={eventId}
                     initialTab={
-                      history.state?.eventTab ??
-                      (section === "wishes" ? "wishlist" : "overview")
+                      new URLSearchParams(location.search).get("tab") ===
+                      "admin"
+                        ? "admin"
+                        : (history.state?.eventTab ??
+                          (section === "wishes" ? "wishlist" : "overview"))
                     }
                     user={session.user}
                     onOpen={(id) => {
@@ -331,6 +342,7 @@ export default function App() {
                   user={session.user}
                   collection={collection}
                   onLogout={logout}
+                  onStory={setSecret}
                 >
                   <Suspense
                     fallback={<p role="status">Carichiamo il profilo…</p>}
@@ -355,6 +367,7 @@ export default function App() {
                   key={session.user.id}
                   collection={collection}
                   onAlbum={() => navigate("profile")}
+                  onGroups={() => navigate("events")}
                   onDiscover={discover}
                 />
               ) : (
@@ -561,7 +574,7 @@ export default function App() {
             Regolamento del Secret Santa
           </a>
           <span>
-            Sotto l’Albero <Heart size={12} />
+            Sotto l’Albero · v{version} <Heart size={12} aria-hidden="true" />
           </span>
         </footer>
       </div>
@@ -575,67 +588,54 @@ export default function App() {
           }}
         />
       ) : null}
-      {secret ? (
-        <Modal
-          title={
-            secret === "star"
-              ? "Hai acceso una stella."
-              : secret === "teapot"
-                ? "Questa teiera ci ricorda qualcosa…"
-                : stamps[secret].name
-          }
+      {secret && (
+        <Treasure
+          id={secret}
+          collection={collection}
           onClose={() => setSecret(null)}
-        >
-          {secret === "star" ? (
-            <>
-              <p className="quote">“I know him!”</p>
-              <p>
-                Buddy, <cite>Elf</cite> (2003). Quel momento in cui riconosci
-                una persona e non riesci a contenere la gioia.
-              </p>
-              <a
-                href="https://clip.cafe/elf-2003/and-i-said-i-know-im-gonna-call/"
-                target="_blank"
-                rel="noreferrer"
-              >
-                La battuta originale <ArrowUpRight size={14} />
-              </a>
-            </>
-          ) : secret === "teapot" ? (
-            <>
-              <p>
-                In <cite>Christmas Party</cite>, Jim prepara per Pam una teiera
-                piena di piccoli ricordi. Un regalo riuscito, a volte, comincia
-                dall’attenzione.
-              </p>
-              <p className="quiet">The Office · stagione 2, episodio 10</p>
-              <a
-                href="https://www.televisionacademy.com/features/news/online-originals/holiday-episodes-simpsons-the-oc-friends"
-                target="_blank"
-                rel="noreferrer"
-              >
-                La storia dell’episodio <ArrowUpRight size={14} />
-              </a>
-            </>
-          ) : (
-            <p className="hunt-discovery">
-              <StampIcon id={secret} size={35} /> {stamps[secret].story}
-            </p>
-          )}
-          <StampReward id={secret} collection={collection} />
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => {
-              setSecret(null);
-              navigate("profile");
-            }}
-          >
-            Apri l’album
-          </Button>
-        </Modal>
-      ) : null}
+          onAlbum={
+            section === "profile" && !eventId
+              ? undefined
+              : () => {
+                  setSecret(null);
+                  navigate("profile");
+                }
+          }
+        />
+      )}
     </>
+  );
+}
+
+function Treasure({ id, collection, onClose, onAlbum }) {
+  const scene = treasureStories[id];
+  return (
+    <Modal title={scene?.title ?? stamps[id].name} onClose={onClose}>
+      {scene?.quote && (
+        <blockquote className="quote" lang="en">
+          “{scene.quote}”
+        </blockquote>
+      )}
+      {scene && (
+        <p className="quiet">
+          <cite>{scene.source}</cite>
+        </p>
+      )}
+      <p className="hunt-discovery">
+        <StampIcon id={id} size={35} /> {scene?.story ?? stamps[id].story}
+      </p>
+      {scene && (
+        <a href={scene.link} target="_blank" rel="noreferrer">
+          {scene.linkLabel} <ArrowUpRight size={14} aria-hidden="true" />
+        </a>
+      )}
+      <StampReward id={id} collection={collection} />
+      {onAlbum && (
+        <Button type="button" variant="ghost" onClick={onAlbum}>
+          Apri l’album
+        </Button>
+      )}
+    </Modal>
   );
 }
 

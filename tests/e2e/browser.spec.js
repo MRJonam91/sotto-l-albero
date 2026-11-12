@@ -48,7 +48,7 @@ test("Browser desktop e mobile: accesso, creazione, desideri, rivelazione ed eff
   });
   await page.getByLabel("Come ti chiami?").fill("Organizzatore");
   await page.getByLabel("La tua email").fill("browser@example.test");
-  await page.getByLabel("Numero di telefono").fill("+393200000000");
+  await expect(page.getByLabel("Numero di telefono")).toHaveCount(0);
   await page.getByRole("button", { name: "Ricevi il codice" }).click();
   const code = await page.locator(".local-code strong").textContent();
   await page.getByLabel("Codice di accesso").fill(code);
@@ -170,7 +170,6 @@ test("Browser desktop e mobile: accesso, creazione, desideri, rivelazione ed eff
     ).ok(),
   ).toBeTruthy();
   await page.getByRole("button", { name: "Sfide e classifica" }).click();
-  await page.getByRole("button", { name: "Iscriviti alle sfide" }).click();
   await page
     .getByRole("button", { name: "Modifica punti di Organizzatore" })
     .click();
@@ -181,7 +180,7 @@ test("Browser desktop e mobile: accesso, creazione, desideri, rivelazione ed eff
   const view = page.getByLabel("Visualizzazione della classifica");
   await expect(view).toHaveValue("ornaments");
   const ampolles = page.locator(".hourglass-art");
-  await expect(ampolles).toHaveCount(2);
+  await expect(ampolles).toHaveCount(4);
   await expect(ampolles.first().locator(".vessel-sweep")).toHaveCSS(
     "animation-name",
     "vessel-reflection",
@@ -207,7 +206,7 @@ test("Browser desktop e mobile: accesso, creazione, desideri, rivelazione ed eff
   const colors = await ampolles.evaluateAll((items) =>
     items.map((item) => getComputedStyle(item).color),
   );
-  expect(new Set(colors).size).toBe(2);
+  expect(new Set(colors).size).toBe(4);
   await page
     .locator(".competition-standings")
     .screenshot({ path: output + "/classifica-desktop.png" });
@@ -252,6 +251,10 @@ test("Browser desktop e mobile: accesso, creazione, desideri, rivelazione ed eff
   await expect(page.locator(".memory-card.visible img")).toBeVisible();
   await page.getByRole("button", { name: "Torna alle sfide" }).click();
   await page.getByRole("button", { name: "Organizza", exact: true }).click();
+  await page.getByText("Come scegliamo i nomi", { exact: true }).click();
+  await expect(
+    page.getByText(/generatore casuale crittografico/),
+  ).toBeVisible();
   for (const c of [page.request, ...people]) {
     const saved = await c.put(`/api/events/${link.id}/wishlist`, {
       data: {
@@ -276,6 +279,20 @@ test("Browser desktop e mobile: accesso, creazione, desideri, rivelazione ed eff
     .getByRole("button", { name: "Sì, estrai i nomi" })
     .click();
   await expect(page.getByText("Nomi estratti", { exact: true })).toBeVisible();
+  await page.goto(`/events/${link.id}?tab=admin#event-members`);
+  await expect(
+    page.getByRole("heading", { name: "Chi partecipa?" }),
+  ).toBeFocused();
+  const showAssignments = page.getByRole("button", {
+    name: "Mostra gli abbinamenti",
+  });
+  page.once("dialog", (dialog) => dialog.dismiss());
+  await showAssignments.click();
+  await expect(showAssignments).toBeVisible();
+  page.once("dialog", (dialog) => dialog.accept());
+  await showAssignments.click();
+  await page.getByRole("button", { name: "Nascondi gli abbinamenti" }).click();
+  await expect(showAssignments).toBeVisible();
   await page.screenshot({
     path: output + "/organizza-desktop.png",
     fullPage: true,
@@ -283,10 +300,26 @@ test("Browser desktop e mobile: accesso, creazione, desideri, rivelazione ed eff
   const state = await people[0].storageState();
   await page.context().clearCookies();
   await page.context().addCookies(state.cookies);
-  await page.goto(`/events/${link.id}`);
+  expect((await (await page.request.get("/api/me")).json()).user.id).toBe(
+    entrant.id,
+  );
+  let recipientRequests = 0;
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname === `/api/events/${link.id}/recipient`)
+      recipientRequests++;
+  });
+  await page.reload();
+  await expect(
+    page.getByRole("button", { name: "Organizza", exact: true }),
+  ).toHaveCount(0);
   await page.getByRole("button", { name: "Il nome segreto" }).click();
+  await expect(
+    page.getByText("Come scegliamo i nomi", { exact: true }),
+  ).toBeVisible();
+  expect(recipientRequests).toBe(0);
   await page.getByRole("button", { name: "Mostra subito il nome" }).click();
   await page.getByRole("button", { name: "Leggi i suoi desideri" }).click();
+  expect(recipientRequests).toBe(1);
   await expect(
     page.getByText("Una storia da leggere sul divano"),
   ).toBeVisible();

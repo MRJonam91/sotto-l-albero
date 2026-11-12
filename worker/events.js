@@ -2,7 +2,7 @@ import {
   id,
   token,
   validEmail,
-  validPhone,
+  optionalPhone,
   safeText,
   safeUrl,
   HttpError,
@@ -11,6 +11,8 @@ import {
 } from "./security.js";
 import { first, all, run, sendMail } from "./auth.js";
 import { matchParticipants } from "./matching.js";
+import { registrationNotice } from "./notifications.js";
+import { archiveCompetition } from "./competition.js";
 const nowIso = () => new Date().toISOString();
 const stmt = (db, sql, ...args) => db.prepare(sql).bind(...args);
 const audit = (db, eventId, userId, action) =>
@@ -303,24 +305,29 @@ export async function eventRoute(request, env, path, body, user) {
       user.id,
     );
     if (existing) return json({ ok: true, membership: existing.status });
-    const changed = await run(
-      db,
-      "INSERT INTO members(id,event_id,user_id,status,updated_at) SELECT ?,?,?,'pending',? WHERE EXISTS(SELECT 1 FROM events WHERE id=? AND status='open' AND version=?) AND ((SELECT COUNT(*) FROM members WHERE event_id=? AND status!='removed')<50) ON CONFLICT(event_id,user_id) DO UPDATE SET status='pending',updated_at=excluded.updated_at WHERE members.status='removed'",
-      id(),
-      eid,
-      user.id,
-      nowIso(),
-      eid,
-      e.version,
-      eid,
-    );
+    const joinedAt = Date.now();
+    const changed = await db.batch([
+      stmt(
+        db,
+        "INSERT INTO members(id,event_id,user_id,status,updated_at) SELECT ?,?,?,'pending',? WHERE EXISTS(SELECT 1 FROM events WHERE id=? AND status='open' AND version=? AND close_at>?) AND ((SELECT COUNT(*) FROM members WHERE event_id=? AND status!='removed')<50) ON CONFLICT(event_id,user_id) DO UPDATE SET status='pending',updated_at=excluded.updated_at WHERE members.status='removed'",
+        id(),
+        eid,
+        user.id,
+        new Date(joinedAt).toISOString(),
+        eid,
+        e.version,
+        new Date(joinedAt).toISOString(),
+        eid,
+      ),
+      registrationNotice(env, eid, user.id, joinedAt),
+    ]);
     const member = await first(
       db,
       "SELECT status FROM members WHERE event_id=? AND user_id=? AND status!='removed'",
       eid,
       user.id,
     );
-    if (!changed.meta.changes && !member)
+    if (!changed[0].meta.changes && !member)
       throw new HttpError(
         "Le iscrizioni sono cambiate o il gruppo è al completo.",
         409,
@@ -328,39 +335,83 @@ export async function eventRoute(request, env, path, body, user) {
     return json({ ok: true, membership: member?.status ?? "pending" });
   }
   const { e, member, admin } = await getEvent(db, eid, user);
+  if (
+    method === "POST" &&
+    (action === "recipient" || action === "assignments")
+  ) {
+    const fullList = action === "assignments";
+    if (fullList ? !admin : member?.status !== "approved")
+      throw new HttpError(
+        "Questa lettera non è disponibile per il tuo profilo.",
+        403,
+      );
+    if (fullList && body.confirm !== true)
+      throw new HttpError("Conferma che vuoi vedere tutti gli abbinamenti.");
+    if (body.version !== e.version || !["drawn", "archived"].includes(e.status))
+      throw new HttpError(
+        "L’estrazione non è disponibile per questa versione.",
+        409,
+      );
+
+    if (fullList) {
+      const assignments = await all(
+        db,
+        `SELECT a.giver_id AS giverId,a.receiver_id AS receiverId FROM assignments a
+         JOIN events current ON current.id=a.event_id AND current.version=a.version
+         WHERE current.id=? AND current.owner_id=? AND current.version=?
+         AND current.status IN ('drawn','archived') ORDER BY a.giver_id`,
+        eid,
+        user.id,
+        e.version,
+      );
+      if (!assignments.length)
+        throw new HttpError(
+          "Non ci sono abbinamenti per questa versione.",
+          409,
+        );
+      await audit(db, eid, user.id, "view_assignments").run();
+      return json({ assignments });
+    }
+
+    const recipient = await first(
+      db,
+      `SELECT u.name,receiver.wishlist FROM assignments a
+       JOIN events current ON current.id=a.event_id AND current.version=a.version
+       JOIN members giver ON giver.id=a.giver_id AND giver.event_id=current.id AND giver.status='approved'
+       JOIN members receiver ON receiver.id=a.receiver_id AND receiver.event_id=current.id AND receiver.status='approved'
+       JOIN users u ON u.id=receiver.user_id
+       WHERE current.id=? AND giver.user_id=? AND current.version=?
+       AND current.status IN ('drawn','archived')`,
+      eid,
+      user.id,
+      e.version,
+    );
+    if (!recipient)
+      throw new HttpError(
+        "La lettera non è disponibile per questa versione.",
+        409,
+      );
+    return json({
+      recipient: {
+        name: recipient.name,
+        wishlist: JSON.parse(recipient.wishlist),
+      },
+    });
+  }
   if (action === "" && method === "GET") {
     const members = await all(
       db,
       "SELECT m.id,m.user_id AS userId,u.name,m.status,m.wishlist,av.kind AS avatar_kind,CASE WHEN av.kind='photo' THEN av.revision ELSE av.preset END AS avatar_value FROM members m JOIN users u ON u.id=m.user_id LEFT JOIN user_avatars av ON av.user_id=u.id WHERE m.event_id=? AND m.status!='removed' ORDER BY m.updated_at",
       eid,
     );
-    const recipient =
-      member && e.status !== "open"
-        ? await first(
-            db,
-            "SELECT u.name,m.wishlist FROM assignments a JOIN members m ON m.id=a.receiver_id JOIN users u ON u.id=m.user_id WHERE a.event_id=? AND a.version=? AND a.giver_id=?",
-            eid,
-            e.version,
-            member.id,
-          )
-        : null;
-    const rules = admin
-      ? await all(
-          db,
-          "SELECT giver_id AS giverId,receiver_id AS receiverId,type FROM rules WHERE event_id=?",
-          eid,
-        )
-      : [];
-    const assignments =
-      admin && new URL(request.url).searchParams.get("reveal") === "1"
+    const rules =
+      admin && e.status === "open"
         ? await all(
             db,
-            "SELECT giver_id AS giverId,receiver_id AS receiverId FROM assignments WHERE event_id=? AND version=?",
+            "SELECT giver_id AS giverId,receiver_id AS receiverId,type FROM rules WHERE event_id=?",
             eid,
-            e.version,
           )
-        : undefined;
-    if (assignments) await audit(db, eid, user.id, "view_assignments").run();
+        : [];
     const invites = admin
       ? await all(
           db,
@@ -368,10 +419,13 @@ export async function eventRoute(request, env, path, body, user) {
           eid,
         )
       : [];
-    const visibleMembers =
-      !admin && member?.status !== "approved"
-        ? members.filter((m) => m.userId === user.id)
-        : members;
+    const visibleMembers = admin
+      ? members
+      : members.filter(
+          (m) =>
+            m.userId === user.id ||
+            (member?.status === "approved" && m.status === "approved"),
+        );
     return json({
       event: outputEvent(
         e,
@@ -390,10 +444,6 @@ export async function eventRoute(request, env, path, body, user) {
       ),
       rules,
       wishlist: member ? JSON.parse(member.wishlist) : [],
-      recipient: recipient
-        ? { name: recipient.name, wishlist: JSON.parse(recipient.wishlist) }
-        : null,
-      ...(assignments ? { assignments } : {}),
       invites,
     });
   }
@@ -442,7 +492,7 @@ export async function eventRoute(request, env, path, body, user) {
     mutable(e);
     const name = safeText(body.name, 80, true),
       email = validEmail(body.email),
-      phone = validPhone(body.phone),
+      phone = optionalPhone(body.phone),
       claim = token();
     const changed = await db.batch([
       stmt(
@@ -710,7 +760,7 @@ export async function eventRoute(request, env, path, body, user) {
     return json({ ok: true });
   }
   if (action === "archive" && method === "POST") {
-    await run(db, "UPDATE events SET status='archived' WHERE id=?", eid);
+    await archiveCompetition(db, eid);
     return json({ ok: true });
   }
   if (action === "rotate-invite" && method === "POST") {
@@ -903,6 +953,15 @@ export async function scheduled(env) {
     try {
       await drawEvent(env, e);
     } catch (error) {
+      if (!(error instanceof HttpError) || error.status >= 500) {
+        console.error(
+          "L’estrazione programmata verrà ritentata.",
+          e.id,
+          error?.name,
+        );
+        continue;
+      }
+      if (error.status === 409) continue;
       await run(
         env.DB,
         "UPDATE events SET error=? WHERE id=? AND version=?",

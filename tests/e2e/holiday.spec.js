@@ -86,6 +86,16 @@ test.describe("Profilo e caccia su schermo tattile", () => {
     );
     await page.keyboard.press("Escape");
     await page.getByRole("button", { name: "Apri il mio profilo" }).click();
+    await page
+      .getByRole("button", { name: "Rileggi la sorpresa: Stella d’oro" })
+      .tap();
+    await expect(
+      page.getByRole("dialog").getByText("“I know him!”"),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("dialog").getByRole("link", { name: /Warner Bros/ }),
+    ).toHaveAttribute("href", "https://www.youtube.com/watch?v=HebbNljYRzE");
+    await page.keyboard.press("Escape");
     const presets = page.locator(".profile-preset-grid button");
     await presets.first().click();
     await page.getByRole("button", { name: "Salva avatar" }).click();

@@ -9,6 +9,7 @@ import {
   cleanRetiredAvatars,
 } from "../worker/profile.js";
 import { telegramWebhook } from "../worker/telegram.js";
+import { eventRoute } from "../worker/events.js";
 import worker from "../worker/index.js";
 import {
   notificationRoute,
@@ -119,7 +120,11 @@ beforeEach(() => {
     ('ma','evento','anna','approved',''),('mb','evento','bruno','approved',''),('mc','evento','chiara','pending','');`);
   calls = [];
   vi.stubGlobal("fetch", async (url, init) => {
-    calls.push({ url: String(url), body: init?.body });
+    calls.push({
+      url: String(url),
+      body: init?.body,
+      redirect: init?.redirect,
+    });
     if (
       String(url).endsWith("/sendMessage") ||
       String(url).endsWith("/sendDocument")
@@ -326,6 +331,7 @@ it("usa soltanto il bot immagini, invia i byte originali alla chat configurata e
   expect(calls[0].url).toBe(
     "https://api.telegram.org/bot56789:photo-test-token/sendDocument",
   );
+  expect(calls[0].redirect).toBe("manual");
   expect(calls[0].body.get("chat_id")).toBe("9001");
   expect(
     Buffer.from(await calls[0].body.get("document").arrayBuffer()),
@@ -334,24 +340,27 @@ it("usa soltanto il bot immagini, invia i byte originali alla chat configurata e
   expect(sql.prepare("SELECT COUNT(*) AS n FROM user_avatars").get().n).toBe(0);
 });
 
-it("supporta sia il bot immagini dedicato che il bot principale configurato", async () => {
+it("non usa il bot notifiche e rifiuta una destinazione che non sia una chat privata", async () => {
   enablePhotoBot();
   expect((await localProfile()).photoBackupAvailable).toBe(true);
-  expect((await backupRequest()).status).toBe(200);
-
-  delete env.TELEGRAM_PHOTO_BOT_TOKEN;
-  expect((await localProfile()).photoBackupAvailable).toBe(true);
-  expect((await backupRequest()).status).toBe(200);
-
-  delete env.TELEGRAM_BOT_TOKEN;
+  env.TELEGRAM_OWNER_CHAT_ID = "-1001234567890";
   expect((await localProfile()).photoBackupAvailable).toBe(false);
   expect((await backupRequest()).status).toBe(503);
+  env.TELEGRAM_OWNER_CHAT_ID = "9001";
+  env.TELEGRAM_PHOTO_BOT_TOKEN = env.TELEGRAM_BOT_TOKEN;
+  expect((await localProfile()).photoBackupAvailable).toBe(false);
+  expect((await backupRequest()).status).toBe(503);
+  delete env.TELEGRAM_PHOTO_BOT_TOKEN;
+  expect((await localProfile()).photoBackupAvailable).toBe(false);
+  expect((await backupRequest()).status).toBe(503);
+  expect(calls).toEqual([]);
 });
 
 it("rifiuta file non validi e nasconde i dettagli del provider quando l’invio fallisce", async () => {
   enablePhotoBot();
   expect(
-    (await backupRequest({ body: new Uint8Array(25 * 1024 * 1024 + 1) })).status,
+    (await backupRequest({ body: new Uint8Array(25 * 1024 * 1024 + 1) }))
+      .status,
   ).toBe(413);
   expect((await backupRequest({ body: jpeg256() })).status).toBe(415);
   expect(calls).toEqual([]);
@@ -523,7 +532,7 @@ it("la migrazione conserva i preset ed elimina i riferimenti agli avatar Telegra
   }
 });
 
-it("manda il nome estratto soltanto nella chat del donatore consenziente e una sola volta", async () => {
+it("invia un solo avviso generico alla chat del donatore che ha attivato Telegram", async () => {
   sql.exec(`UPDATE users SET telegram_chat_id='101',notify_telegram=1 WHERE id='anna';
     UPDATE users SET telegram_chat_id='202',notify_telegram=0 WHERE id='bruno';
     UPDATE events SET status='drawn',version=4,draw_at='2026-12-03T15:59:00.000Z' WHERE id='evento';
@@ -534,11 +543,11 @@ it("manda il nome estratto soltanto nella chat del donatore consenziente e una s
   const sent = calls
     .filter((call) => call.url.endsWith("/sendMessage"))
     .map((call) => JSON.parse(call.body))
-    .filter((call) => call.text.includes("Tieni il nome per te."));
+    .filter((call) => call.text.includes("La tua lettera per Regali"));
   expect(sent).toHaveLength(1);
   expect(sent[0]).toMatchObject({
     chat_id: "101",
-    text: expect.stringContaining("Bruno"),
+    text: expect.not.stringContaining("Bruno"),
   });
   expect(sent[0]).not.toHaveProperty("parse_mode");
 });
@@ -604,4 +613,96 @@ it("accoda una sola volta il riepilogo, il promemoria e l’invito al duello", a
     ),
   ).toHaveLength(1);
   expect(sent.every((call) => call.chat_id === "101")).toBe(true);
+});
+
+it("raggruppa le nuove richieste per il solo organizzatore, anche se non partecipa", async () => {
+  vi.setSystemTime(now);
+  try {
+    sql.exec(`UPDATE events SET description='Ci vediamo a Natale',close_at='2026-12-10T16:00:00.000Z',draw_at='2026-12-11T16:00:00.000Z';
+      UPDATE users SET telegram_chat_id=CASE id WHEN 'anna' THEN '101' ELSE '202' END,notify_telegram=1 WHERE id IN ('anna','bruno');
+      DELETE FROM members WHERE user_id IN ('anna','chiara');
+      INSERT INTO invites(id,event_id,email,state,created_at,token) VALUES ('personale','evento','chiara@example.test','sent','2026-12-03T15:00:00.000Z','per-chiara');`);
+    const join = (id, token) =>
+      eventRoute(
+        request("/api/events/evento/join", "POST"),
+        env,
+        "/api/events/evento/join",
+        { token },
+        { id, email: `${id}@example.test` },
+      );
+    await Promise.all([
+      join("chiara", "per-chiara"),
+      join("estraneo", "abc"),
+      join("chiara", "per-chiara"),
+    ]);
+    await runNotifications(env, now + 60_000);
+    expect(calls).toEqual([]);
+    await runNotifications(env, now + 15 * 60_000);
+    await runNotifications(env, now + 16 * 60_000);
+    const sent = calls.map((call) => JSON.parse(call.body));
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({
+      chat_id: "101",
+      text: expect.stringContaining("Chiara ha accettato l’invito"),
+    });
+    expect(sent[0].text).toContain("Estraneo chiede di partecipare");
+    expect(sent[0].text).toContain("/events/evento?tab=admin#event-members");
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it("riserva il promemoria delle iscrizioni all’organizzatore e invia un solo avviso per scadenza", async () => {
+  sql.exec(`UPDATE events SET close_at='2026-12-04T16:00:00.000Z',draw_at='2026-12-05T16:00:00.000Z';
+    UPDATE users SET telegram_chat_id=CASE id WHEN 'anna' THEN '101' ELSE '202' END,notify_telegram=1 WHERE id IN ('anna','bruno');`);
+  await runNotifications(env, now);
+  await runNotifications(env, now + 23 * 3_600_000);
+  const sent = calls.map((call) => JSON.parse(call.body));
+  expect(sent).toHaveLength(1);
+  expect(sent[0]).toMatchObject({
+    chat_id: "101",
+    text: expect.stringContaining("Le iscrizioni per Regali chiudono a breve"),
+  });
+  expect(sent[0].text).toContain("messaggio di benvenuto");
+  expect(sent[0].text).toContain("/events/evento?tab=admin#event-settings");
+});
+
+it("non invia il riepilogo se la chat viene riassegnata mentre prepara i nomi", async () => {
+  sql.exec(`UPDATE events SET description='Ci vediamo a Natale',close_at='2026-12-10T16:00:00.000Z',draw_at='2026-12-11T16:00:00.000Z';
+    UPDATE users SET telegram_chat_id='101',notify_telegram=1 WHERE id='anna';
+    UPDATE members SET updated_at='2026-12-03T15:50:00.000Z' WHERE id='mc';
+    INSERT INTO notification_jobs(event_id,user_id,channel,kind,source_key,payload,created_at,expires_at,next_at)
+    VALUES('evento','anna','telegram','reminder','registration:test',
+      json_object('field','registration','from','2026-12-03T15:45:00.000Z','until','2026-12-03T16:00:00.000Z'),
+      ${now},${now + 60_000},${now});`);
+  const prepare = env.DB.prepare;
+  let changed = false;
+  env.DB.prepare = (query) => {
+    const statement = prepare(query);
+    if (!query.includes("AS invited")) return statement;
+    return {
+      bind(...args) {
+        const rows = statement.bind(...args);
+        return {
+          async all() {
+            const result = await rows.all();
+            sql.exec(`UPDATE users SET telegram_chat_id=NULL,notify_telegram=0 WHERE id='anna';
+              UPDATE users SET telegram_chat_id='101',notify_telegram=1 WHERE id='estraneo';`);
+            changed = true;
+            return result;
+          },
+        };
+      },
+    };
+  };
+  await runNotifications(env, now);
+  expect(changed).toBe(true);
+  expect(calls).toEqual([]);
+  expect(
+    sql
+      .prepare(
+        "SELECT state FROM notification_jobs WHERE source_key='registration:test'",
+      )
+      .get(),
+  ).toEqual({ state: "skipped" });
 });

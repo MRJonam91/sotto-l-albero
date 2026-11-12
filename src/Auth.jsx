@@ -5,7 +5,6 @@ import { Button, Field, Notice } from "./ui.jsx";
 export default function Auth({ onLogin, local, mailConfigured }) {
   const [email, setEmail] = useState(""),
     [name, setName] = useState(""),
-    [phone, setPhone] = useState(""),
     [register, setRegister] = useState(true),
     [code, setCode] = useState(""),
     [sent, setSent] = useState(false),
@@ -20,7 +19,7 @@ export default function Auth({ onLogin, local, mailConfigured }) {
       if (!sent) {
         const r = await api("/auth/request", "POST", {
           email,
-          ...(register ? { name, phone } : {}),
+          ...(register ? { name } : {}),
         });
         setDevCode(r.devCode || "");
         setSent(true);
@@ -96,18 +95,6 @@ export default function Auth({ onLogin, local, mailConfigured }) {
               onChange={(e) => setEmail(e.target.value)}
               required
             />
-            {register && (
-              <Field
-                label="Numero di telefono"
-                hint="Usa il prefisso internazionale, per esempio +39. Il numero resta nel tuo profilo."
-                type="tel"
-                autoComplete="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                maxLength={32}
-                required
-              />
-            )}
           </>
         ) : (
           <Field

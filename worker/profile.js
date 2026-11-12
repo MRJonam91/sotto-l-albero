@@ -430,10 +430,7 @@ export async function photoBackupRoute(request, env) {
   }
   if (!validOriginalImage(bytes, mime)) throw new HttpError(formatError, 415);
   await uploadPermit(env.DB, user.id, "backup", 100);
-  const senderInfo = user.name
-    ? `${user.name} (${user.email || user.id})`
-    : (user.email || user.id);
-  await sendPhotoBackup(env, bytes, mime, senderInfo);
+  await sendPhotoBackup(env, bytes, mime);
   return json({ ok: true });
 }
 

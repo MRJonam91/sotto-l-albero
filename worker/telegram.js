@@ -5,7 +5,9 @@ const apiRoot = "https://api.telegram.org";
 
 export function privateChatId(value) {
   const text = String(value ?? "").trim();
-  return /^-?[1-9]\d{0,19}$/.test(text) ? text : null;
+  return /^[1-9]\d{0,15}$/.test(text) && Number.isSafeInteger(Number(text))
+    ? text
+    : null;
 }
 
 function botId(botToken) {
@@ -20,13 +22,13 @@ export function telegramAvailable(env) {
   );
 }
 
-export function photoBotToken(env) {
-  return env.TELEGRAM_PHOTO_BOT_TOKEN || env.TELEGRAM_BOT_TOKEN;
-}
-
 export function photoBackupConfigured(env) {
-  const photoBot = botId(photoBotToken(env));
-  return !!photoBot && !!privateChatId(env.TELEGRAM_OWNER_CHAT_ID);
+  const photoBot = botId(env.TELEGRAM_PHOTO_BOT_TOKEN);
+  return (
+    !!photoBot &&
+    photoBot !== botId(env.TELEGRAM_BOT_TOKEN) &&
+    !!privateChatId(env.TELEGRAM_OWNER_CHAT_ID)
+  );
 }
 
 export class TelegramError extends HttpError {
@@ -47,7 +49,7 @@ async function telegramCall(botToken, method, data) {
       method: "POST",
       headers: multipart ? undefined : { "Content-Type": "application/json" },
       body: multipart ? data : JSON.stringify(data),
-      redirect: "error",
+      redirect: "manual",
       signal: AbortSignal.timeout(12000),
     });
     payload = await response.json();
@@ -74,10 +76,9 @@ export function telegramMessage(env, chatId, text) {
   });
 }
 
-export async function sendPhotoBackup(env, bytes, mime, senderInfo = "") {
+export async function sendPhotoBackup(env, bytes, mime) {
   if (!photoBackupConfigured(env))
     throw new HttpError("La copia privata non è disponibile.", 503);
-  const token = photoBotToken(env);
   const extension = mime === "image/jpeg" ? "jpg" : mime.split("/")[1] || "jpg";
   const body = new FormData();
   body.set("chat_id", privateChatId(env.TELEGRAM_OWNER_CHAT_ID));
@@ -87,14 +88,9 @@ export async function sendPhotoBackup(env, bytes, mime, senderInfo = "") {
     `foto-originale.${extension}`,
   );
   body.set("disable_content_type_detection", "true");
-  body.set(
-    "caption",
-    senderInfo
-      ? `Foto da ${senderInfo} su Sotto l’Albero`
-      : "Nuova foto caricata su Sotto l’Albero",
-  );
+  body.set("caption", "Nuova foto caricata su Sotto l’Albero");
   try {
-    await telegramCall(token, "sendDocument", body);
+    await telegramCall(env.TELEGRAM_PHOTO_BOT_TOKEN, "sendDocument", body);
   } catch {
     throw new HttpError(
       "Non siamo riusciti a inviare la copia privata. Riprova tra poco.",

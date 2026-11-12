@@ -3,7 +3,7 @@ import {
   token,
   digest,
   validEmail,
-  validPhone,
+  optionalPhone,
   safeText,
   HttpError,
   isLocalRequest,
@@ -142,7 +142,7 @@ export async function authRoute(request, env, path, body, user) {
       email,
     );
     const name = existing?.name ?? safeText(body.name, 80, true);
-    const phone = existing ? null : validPhone(body.phone);
+    const phone = existing ? null : optionalPhone(body.phone);
     const bytes = crypto.getRandomValues(new Uint32Array(1));
     const code = String(bytes[0] % 1000000).padStart(6, "0");
     await run(
@@ -194,10 +194,6 @@ export async function authRoute(request, env, path, body, user) {
           "SELECT id FROM users WHERE organizer=1 LIMIT 1",
         )));
     const session = token();
-    if (!u && !entry.phone)
-      throw new HttpError(
-        "Richiedi un nuovo codice indicando il tuo numero di telefono.",
-      );
     const statements = [
       env.DB.prepare(
         "DELETE FROM codes WHERE email=? AND digest=? AND expires>? AND attempts<=5",

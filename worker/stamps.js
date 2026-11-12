@@ -39,7 +39,8 @@ export async function stampRoute(method, db, userId, body) {
   ) {
     throw new HttpError("Completa la partita per raccogliere il timbro.", 403);
   }
-  if (!isStampAvailable(stamps[stamp], Date.now())) {
+  const now = Date.now();
+  if (!isStampAvailable(stamps[stamp], now)) {
     const collected = await first(
       db,
       "SELECT 1 FROM user_stamps WHERE user_id=? AND stamp=?",
@@ -54,9 +55,10 @@ export async function stampRoute(method, db, userId, body) {
   }
   await run(
     db,
-    "INSERT INTO user_stamps(user_id,stamp) VALUES(?,?) ON CONFLICT(user_id,stamp) DO NOTHING",
+    "INSERT INTO user_stamps(user_id,stamp,collected_at) VALUES(?,?,?) ON CONFLICT(user_id,stamp) DO NOTHING",
     userId,
     stamp,
+    now,
   );
   return json({ stamp });
 }

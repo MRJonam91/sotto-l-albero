@@ -13,7 +13,12 @@ export async function api(path, method = "GET", body) {
   }
   const data = await response.json().catch(() => ({}));
   if (!response.ok)
-    throw new Error(data.error || "Qualcosa non è andato. Riprova tra poco.");
+    throw Object.assign(
+      new Error(data.error || "Qualcosa non è andato. Riprova tra poco."),
+      {
+        status: response.status,
+      },
+    );
   return data;
 }
 export const date = (value) =>

@@ -1,6 +1,7 @@
 .competition {
   max-width: 62rem;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 1rem;
   min-width: 0;
 }
@@ -72,6 +73,7 @@
 
 .competition-standings {
   width: 100%;
+  min-width: 0;
   padding: clamp(0.9rem, 3vw, 1.6rem);
   border: 1px solid var(--line);
   border-radius: 0.9rem;
@@ -124,6 +126,9 @@
   flex-wrap: wrap;
   justify-content: center;
   gap: 0.65rem;
+  margin: 0;
+  padding: 0.35rem 0.2rem 0.6rem;
+  list-style: none;
 }
 
 .hourglass-board li {
@@ -269,6 +274,65 @@
   min-height: 44px;
 }
 
+.competition-vessels {
+  width: 100%;
+  min-width: 0;
+}
+
+.competition-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: end;
+  gap: 0.35rem;
+}
+
+.hourglass-board .competition-row-actions {
+  justify-content: center;
+}
+
+.competition-breakdown {
+  width: 100%;
+  margin: 0.85rem 0 0;
+}
+
+.competition-breakdown > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.6rem;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.competition-breakdown dd {
+  margin: 0;
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.competition-breakdown .competition-breakdown-total {
+  font-weight: 700;
+}
+
+@media (max-width: 620px) {
+  .competition-vessels {
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    padding: 0.2rem;
+  }
+
+  .hourglass-board {
+    flex-wrap: nowrap;
+    justify-content: start;
+    width: max-content;
+    min-width: 100%;
+  }
+
+  .hourglass-board li {
+    flex: 0 0 8.4rem;
+    scroll-snap-align: start;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .vessel-fill-window,
   .vessel-meniscus {
@@ -309,15 +373,44 @@
   justify-content: space-between;
 }
 
+.competition-duels,
+.competition-ranks {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.competition-duel-title {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.8rem;
+}
+
+.competition-duel-title svg {
+  flex: 0 0 auto;
+  margin-top: 0.25rem;
+  color: #7b492b;
+}
+
+.competition-duel-invite {
+  border-top: 3px solid #a8753d;
+}
+
 .competition-duel-form {
+  width: 100%;
   align-items: end;
+}
+
+.competition-duel-form .field {
+  flex: 1 1 13rem;
+  margin: 0;
 }
 
 @media (max-width: 450px) {
   .competition-ranks li {
     grid-template-columns: 1.8rem auto minmax(0, 1fr) auto;
   }
-  .competition-ranks li > .button {
+  .competition-ranks li > .competition-row-actions {
     grid-column: 3 / -1;
     justify-self: start;
   }

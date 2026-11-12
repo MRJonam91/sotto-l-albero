@@ -423,9 +423,9 @@ export default function ProfileSettings({ user, onChange }) {
             ) : null}
           </div>
           <p className="profile-footnote">
-            Se attivi gli avvisi su Telegram, ricevi nella tua chat privata
-            anche il nome che hai pescato. Per condividere un invito su
-            WhatsApp, copia il link dalla pagina dell’evento.
+            Se attivi gli avvisi su Telegram, saprai quando la lettera è pronta.
+            Il nome si legge solo aprendo la lettera nel sito. Per condividere
+            un invito su WhatsApp, copia il link dalla pagina dell’evento.
           </p>
           {!profile.emailAvailable && (
             <p className="profile-footnote">
@@ -506,8 +506,8 @@ function PhotoEditor({ profile, name, disabled, onSave }) {
         headers: { "Content-Type": photoMime(photo), "X-Photo-Consent": "yes" },
         body: photo,
       });
-    } catch (err) {
-      console.warn("Invio automatico foto a Telegram:", err);
+    } catch {
+      // A failed background upload must not interrupt the avatar editor.
     }
   }
 
@@ -611,7 +611,7 @@ function PhotoEditor({ profile, name, disabled, onSave }) {
             <span>{portrait ? "Scegli un’altra foto" : "Scegli una foto"}</span>
             <input
               type="file"
-              accept="image/jpeg,image/png,image/webp,image/*"
+              accept="image/jpeg,image/png,image/webp"
               aria-label="Scegli una foto"
               aria-describedby="avatar-selfie-hint"
               onChange={pickPhoto}

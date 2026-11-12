@@ -120,7 +120,15 @@ test("Evento completo: inviti, desideri riservati, vincoli, estrazione concorren
     admin.post(`/api/events/${event.id}/draw`, { data: {} }),
   ]);
   expect(draws.some((r) => r.ok())).toBeTruthy();
-  detail = await (await admin.get(`/api/events/${event.id}?reveal=1`)).json();
+  const path = `/api/events/${event.id}`;
+  const sealed = await (await admin.get(path)).json();
+  const version = sealed.event.version;
+  expect(sealed.assignments).toBeUndefined();
+  detail = await (
+    await admin.post(`${path}/assignments`, {
+      data: { version, confirm: true },
+    })
+  ).json();
   expect(detail.assignments).toHaveLength(3);
   expect(new Set(detail.assignments.map((p) => p.receiverId)).size).toBe(3);
   expect(
@@ -130,8 +138,13 @@ test("Evento completo: inviti, desideri riservati, vincoli, estrazione concorren
     b.id,
   );
   for (const c of people) {
-    const first = await (await c.get(`/api/events/${event.id}`)).json();
-    const again = await (await c.get(`/api/events/${event.id}`)).json();
+    expect((await (await c.get(path)).json()).recipient).toBeUndefined();
+    const first = await (
+      await c.post(`${path}/recipient`, { data: { version } })
+    ).json();
+    const again = await (
+      await c.post(`${path}/recipient`, { data: { version } })
+    ).json();
     expect(first.recipient).toBeTruthy();
     expect(first.recipient).toEqual(again.recipient);
     expect(first.recipient.wishlist).toHaveLength(1);
@@ -147,6 +160,110 @@ test("Evento completo: inviti, desideri riservati, vincoli, estrazione concorren
     (await admin.post(`/api/events/${event.id}/archive`, { data: {} })).ok(),
   ).toBeTruthy();
 });
+test("Gruppi da 3, 5, 10, 15 e 20 ricevono tutti un nome distinto e stabile", async () => {
+  const stamp = Date.now();
+  const admin = await client("admin@example.test", "Organizzatore");
+  const people = await Promise.all(
+    Array.from({ length: 20 }, async (_, index) => {
+      const name = `Partecipante ${index + 1}`;
+      return {
+        name,
+        session: await client(
+          `estrazione-${stamp}-${index}@example.test`,
+          name,
+        ),
+      };
+    }),
+  );
+  const day = 86400000;
+  for (const size of [3, 5, 10, 15, 20]) {
+    await test.step(`${size} partecipanti`, async () => {
+      const group = people.slice(0, size);
+      const created = await admin.post("/api/events", {
+        data: {
+          name: `Estrazione di prova ${size}`,
+          groupName: `Gruppo ${size} ${stamp}`,
+          budget: 20,
+          closeAt: new Date(stamp + day).toISOString(),
+          drawAt: new Date(stamp + 2 * day).toISOString(),
+          giftAt: new Date(stamp + 10 * day).toISOString(),
+        },
+      });
+      expect(created.ok(), await created.text()).toBeTruthy();
+      const { event } = await created.json();
+      const path = `/api/events/${event.id}`;
+      for (const { session } of group) {
+        expect(
+          (
+            await session.post(`${path}/join`, {
+              data: { token: event.inviteToken },
+            })
+          ).ok(),
+        ).toBeTruthy();
+      }
+      const { members } = await (await admin.get(path)).json();
+      expect(members).toHaveLength(size);
+      for (const member of members) {
+        expect(
+          (
+            await admin.post(`${path}/members/${member.id}`, {
+              data: { status: "approved" },
+            })
+          ).ok(),
+        ).toBeTruthy();
+      }
+
+      expect(
+        (await admin.post(`${path}/draw`, { data: {} })).ok(),
+      ).toBeTruthy();
+      const { event: drawn } = await (await admin.get(path)).json();
+      const version = drawn.version;
+      const { assignments } = await (
+        await admin.post(`${path}/assignments`, {
+          data: { version, confirm: true },
+        })
+      ).json();
+      const expectedIds = members.map(({ id }) => id).sort();
+      expect(assignments.map(({ giverId }) => giverId).sort()).toEqual(
+        expectedIds,
+      );
+      expect(assignments.map(({ receiverId }) => receiverId).sort()).toEqual(
+        expectedIds,
+      );
+      const names = new Map(members.map(({ id, name }) => [id, name]));
+      const recipients = new Map(
+        assignments.map(({ giverId, receiverId }) => [
+          names.get(giverId),
+          names.get(receiverId),
+        ]),
+      );
+      for (const { name, session } of group) {
+        expect(
+          (await (await session.get(path)).json()).recipient,
+        ).toBeUndefined();
+        const detail = await (
+          await session.post(`${path}/recipient`, { data: { version } })
+        ).json();
+        expect(detail.recipient.name).toBe(recipients.get(name));
+        expect(detail.recipient.name).not.toBe(name);
+        expect(detail.assignments).toBeUndefined();
+      }
+      expect(
+        (await admin.post(`${path}/draw`, { data: {} })).ok(),
+      ).toBeTruthy();
+      expect(
+        (
+          await (
+            await admin.post(`${path}/assignments`, {
+              data: { version, confirm: true },
+            })
+          ).json()
+        ).assignments,
+      ).toEqual(assignments);
+    });
+  }
+});
+
 test("La rotazione del link revoca quello precedente e gli URL pericolosi sono respinti", async () => {
   const admin = await client("admin@example.test", "Organizzatore");
   const d = Date.now(),

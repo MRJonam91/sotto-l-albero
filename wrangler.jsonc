@@ -6,7 +6,17 @@
     "directory": "./dist",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*"],
+    "run_worker_first": [
+      "/api/*",
+      "/",
+      "/events/*",
+      "/invite/*",
+      "/desideri",
+      "/archivio",
+      "/giochi",
+      "/profilo",
+      "/regolamento",
+    ],
   },
   "d1_databases": [
     {
@@ -19,5 +29,5 @@
   // Optional private R2 bucket. Enable this binding after creating the bucket.
   // "r2_buckets": [{ "binding": "AVATAR_BUCKET", "bucket_name": "sotto-l-albero-avatars" }],
   "triggers": { "crons": ["* * * * *"] },
-  "vars": { "APP_URL": "https://sotto-l-albero.sotto-l-albero.workers.dev" },
+  "vars": { "APP_URL": "https://sottolalbero.gifts" },
 }

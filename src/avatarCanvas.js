@@ -30,6 +30,12 @@ export const avatarScenes = [
     face: [128, 117, 56, 62],
   },
   {
+    id: "ornament",
+    name: "Pallina di vetro",
+    colors: ["#0b342b", "#061c19"],
+    face: [128, 132, 57, 64],
+  },
+  {
     id: "gingerbread",
     name: "Pan di zenzero",
     colors: ["#4c2923", "#232d27"],
@@ -89,6 +95,41 @@ function star(ctx, x, y, size, color = gold) {
     ],
     color,
   );
+}
+
+function material(ctx, x, y, w, h, stops) {
+  const gradient = ctx.createLinearGradient(x, y, x + w, y + h);
+  stops.forEach((color, i) =>
+    gradient.addColorStop(i / (stops.length - 1), color),
+  );
+  return gradient;
+}
+
+function glow(ctx, x, y, radius, color) {
+  const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
+  gradient.addColorStop(0, color);
+  gradient.addColorStop(1, "transparent");
+  ellipse(ctx, x, y, radius, radius, gradient);
+}
+
+function evergreen(ctx, x, y, angle) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  stroke(ctx, "#668a68", 2, () => {
+    ctx.moveTo(0, 0);
+    ctx.lineTo(92, 0);
+  });
+  for (let i = 0; i < 17; i++) {
+    const start = 5 + i * 5;
+    const span = 23 - i * 0.8;
+    stroke(ctx, i % 3 ? "#426f55" : "#86a682", 1.5, () => {
+      ctx.moveTo(start + 9, -span);
+      ctx.lineTo(start, 0);
+      ctx.lineTo(start + 9, span);
+    });
+  }
+  ctx.restore();
 }
 
 function snow(ctx, count, foreground = false) {
@@ -179,12 +220,26 @@ function drawBackground(ctx, scene) {
   snow(ctx, 44);
   switch (scene.id) {
     case "elf":
-      for (const y of [60, 114, 174]) {
-        fillRect(ctx, 0, y, 256, 7, "#936043");
-        parcel(ctx, 12 + (y % 23), y - 26, 27, 26, "#a74b41");
-        parcel(ctx, 201 - (y % 16), y - 22, 26, 22, "#57826b");
+      glow(ctx, 129, 105, 126, "#9c7e467f");
+      evergreen(ctx, 0, 125, -1.12);
+      evergreen(ctx, 257, 141, -2.02);
+      for (const [x, y] of [
+        [31, 116],
+        [221, 121],
+        [34, 163],
+        [219, 50],
+      ]) {
+        glow(ctx, x, y, 18, "#ebb35b8c");
+        star(ctx, x, y, 3);
       }
-      ellipse(ctx, 128, 256, 87, 87, "#3d8966");
+      ellipse(
+        ctx,
+        128,
+        257,
+        99,
+        87,
+        material(ctx, 65, 164, 121, 85, ["#467759", "#254d3c", "#123428"]),
+      );
       polygon(
         ctx,
         [
@@ -192,7 +247,7 @@ function drawBackground(ctx, scene) {
           [48, 88],
           [76, 132],
         ],
-        "#c08a68",
+        "#b17a57",
       );
       polygon(
         ctx,
@@ -201,7 +256,7 @@ function drawBackground(ctx, scene) {
           [208, 88],
           [180, 132],
         ],
-        "#c08a68",
+        "#b17a57",
       );
       break;
     case "santa":
@@ -212,7 +267,18 @@ function drawBackground(ctx, scene) {
       break;
     case "sleigh":
       village(ctx);
-      ellipse(ctx, 128, 197, 74, 66, "#824343");
+      glow(ctx, 205, 44, 45, "#ffedb963");
+      star(ctx, 47, 45, 11, "#ffdf9e");
+      star(ctx, 204, 101, 6, "#ffdf9e");
+      ellipse(
+        ctx,
+        128,
+        150,
+        61,
+        102,
+        material(ctx, 62, 55, 111, 112, ["#6c4835", "#382825", "#201c24"]),
+      );
+      ellipse(ctx, 128, 202, 73, 57, "#623936");
       break;
     case "chimney":
       bricks(ctx, 32, true);
@@ -223,6 +289,23 @@ function drawBackground(ctx, scene) {
       pine(ctx, 211, 206, 1.7, "#a7c4c3");
       ellipse(ctx, 129, 202, 75, 48, "#b4c7c5");
       break;
+    case "ornament":
+      evergreen(ctx, 0, 13, 0.63);
+      evergreen(ctx, 256, 21, 2.55);
+      evergreen(ctx, 0, 224, -0.48);
+      evergreen(ctx, 256, 224, -2.65);
+      glow(ctx, 128, 135, 97, "#d5dbad72");
+      ellipse(
+        ctx,
+        128,
+        136,
+        89,
+        89,
+        material(ctx, 48, 57, 156, 153, ["#315e51", "#253e39", "#193833"]),
+      );
+      pine(ctx, 63, 177, 0.7, "#56786d");
+      pine(ctx, 192, 179, 0.9, "#628579");
+      break;
     case "gingerbread":
       ellipse(ctx, 129, 107, 75, 77, "#ae633d");
       ellipse(ctx, 129, 214, 89, 81, "#bd7449");
@@ -230,8 +313,31 @@ function drawBackground(ctx, scene) {
   }
 }
 
-function drawFace(ctx, image, [x, y, rx, ry], { zoom, offsetX, offsetY }) {
+function drawFace(
+  ctx,
+  { source: image, isolated },
+  [x, y, rx, ry],
+  { zoom, offsetX, offsetY },
+) {
   ctx.save();
+  if (isolated) {
+    const scale =
+      Math.min((rx * 2.15) / image.width, (ry * 2) / image.height) * zoom;
+    const w = image.width * scale;
+    const h = image.height * scale;
+    ctx.shadowColor = "#271a167c";
+    ctx.shadowBlur = 4;
+    ctx.shadowOffsetY = 2;
+    ctx.drawImage(
+      image,
+      x - w / 2 + offsetX * 0.27,
+      y - h / 2 + offsetY * 0.27,
+      w,
+      h,
+    );
+    ctx.restore();
+    return;
+  }
   ellipse(ctx, x, y, rx, ry);
   ctx.clip();
   const scale =
@@ -245,6 +351,62 @@ function drawFace(ctx, image, [x, y, rx, ry], { zoom, offsetX, offsetY }) {
   stroke(ctx, "#fff1d17c", 2, () =>
     ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2),
   );
+}
+
+function elfHat(ctx) {
+  ctx.beginPath();
+  ctx.moveTo(65, 81);
+  ctx.bezierCurveTo(70, 27, 104, 37, 148, 17);
+  ctx.bezierCurveTo(188, -1, 208, 27, 207, 47);
+  ctx.quadraticCurveTo(179, 30, 171, 53);
+  ctx.quadraticCurveTo(176, 68, 186, 76);
+  ctx.quadraticCurveTo(125, 62, 65, 81);
+  ctx.fillStyle = material(ctx, 93, 23, 45, 56, [
+    "#7b9770",
+    "#3e644d",
+    "#244537",
+  ]);
+  ctx.fill();
+  stroke(ctx, "#d3b472", 4, () => {
+    ctx.moveTo(66, 81);
+    ctx.quadraticCurveTo(125, 62, 186, 76);
+  });
+  ellipse(
+    ctx,
+    207,
+    47,
+    8,
+    8,
+    material(ctx, 200, 40, 15, 13, [cream, gold, "#846035"]),
+  );
+  star(ctx, 104, 58, 5);
+  star(ctx, 123, 51, 3);
+}
+
+function goggles(ctx) {
+  stroke(ctx, "#49312d", 10, () => {
+    ctx.moveTo(78, 59);
+    ctx.quadraticCurveTo(128, 32, 180, 59);
+  });
+  for (const x of [109, 149]) {
+    ellipse(
+      ctx,
+      x,
+      49,
+      19,
+      14,
+      material(ctx, x - 9, 40, 19, 16, ["#f0cd83", "#af783f", "#f3d29a"]),
+    );
+    ellipse(
+      ctx,
+      x,
+      49,
+      14,
+      10,
+      material(ctx, x - 11, 45, 16, 11, ["#73889d", "#253842", "#201f2d"]),
+    );
+    stroke(ctx, "#e7edf5b5", 2, () => ctx.arc(x, 50, 9, 3.7, 4.7));
+  }
 }
 
 function drawHat(ctx, color, x, y) {
@@ -268,7 +430,7 @@ function drawHat(ctx, color, x, y) {
 function drawForeground(ctx, scene, beard) {
   switch (scene.id) {
     case "elf":
-      drawHat(ctx, "#3d8966", 128, 66);
+      elfHat(ctx);
       polygon(
         ctx,
         [
@@ -278,10 +440,17 @@ function drawForeground(ctx, scene, beard) {
           [190, 227],
           [72, 227],
         ],
-        "#dcc88e",
+        material(ctx, 75, 185, 103, 43, ["#e7d2a0", "#ad8c56", "#ecd3a1"]),
       );
       fillRect(ctx, 118, 222, 21, 34, "#255944");
       ellipse(ctx, 129, 237, 6, 6, gold);
+      for (const [x, y] of [
+        [78, 210],
+        [91, 216],
+        [165, 216],
+        [180, 207],
+      ])
+        star(ctx, x, y, 3, "#fff0cc");
       break;
     case "santa":
       drawHat(ctx, red, 128, 68);
@@ -294,7 +463,21 @@ function drawForeground(ctx, scene, beard) {
       fillRect(ctx, 122, 217, 14, 39, cream);
       break;
     case "sleigh":
-      drawHat(ctx, red, 130, 57);
+      goggles(ctx);
+      stroke(ctx, "#c79e77", 7, () => {
+        ctx.moveTo(77, 66);
+        ctx.quadraticCurveTo(64, 104, 84, 150);
+        ctx.moveTo(181, 66);
+        ctx.quadraticCurveTo(194, 104, 174, 150);
+      });
+      ellipse(
+        ctx,
+        129,
+        170,
+        59,
+        16,
+        material(ctx, 74, 156, 96, 32, ["#9d3d44", "#651d31", "#bc5c4c"]),
+      );
       parcel(ctx, 31, 167, 35, 35, "#6b9469");
       parcel(ctx, 169, 156, 31, 39, "#d1a274");
       polygon(
@@ -309,12 +492,17 @@ function drawForeground(ctx, scene, beard) {
           [57, 232],
           [36, 220],
         ],
-        red,
+        material(ctx, 59, 172, 126, 63, ["#db795d", "#a84049", "#5d2031"]),
       );
       stroke(ctx, gold, 5, () => {
         ctx.moveTo(34, 240);
         ctx.lineTo(181, 240);
         ctx.quadraticCurveTo(221, 240, 233, 219);
+      });
+      stroke(ctx, "#f6ca83", 2.5, () => {
+        ctx.moveTo(35, 199);
+        ctx.lineTo(172, 199);
+        ctx.quadraticCurveTo(201, 197, 225, 179);
       });
       break;
     case "chimney":
@@ -340,6 +528,46 @@ function drawForeground(ctx, scene, beard) {
       ellipse(ctx, 128, 213, 87, 13, "#bf8560");
       star(ctx, 128, 232, 10, cream);
       break;
+    case "ornament": {
+      stroke(ctx, "#c7a56b", 1.5, () => {
+        ctx.moveTo(128, 0);
+        ctx.lineTo(128, 37);
+      });
+      fillRect(
+        ctx,
+        114,
+        37,
+        28,
+        15,
+        material(ctx, 114, 37, 28, 0, ["#a77439", "#f0d49b", "#9e733d"]),
+      );
+      ellipse(
+        ctx,
+        128,
+        136,
+        89,
+        89,
+        material(ctx, 60, 56, 160, 155, [
+          "#fff1c827",
+          "#a0e1e012",
+          "#f6d5a63b",
+        ]),
+      );
+      stroke(ctx, "#e9d5a1b0", 2.2, () =>
+        ctx.arc(128, 136, 89, 0, Math.PI * 2),
+      );
+      stroke(ctx, "#faf4dbb3", 5, () => ctx.arc(128, 136, 79, 3.59, 4.36));
+      stroke(ctx, "#afd0c995", 2.3, () => ctx.arc(128, 136, 79, 0.42, 1.52));
+      for (const [x, y, size] of [
+        [63, 101, 7],
+        [193, 106, 5],
+        [178, 190, 6],
+        [91, 205, 4],
+      ]) {
+        star(ctx, x, y, size, "#f4e6c0");
+      }
+      break;
+    }
     case "gingerbread":
       stroke(ctx, cream, 5, () =>
         ctx.ellipse(128, 105, 66, 68, 0, 0, Math.PI * 2),
@@ -365,7 +593,7 @@ function drawForeground(ctx, scene, beard) {
 
 export function drawAvatar(
   canvas,
-  image,
+  portrait,
   { scene, zoom = 1.15, offsetX = 0, offsetY = 0, beard = true },
   size = 256,
 ) {
@@ -377,7 +605,8 @@ export function drawAvatar(
   ctx.scale(size / 256, size / 256);
   ctx.imageSmoothingQuality = "high";
   drawBackground(ctx, chosen);
-  if (image) drawFace(ctx, image, chosen.face, { zoom, offsetX, offsetY });
+  if (portrait)
+    drawFace(ctx, portrait, chosen.face, { zoom, offsetX, offsetY });
   drawForeground(ctx, chosen, beard);
 }
 

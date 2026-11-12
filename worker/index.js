@@ -19,11 +19,15 @@ export default {
     if (!path.startsWith("/api/")) {
       const response = await env.ASSETS.fetch(request);
       const result = new Response(response.body, response);
+      if (result.headers.get("Content-Type")?.includes("text/html")) {
+        result.headers.set("Cache-Control", "no-store");
+        result.headers.set("Cloudflare-CDN-Cache-Control", "no-store");
+      }
       result.headers.set("X-Content-Type-Options", "nosniff");
       result.headers.set("Referrer-Policy", "same-origin");
       result.headers.set(
         "Content-Security-Policy",
-        "default-src 'self'; img-src 'self' data: blob:; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+        "default-src 'self'; img-src 'self' data: blob:; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
       );
       return result;
     }
