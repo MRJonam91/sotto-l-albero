@@ -81,11 +81,6 @@ function dates(body) {
   return values.map((d) => d.toISOString());
 }
 export async function createEvent(db, user, body, groupId) {
-  if (!user.organizer)
-    throw new HttpError(
-      "Per creare un evento serve l’abilitazione di chi gestisce il sito.",
-      403,
-    );
   const name = safeText(body.name, 100, true),
     description = safeText(body.description, 2000),
     groupName = safeText(body.groupName, 100) || name;
@@ -221,7 +216,7 @@ export async function drawEvent(env, e, actor = "scheduler") {
         version,
         m.email,
         `La tua lettera per ${e.name} è pronta`,
-        `<p>Abbiamo estratto i nomi per <strong>${escapeHtml(e.name)}</strong>.</p><p><a href="${escapeHtml(env.APP_URL || "")}/events/${e.id}">Apri la tua lettera</a> e scopri per chi preparerai il regalo.</p>`,
+        `<p>Abbiamo estratto i nomi per <strong>${escapeHtml(e.name)}</strong>.</p><p><a href="${escapeHtml(env.APP_URL || "")}/events/${e.id}?tab=reveal">Apri la tua lettera</a> e scopri per chi preparerai il regalo.</p>`,
         e.id,
         claim,
         m.email,
@@ -288,13 +283,13 @@ export async function eventRoute(request, env, path, body, user) {
     const givenToken = safeText(body.token, 100, true);
     const e = await first(
       db,
-      "SELECT * FROM events WHERE id=? AND status='open' AND (invite_token=? OR EXISTS(SELECT 1 FROM invites i WHERE i.event_id=events.id AND i.token=? AND i.email=?))",
+      "SELECT * FROM events WHERE id=? AND (invite_token=? OR EXISTS(SELECT 1 FROM invites i WHERE i.event_id=events.id AND i.token=? AND i.email=?))",
       eid,
       givenToken,
       givenToken,
       user.email,
     );
-    if (!e || new Date(e.close_at).valueOf() <= Date.now())
+    if (!e)
       throw new HttpError(
         "Questo invito non è più valido o le iscrizioni sono chiuse.",
       );
@@ -305,6 +300,15 @@ export async function eventRoute(request, env, path, body, user) {
       user.id,
     );
     if (existing) return json({ ok: true, membership: existing.status });
+    if (
+      e.owner_id === user.id &&
+      (e.status !== "open" || new Date(e.close_at).valueOf() <= Date.now())
+    )
+      return json({ ok: true, membership: null, isOwner: true });
+    if (e.status !== "open" || new Date(e.close_at).valueOf() <= Date.now())
+      throw new HttpError(
+        "Questo invito non è più valido o le iscrizioni sono chiuse.",
+      );
     const joinedAt = Date.now();
     const changed = await db.batch([
       stmt(
@@ -916,11 +920,11 @@ export async function eventRoute(request, env, path, body, user) {
 export async function inviteRoute(env, t, user) {
   const e = await first(
     env.DB,
-    "SELECT e.*,u.name AS organizer_name FROM events e JOIN users u ON u.id=e.owner_id WHERE e.status='open' AND (e.invite_token=? OR EXISTS(SELECT 1 FROM invites i WHERE i.event_id=e.id AND i.token=?))",
+    "SELECT e.*,u.name AS organizer_name FROM events e JOIN users u ON u.id=e.owner_id WHERE e.invite_token=? OR EXISTS(SELECT 1 FROM invites i WHERE i.event_id=e.id AND i.token=?)",
     t,
     t,
   );
-  if (!e || new Date(e.close_at).valueOf() <= Date.now())
+  if (!e)
     throw new HttpError("Questo invito è scaduto o è stato revocato.", 404);
   const member =
     user &&
@@ -930,6 +934,18 @@ export async function inviteRoute(env, t, user) {
       e.id,
       user.id,
     ));
+  const closed =
+    e.status !== "open" || new Date(e.close_at).valueOf() <= Date.now();
+  const isOwner = e.owner_id === user?.id;
+  if (closed && !user)
+    return json({
+      event: null,
+      membership: null,
+      closed: true,
+      requiresSignIn: true,
+    });
+  if (closed && !member && !isOwner)
+    throw new HttpError("Questo invito è scaduto o è stato revocato.", 404);
   return json({
     event: {
       id: e.id,
@@ -941,6 +957,8 @@ export async function inviteRoute(env, t, user) {
     },
     organizerName: e.organizer_name,
     membership: member?.status ?? null,
+    isOwner,
+    closed,
   });
 }
 export async function scheduled(env) {
@@ -993,7 +1011,7 @@ export async function scheduled(env) {
         mail.version >= 0 &&
         !(await first(
           env.DB,
-          "SELECT 1 FROM events e JOIN members m ON m.event_id=e.id JOIN users u ON u.id=m.user_id WHERE e.id=? AND e.version=? AND m.status='approved' AND u.email=? AND u.notify_email=1",
+          "SELECT 1 FROM events e JOIN members m ON m.event_id=e.id JOIN users u ON u.id=m.user_id WHERE e.id=? AND e.version=? AND e.status='drawn' AND m.status='approved' AND u.email=? AND u.notify_email=1 AND EXISTS(SELECT 1 FROM assignments a WHERE a.event_id=e.id AND a.version=e.version AND a.giver_id=m.id)",
           mail.event_id,
           mail.version,
           mail.email,

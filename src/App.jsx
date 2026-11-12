@@ -53,6 +53,15 @@ function currentSection() {
   );
 }
 
+function requestedEventTab() {
+  const tab = new URLSearchParams(location.search).get("tab");
+  return ["overview", "wishlist", "reveal", "competition", "admin"].includes(
+    tab,
+  )
+    ? tab
+    : undefined;
+}
+
 function focusMain() {
   requestAnimationFrame(() => {
     // Focus must not scroll the header out of view, especially on iOS.
@@ -73,6 +82,7 @@ export default function App() {
     [error, setError] = useState(""),
     [secret, setSecret] = useState(null),
     [invite, setInvite] = useState(null),
+    [inviteError, setInviteError] = useState(""),
     [joining, setJoining] = useState(false),
     [snow, setSnow] = useState(
       () => localStorage.getItem("sla-snow") !== "off",
@@ -94,12 +104,15 @@ export default function App() {
     let active = true;
     api("/invite/" + encodeURIComponent(token)).then(
       (result) => {
-        if (active) setInvite(result);
+        if (active) {
+          setInvite(result);
+          setInviteError("");
+        }
       },
       (err) => {
         if (active) {
           setInvite(null);
-          setError(err.message);
+          setInviteError(err.message);
         }
       },
     );
@@ -243,15 +256,35 @@ export default function App() {
           </div>
         </header>
         <main id="main" tabIndex={-1}>
-          <AppUpdateNotice idlePage={!eventId && ["events", "wishes", "archive"].includes(section)} />
-          <Notice error>{error}</Notice>
+          <AppUpdateNotice
+            idlePage={
+              !eventId && ["events", "wishes", "archive"].includes(section)
+            }
+          />
+          <Notice error>{error || (token ? inviteError : "")}</Notice>
           {section === "rules" ? (
             <SecretSantaRules />
           ) : loading ? (
             <div className="loading">Prepariamo le lettere…</div>
           ) : (
             <>
-              {invite && token && !eventId ? (
+              {invite?.requiresSignIn && token && !session?.user ? (
+                <section
+                  className="invitation paper"
+                  aria-label="Ritrova il tuo evento"
+                >
+                  <h2>Il tuo evento ti aspetta</h2>
+                  <p>
+                    Le iscrizioni sono chiuse. Se hai già aderito, puoi ancora
+                    aprire l’evento.
+                  </p>
+                  <p>
+                    Accedi qui sotto con la stessa email usata per partecipare.
+                    L’invito chiuso non cancella la tua iscrizione.
+                  </p>
+                </section>
+              ) : null}
+              {invite?.event && token && !eventId ? (
                 <section className="invitation paper">
                   <span className="eyebrow">Ti aspettiamo</span>
                   <h2>{invite.event.name}</h2>
@@ -274,10 +307,23 @@ export default function App() {
                     regalo.
                   </small>
                   {session?.user ? (
-                    invite.membership === "approved" ? (
+                    invite.membership === "approved" || invite.isOwner ? (
                       <div className="invitation-action">
-                        <p>Il tuo posto è confermato.</p>
-                        <Button onClick={() => openEvent(invite.event.id)}>
+                        <p>
+                          {invite.isOwner && !invite.membership
+                            ? "Questo è il tuo evento."
+                            : "Il tuo posto è confermato."}
+                        </p>
+                        <Button
+                          onClick={() =>
+                            openEvent(
+                              invite.event.id,
+                              invite.closed && invite.membership === "approved"
+                                ? "reveal"
+                                : undefined,
+                            )
+                          }
+                        >
                           Apri l’evento
                         </Button>
                       </div>
@@ -285,11 +331,15 @@ export default function App() {
                       <Button
                         onClick={join}
                         busy={joining}
-                        disabled={invite.membership === "pending"}
+                        disabled={
+                          invite.membership === "pending" || invite.closed
+                        }
                       >
                         {invite.membership === "pending"
                           ? "Richiesta inviata: ti faremo sapere"
-                          : "Voglio partecipare"}
+                          : invite.closed
+                            ? "Le iscrizioni sono chiuse"
+                            : "Voglio partecipare"}
                       </Button>
                     )
                   ) : (
@@ -301,6 +351,7 @@ export default function App() {
               ) : null}
               {!session?.user ? (
                 <Auth
+                  preferExisting={!!invite?.requiresSignIn}
                   local={session?.local}
                   mailConfigured={session?.mailConfigured}
                   onLogin={(user) => {
@@ -322,11 +373,9 @@ export default function App() {
                     key={eventId}
                     id={eventId}
                     initialTab={
-                      new URLSearchParams(location.search).get("tab") ===
-                      "admin"
-                        ? "admin"
-                        : (history.state?.eventTab ??
-                          (section === "wishes" ? "wishlist" : "overview"))
+                      requestedEventTab() ??
+                      history.state?.eventTab ??
+                      (section === "wishes" ? "wishlist" : "overview")
                     }
                     user={session.user}
                     onOpen={(id) => {
@@ -387,16 +436,9 @@ export default function App() {
                         Crea e condividi i tuoi gruppi. Giocate insieme e
                         organizzate lo scambio.
                       </p>
-                      {session.user.organizer ? (
-                        <Button onClick={() => setCreate(true)}>
-                          <Plus size={18} /> Crea un Secret Santa
-                        </Button>
-                      ) : (
-                        <p className="quiet">
-                          Hai ricevuto un invito? Apri il link per unirti al
-                          gruppo.
-                        </p>
-                      )}
+                      <Button onClick={() => setCreate(true)}>
+                        <Plus size={18} /> Crea un Secret Santa
+                      </Button>
                       {section === "events" && (
                         <>
                           <a className="santa-rules-link" href="/regolamento">
@@ -528,7 +570,7 @@ export default function App() {
                               ? "Crea uno scambio e manda l’invito al tuo gruppo."
                               : "Hai ricevuto un invito? Aprilo per partecipare. Lo scambio comparirà qui."}
                         </p>
-                        {session.user.organizer && section !== "archive" ? (
+                        {section !== "archive" ? (
                           <button
                             className="text-button"
                             onClick={() => setCreate(true)}

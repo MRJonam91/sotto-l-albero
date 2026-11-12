@@ -14,6 +14,25 @@ import DrawExplanation from "./DrawExplanation.jsx";
 import "./reveal.css";
 
 const ceremonyDuration = 3400;
+// Retain only the acknowledgement, never the recipient or their private wishes.
+const openedLetters = new Set();
+function readLocal(key) {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+function writeLocal(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Browser storage can be unavailable; the in-memory acknowledgement remains.
+  }
+}
+function hasOpened(key) {
+  return !!key && (openedLetters.has(key) || readLocal(key) === "1");
+}
 const snow = Array.from({ length: 32 }, (_, i) => ({
   "--x": `${5 + ((i * 31 + 9) % 90)}%`,
   "--y": `${39 + ((i * 23) % 58)}%`,
@@ -27,17 +46,27 @@ export default function Reveal({
   status,
   isMember,
   eventId,
+  userId,
 }) {
-  const [phase, setPhase] = useState("sealed"),
+  // eventId includes the current draw version, supplied by Event.
+  const acknowledgementKey = userId
+    ? `sla-reveal-open:${JSON.stringify([userId, eventId])}`
+    : null;
+  const available = isMember && ["drawn", "archived"].includes(status);
+  const [phase, setPhase] = useState(() =>
+      available && hasOpened(acknowledgementKey) ? "restoring" : "sealed",
+    ),
     [recipient, setRecipient] = useState(null),
     [loading, setLoading] = useState(false),
     [error, setError] = useState(""),
     [wishes, setWishes] = useState(false),
     [now, setNow] = useState(Date.now()),
     [step, setStep] = useState(
-      () => localStorage.getItem(`sla-gift-${eventId}`) || "idea",
+      () => readLocal(`sla-gift-${eventId}`) || "idea",
     );
   const requestInProgress = useRef(false);
+  const currentScope = useRef(null);
+  currentScope.current = available ? acknowledgementKey : null;
   const resultHeading = useRef(null);
   const sealButton = useRef(null);
   useEffect(() => {
@@ -46,8 +75,22 @@ export default function Reveal({
     return () => clearTimeout(t);
   }, [phase]);
   useEffect(() => {
-    if (phase === "open") resultHeading.current?.focus({ preventScroll: true });
-  }, [phase]);
+    if (phase !== "open" || !recipient || !available) return;
+    resultHeading.current?.focus({ preventScroll: true });
+    if (acknowledgementKey) {
+      openedLetters.add(acknowledgementKey);
+      writeLocal(acknowledgementKey, "1");
+    }
+  }, [phase, recipient, available, acknowledgementKey]);
+  useEffect(() => {
+    if (!available) {
+      setRecipient(null);
+      setWishes(false);
+      setPhase("sealed");
+    } else if (phase === "restoring") {
+      openLetter(false);
+    }
+  }, [available, phase]);
   useEffect(() => {
     if (recipient || document.visibilityState === "hidden") return;
     const t = setInterval(() => setNow(Date.now()), 60000);
@@ -103,11 +146,13 @@ export default function Reveal({
   }
   async function openLetter(animate) {
     if (requestInProgress.current) return;
+    const requestedScope = currentScope.current;
     requestInProgress.current = true;
     setLoading(true);
     setError("");
     try {
       const result = await openRecipient();
+      if (currentScope.current !== requestedScope) return;
       setRecipient(result);
       const reduced = window.matchMedia(
         "(prefers-reduced-motion: reduce)",
@@ -131,7 +176,17 @@ export default function Reveal({
             <span key={i} style={style} />
           ))}
         </div>
-        {phase !== "open" ? (
+        {phase === "restoring" ? (
+          <div className="recipient-letter paper">
+            <p role="status">Sto cercando la tua lettera…</p>
+            <Notice error>{error}</Notice>
+            {error && (
+              <Button busy={loading} onClick={() => openLetter(false)}>
+                Riprova
+              </Button>
+            )}
+          </div>
+        ) : phase !== "open" ? (
           <>
             <span className="eyebrow">L’estrazione è pronta</span>
             <h2>Il nome è nella busta.</h2>
@@ -241,7 +296,7 @@ export default function Reveal({
                   className={`button ${step === v ? "" : "outline"}`}
                   onClick={() => {
                     setStep(v);
-                    localStorage.setItem(`sla-gift-${eventId}`, v);
+                    writeLocal(`sla-gift-${eventId}`, v);
                   }}
                   aria-pressed={step === v}
                 >

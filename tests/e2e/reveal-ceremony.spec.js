@@ -102,16 +102,56 @@ test("la neve si alza e il sigillo si apre prima di mostrare un solo destinatari
       path: join(artifacts, "rivelazione-lettera.png"),
     });
 
+  // Revisiting must authorize a fresh response without replaying the ceremony.
+  await page.getByRole("button", { name: "L’evento", exact: true }).click();
+  await page.getByRole("button", { name: "Il nome segreto" }).click();
+  await expect(name).toBeVisible({ timeout: 1500 });
+  await expect(stage).toHaveClass(/open$/);
+  expect(opened).toBe(2);
+  await page.reload();
+  await page.getByRole("button", { name: "Il nome segreto" }).click();
+  await expect(name).toBeVisible({ timeout: 1500 });
+  expect(opened).toBe(3);
+  expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain(
+    "Marta",
+  );
+
+  const adminCookies = await page.context().cookies();
+  const memberEmail = "marta-anteprima@example.test";
+  const memberCode = await page.request.post("/api/auth/request", {
+    data: { email: memberEmail, name: "Marta" },
+  });
+  expect(memberCode.ok()).toBeTruthy();
+  const { devCode: memberDevCode } = await memberCode.json();
+  expect(
+    (
+      await page.request.post("/api/auth/verify", {
+        data: { email: memberEmail, code: memberDevCode },
+      })
+    ).ok(),
+  ).toBeTruthy();
+  await page.reload();
+  await page.getByRole("button", { name: "Il nome segreto" }).click();
+  await expect(seal).toBeVisible();
+  await expect(page.locator(".recipient-letter h2")).toHaveCount(0);
+  expect(opened).toBe(3);
+  await page.context().clearCookies();
+  await page.context().addCookies(adminCookies);
+  await page.reload();
+  await page.getByRole("button", { name: "Il nome segreto" }).click();
+  await expect(name).toBeVisible({ timeout: 1500 });
+  expect(opened).toBe(4);
+
   const replay = stage.getByRole("button", { name: "Riapri la lettera" });
   await replay.click();
   await expect(seal).toBeFocused();
   await expect(name).toHaveCount(0);
-  expect(opened).toBe(1);
+  expect(opened).toBe(4);
   await seal.click();
   await expect(stage).toHaveClass(/opening/);
   await stage.getByRole("button", { name: "Mostra subito il nome" }).click();
   await expect(name).toBeFocused();
-  expect(opened).toBe(2);
+  expect(opened).toBe(5);
 
   await replay.click();
   await page.emulateMedia({ reducedMotion: "reduce" });
@@ -119,7 +159,7 @@ test("la neve si alza e il sigillo si apre prima di mostrare un solo destinatari
   await seal.click();
   await expect(name).toBeFocused({ timeout: 1500 });
   await expect(stage.locator(".ceremony-snow")).toBeHidden();
-  expect(opened).toBe(3);
+  expect(opened).toBe(6);
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth),
   ).toBeLessThanOrEqual(320);
@@ -127,4 +167,43 @@ test("la neve si alza e il sigillo si apre prima di mostrare un solo destinatari
     await stage.screenshot({
       path: join(artifacts, "rivelazione-mobile-320.png"),
     });
+
+  const { event: drawn } = await page.request.get(path).then((r) => r.json());
+  const cancelled = await page.request.post(path + "/cancel", {
+    data: { reason: "Verifica nuova estrazione", version: drawn.version },
+  });
+  expect(cancelled.ok(), await cancelled.text()).toBeTruthy();
+  await page.reload();
+  await page.getByRole("button", { name: "Il nome segreto" }).click();
+  await expect(
+    page.getByRole("heading", { name: "I nomi non sono ancora usciti." }),
+  ).toBeVisible();
+  await expect(page.locator(".recipient-letter")).toHaveCount(0);
+  expect(opened).toBe(6);
+  const redrawn = await page.request.post(path + "/draw", { data: {} });
+  expect(redrawn.ok(), await redrawn.text()).toBeTruthy();
+  await page.reload();
+  await page.getByRole("button", { name: "Il nome segreto" }).click();
+  await expect(seal).toBeVisible();
+  await expect(stage).toHaveClass(/sealed/);
+  await expect(page.locator(".recipient-letter")).toHaveCount(0);
+  expect(opened).toBe(6);
+
+  // A blocked browser storage must still remember acknowledgement this session.
+  await page.evaluate(() => {
+    Storage.prototype.getItem = () => {
+      throw new DOMException("Blocked", "SecurityError");
+    };
+    Storage.prototype.setItem = () => {
+      throw new DOMException("Blocked", "SecurityError");
+    };
+  });
+  await stage.getByRole("button", { name: "Mostra subito il nome" }).click();
+  await expect(stage.locator(".recipient-letter h2")).toBeVisible();
+  await page.getByRole("button", { name: "L’evento", exact: true }).click();
+  await page.getByRole("button", { name: "Il nome segreto" }).click();
+  await expect(stage.locator(".recipient-letter h2")).toBeVisible({
+    timeout: 1500,
+  });
+  expect(opened).toBe(8);
 });

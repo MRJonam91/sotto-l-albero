@@ -1,4 +1,8 @@
 import { test, expect } from "@playwright/test";
+import { readFileSync } from "node:fs";
+const appVersion = JSON.parse(
+  readFileSync(new URL("../../package.json", import.meta.url), "utf8"),
+).version;
 
 test.use({
   viewport: { width: 390, height: 844 },
@@ -41,7 +45,7 @@ test("HTML e manifest senza cache, asset con nome univoco e cache lunga", async 
   const asset = await request.get(script);
   expect(asset.headers()["cache-control"]).toContain("immutable");
   const release = await request.get("/version.json").then((r) => r.json());
-  expect(release.version).toBe("1.3.1");
+  expect(release.version).toBe(appVersion);
   expect(await asset.text()).toContain(release.buildId);
 });
 

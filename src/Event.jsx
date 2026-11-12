@@ -302,7 +302,8 @@ export default function Event({
           fallback={<div className="loading">Prepariamo la tua sorpresa…</div>}
         >
           <Reveal
-            key={`${id}:${event.version}`}
+            key={`${user.id}:${id}:${event.version}`}
+            userId={user.id}
             openRecipient={async () => {
               const { recipient } = await api(
                 `/events/${id}/recipient`,

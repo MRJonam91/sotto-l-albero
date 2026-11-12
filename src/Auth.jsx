@@ -1,8 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ArrowRight, Mail, LockKeyhole } from "lucide-react";
 import { api } from "./api.js";
 import { Button, Field, Notice } from "./ui.jsx";
-export default function Auth({ onLogin, local, mailConfigured }) {
+export default function Auth({
+  onLogin,
+  local,
+  mailConfigured,
+  preferExisting = false,
+}) {
   const [email, setEmail] = useState(""),
     [name, setName] = useState(""),
     [register, setRegister] = useState(true),
@@ -11,6 +16,9 @@ export default function Auth({ onLogin, local, mailConfigured }) {
     [devCode, setDevCode] = useState(""),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
+  useEffect(() => {
+    if (preferExisting) setRegister(false);
+  }, [preferExisting]);
   async function submit(e) {
     e.preventDefault();
     setBusy(true);

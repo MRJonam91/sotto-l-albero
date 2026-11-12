@@ -102,6 +102,49 @@ test("Evento completo: inviti, desideri riservati, vincoli, estrazione concorren
   expect(personal.assignments).toBeUndefined();
   expect(personal.event.inviteToken).toBeFalsy();
   expect(personal.members.some((m) => m.email)).toBeFalsy();
+  detail = await (await admin.get(`/api/events/${event.id}`)).json();
+  const closure = await admin.put(`/api/events/${event.id}`, {
+    data: {
+      ...detail.event,
+      closeAt: new Date(Date.now() - day).toISOString(),
+    },
+  });
+  expect(closure.ok(), await closure.text()).toBeTruthy();
+  const anonymous = await request.newContext({
+    baseURL: process.env.QA_BASE_URL || "http://127.0.0.1:8790",
+  });
+  contexts.push(anonymous);
+  expect(
+    await (await anonymous.get(`/api/invite/${token}`)).json(),
+  ).toMatchObject({
+    event: null,
+    membership: null,
+    closed: true,
+    requiresSignIn: true,
+  });
+  for (const c of people) {
+    const reopened = await c.get(`/api/invite/${token}`);
+    expect(reopened.ok(), await reopened.text()).toBeTruthy();
+    expect(await reopened.json()).toMatchObject({
+      event: { id: event.id },
+      membership: "approved",
+      closed: true,
+    });
+    expect(
+      (await c.post(`/api/events/${event.id}/join`, { data: { token } })).ok(),
+    ).toBeTruthy();
+    expect(
+      (await (await c.get("/api/events")).json()).events.some(
+        (e) => e.id === event.id,
+      ),
+    ).toBeTruthy();
+  }
+  expect((await outsider.get(`/api/invite/${token}`)).status()).toBe(404);
+  expect(
+    (
+      await outsider.post(`/api/events/${event.id}/join`, { data: { token } })
+    ).status(),
+  ).toBe(400);
   expect(
     (
       await people[0].post(`/api/events/${event.id}/draw`, { data: {} })
@@ -122,6 +165,13 @@ test("Evento completo: inviti, desideri riservati, vincoli, estrazione concorren
   expect(draws.some((r) => r.ok())).toBeTruthy();
   const path = `/api/events/${event.id}`;
   const sealed = await (await admin.get(path)).json();
+  expect(
+    await (await people[0].get(`/api/invite/${token}`)).json(),
+  ).toMatchObject({
+    event: { id: event.id },
+    membership: "approved",
+    closed: true,
+  });
   const version = sealed.event.version;
   expect(sealed.assignments).toBeUndefined();
   detail = await (
@@ -159,6 +209,62 @@ test("Evento completo: inviti, desideri riservati, vincoli, estrazione concorren
   expect(
     (await admin.post(`/api/events/${event.id}/archive`, { data: {} })).ok(),
   ).toBeTruthy();
+  expect(
+    await (await people[0].get(`/api/invite/${token}`)).json(),
+  ).toMatchObject({
+    event: { id: event.id },
+    membership: "approved",
+    closed: true,
+  });
+});
+
+test("Un account normale crea il proprio evento senza ottenere privilegi sugli altri", async () => {
+  const stamp = Date.now();
+  const owner = await client("admin@example.test", "Organizzatore");
+  const regular = await client(`creatore-${stamp}@example.test`, "Creatore");
+  expect((await (await regular.get("/api/me")).json()).user.organizer).toBe(
+    false,
+  );
+  const day = 86400000;
+  const data = {
+    name: "Il mio primo Natale",
+    budget: 15,
+    closeAt: new Date(stamp + day).toISOString(),
+    drawAt: new Date(stamp + day * 2).toISOString(),
+    giftAt: new Date(stamp + day * 10).toISOString(),
+  };
+  const created = await regular.post("/api/events", { data });
+  expect(created.status(), await created.text()).toBe(201);
+  const own = (await created.json()).event;
+  expect(own.isAdmin).toBeTruthy();
+  expect((await (await regular.get("/api/me")).json()).user.organizer).toBe(
+    false,
+  );
+  const other = (
+    await (
+      await owner.post("/api/events", {
+        data: { ...data, name: "Evento di un altro" },
+      })
+    ).json()
+  ).event;
+  expect(
+    (
+      await regular.post(`/api/events/${other.id}/join`, {
+        data: { token: other.inviteToken },
+      })
+    ).ok(),
+  ).toBeTruthy();
+  for (const action of ["duplicate", "rotate-invite", "draw", "archive"])
+    expect(
+      (
+        await regular.post(`/api/events/${other.id}/${action}`, { data: {} })
+      ).status(),
+    ).toBe(403);
+  expect(
+    (
+      await regular.post(`/api/events/${own.id}/duplicate`, { data: {} })
+    ).status(),
+  ).toBe(201);
 });
 test("Gruppi da 3, 5, 10, 15 e 20 ricevono tutti un nome distinto e stabile", async () => {
   const stamp = Date.now();

@@ -550,7 +550,66 @@ it("invia un solo avviso generico alla chat del donatore che ha attivato Telegra
     text: expect.not.stringContaining("Bruno"),
   });
   expect(sent[0]).not.toHaveProperty("parse_mode");
+  expect(sent[0].text).toContain("/events/evento?tab=reveal");
 });
+
+it("recupera una sola volta le lettere già pronte sui canali scelti, anche senza audit recente", async () => {
+  sql.exec(`UPDATE users SET notify_email=1 WHERE id='anna';
+    UPDATE users SET telegram_chat_id='202',notify_telegram=1 WHERE id='bruno';
+    UPDATE events SET status='drawn',version=4,created_at='2026-11-01T00:00:00.000Z',draw_at='2026-11-20T00:00:00.000Z' WHERE id='evento';
+    INSERT INTO assignments(event_id,version,giver_id,receiver_id) VALUES('evento',4,'ma','mb'),('evento',4,'mb','ma');`);
+  await runNotifications(env, now);
+  await runNotifications(env, now + 60000);
+  const emails = calls
+    .filter((call) => call.url === "https://api.resend.com/emails")
+    .map((call) => JSON.parse(call.body));
+  const messages = calls
+    .filter((call) => call.url.endsWith("/sendMessage"))
+    .map((call) => JSON.parse(call.body));
+  expect(emails).toHaveLength(1);
+  expect(emails[0].to).toEqual(["anna@example.test"]);
+  expect(emails[0].html).toContain("/events/evento?tab=reveal");
+  expect(emails[0].html).not.toContain("Bruno");
+  expect(messages).toHaveLength(1);
+  expect(messages[0].chat_id).toBe("202");
+  expect(messages[0].text).toContain("/events/evento?tab=reveal");
+  expect(messages[0].text).not.toContain("Anna");
+});
+
+it.each(["queued", "sending", "sent"])(
+  "non duplica una lettera email già %s nella vecchia coda",
+  async (state) => {
+    sql.exec(`UPDATE users SET notify_email=1 WHERE id='anna';
+    UPDATE events SET status='drawn',version=4,created_at='2026-11-01T00:00:00.000Z',draw_at='2026-11-20T00:00:00.000Z' WHERE id='evento';
+    INSERT INTO assignments(event_id,version,giver_id,receiver_id) VALUES('evento',4,'ma','mb'),('evento',4,'mb','ma');
+    INSERT INTO outbox(id,event_id,version,email,subject,html,state) VALUES('old','evento',4,'anna@example.test','La tua lettera','', '${state}');`);
+    await runNotifications(env, now);
+    expect(calls).toEqual([]);
+  },
+);
+
+it.each(["cancelled", "archived", "removed", "old-version", "opt-out"])(
+  "non consegna una lettera accodata diventata %s",
+  async (condition) => {
+    sql.exec(`UPDATE users SET notify_email=1,telegram_chat_id='101',notify_telegram=1 WHERE id='anna';
+    UPDATE events SET status='drawn',version=4,created_at='2026-11-01T00:00:00.000Z',draw_at='2026-11-20T00:00:00.000Z' WHERE id='evento';
+    INSERT INTO assignments(event_id,version,giver_id,receiver_id) VALUES('evento',4,'ma','mb'),('evento',4,'mb','ma');
+    INSERT INTO notification_jobs(event_id,user_id,channel,kind,source_key,payload,created_at,expires_at,next_at)
+    VALUES('evento','anna','email','draw','4',json_object('version',4),${now},${now + 86400000},${now}),
+      ('evento','anna','telegram','draw','4',json_object('version',4),${now},${now + 86400000},${now});`);
+    if (condition === "cancelled")
+      sql.exec("UPDATE events SET status='open',version=5");
+    if (condition === "archived")
+      sql.exec("UPDATE events SET status='archived'");
+    if (condition === "removed")
+      sql.exec("UPDATE members SET status='removed' WHERE user_id='anna'");
+    if (condition === "old-version") sql.exec("UPDATE events SET version=5");
+    if (condition === "opt-out")
+      sql.exec("UPDATE users SET notify_email=0,notify_telegram=0");
+    await runNotifications(env, now);
+    expect(calls).toEqual([]);
+  },
+);
 
 it("ricontrolla iscrizione e consenso al momento dell’invio e non accoda avvisi di altri organizzatori", async () => {
   sql.exec(

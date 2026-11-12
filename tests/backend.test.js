@@ -123,6 +123,152 @@ beforeEach(() => {
 });
 
 describe("API privata", () => {
+  it("riapre gli inviti dei membri dopo chiusura, estrazione e archivio senza riaprire le iscrizioni", async () => {
+    const owner = await login("owner@example.test");
+    const approved = await login("approved@example.test");
+    const pending = await login("pending@example.test");
+    const removed = await login("removed@example.test");
+    const fresh = await login("fresh@example.test");
+    const e = await event(owner);
+    const path = `/events/${e.id}`;
+    const invite = `/invite/${e.inviteToken}`;
+    for (const cookie of [approved, pending, removed])
+      expect(
+        (await api(`${path}/join`, "POST", { token: e.inviteToken }, cookie))
+          .status,
+      ).toBe(200);
+    await env.DB.prepare(
+      "UPDATE members SET status='approved' WHERE event_id=? AND user_id=(SELECT id FROM users WHERE email='approved@example.test')",
+    )
+      .bind(e.id)
+      .run();
+    await env.DB.prepare(
+      "UPDATE members SET status='removed' WHERE event_id=? AND user_id=(SELECT id FROM users WHERE email='removed@example.test')",
+    )
+      .bind(e.id)
+      .run();
+    expect((await api(invite, "GET", null, approved)).data.membership).toBe(
+      "approved",
+    );
+    await env.DB.prepare(
+      "UPDATE events SET close_at='2000-01-01T00:00:00.000Z' WHERE id=?",
+    )
+      .bind(e.id)
+      .run();
+    for (const status of ["open", "drawn", "archived"]) {
+      await env.DB.prepare("UPDATE events SET status=? WHERE id=?")
+        .bind(status, e.id)
+        .run();
+      expect((await api(invite, "GET", null, owner)).data).toMatchObject({
+        event: { id: e.id },
+        isOwner: true,
+        closed: true,
+      });
+      expect(
+        (await api(`${path}/join`, "POST", { token: e.inviteToken }, owner))
+          .data,
+      ).toMatchObject({ isOwner: true, membership: null });
+      for (const [cookie, membership] of [
+        [approved, "approved"],
+        [pending, "pending"],
+      ]) {
+        const reopened = await api(invite, "GET", null, cookie);
+        expect(reopened.status).toBe(200);
+        expect(reopened.data).toMatchObject({
+          event: { id: e.id },
+          membership,
+          closed: true,
+        });
+        expect(
+          (await api(`${path}/join`, "POST", { token: e.inviteToken }, cookie))
+            .data.membership,
+        ).toBe(membership);
+        expect(
+          (await api("/events", "GET", null, cookie)).data.events.some(
+            (x) => x.id === e.id,
+          ),
+        ).toBe(true);
+        expect((await api(path, "GET", null, cookie)).status).toBe(200);
+      }
+      expect((await api(invite)).data).toMatchObject({
+        event: null,
+        membership: null,
+        closed: true,
+        requiresSignIn: true,
+      });
+      for (const cookie of [fresh, removed]) {
+        expect((await api(invite, "GET", null, cookie)).status).toBe(404);
+        expect(
+          (await api(`${path}/join`, "POST", { token: e.inviteToken }, cookie))
+            .status,
+        ).toBe(400);
+        expect((await api(path, "GET", null, cookie)).status).toBe(403);
+      }
+    }
+    await env.DB.prepare(
+      "UPDATE events SET invite_token='replacement-token' WHERE id=?",
+    )
+      .bind(e.id)
+      .run();
+    expect((await api(invite, "GET", null, approved)).status).toBe(404);
+    expect(
+      (await api(`${path}/join`, "POST", { token: e.inviteToken }, approved))
+        .status,
+    ).toBe(400);
+    expect((await api(path, "GET", null, approved)).status).toBe(200);
+    const counts = await env.DB.prepare(
+      "SELECT status,COUNT(*) AS n FROM members WHERE event_id=? GROUP BY status ORDER BY status",
+    )
+      .bind(e.id)
+      .all();
+    expect(counts.results).toEqual([
+      { status: "approved", n: 1 },
+      { status: "pending", n: 1 },
+      { status: "removed", n: 1 },
+    ]);
+  });
+
+  it("permette agli account normali di creare e gestire solo i propri eventi", async () => {
+    const owner = await login("owner@example.test");
+    const regular = await login("regular@example.test");
+    expect((await api("/me", "GET", null, regular)).data.user.organizer).toBe(
+      false,
+    );
+    const own = await api(
+      "/events",
+      "POST",
+      {
+        name: "Il mio Natale",
+        budget: 20,
+        closeAt: "2099-12-01T18:00:00Z",
+        drawAt: "2099-12-02T18:00:00Z",
+        giftAt: "2099-12-24T18:00:00Z",
+      },
+      regular,
+    );
+    expect(own.status).toBe(201);
+    expect(own.data.event.isAdmin).toBe(true);
+    expect((await api("/me", "GET", null, regular)).data.user.organizer).toBe(
+      false,
+    );
+    const foreign = await event(owner);
+    await api(
+      `/events/${foreign.id}/join`,
+      "POST",
+      { token: foreign.inviteToken },
+      regular,
+    );
+    for (const action of ["duplicate", "rotate-invite", "draw", "archive"])
+      expect(
+        (await api(`/events/${foreign.id}/${action}`, "POST", {}, regular))
+          .status,
+      ).toBe(403);
+    expect(
+      (await api(`/events/${own.data.event.id}/duplicate`, "POST", {}, regular))
+        .status,
+    ).toBe(201);
+  });
+
   it("registra con nome ed email e permette di aggiungere il recapito dal profilo", async () => {
     const email = "nuovo@example.test";
     const requested = await api("/auth/request", "POST", {
@@ -504,7 +650,7 @@ describe("API privata", () => {
     );
     expect(
       (await api("/events", "POST", { name: "Altro" }, stranger)).status,
-    ).toBe(403);
+    ).toBe(400);
     const cookies = [
       admin,
       await login("bea@example.com"),

@@ -159,20 +159,24 @@ async function enqueueDuels(db, now, enabled) {
   );
 }
 
-async function enqueueDraws(db, now) {
+async function enqueueDraws(db, now, enabled) {
   await run(
     db,
     `INSERT OR IGNORE INTO ${columns}
-    SELECT e.id,u.id,'telegram','draw',CAST(e.version AS TEXT),json_object('version',e.version),?,?,?
+    SELECT e.id,u.id,c.channel,'draw',CAST(e.version AS TEXT),json_object('version',e.version),?,?,?
     FROM events e JOIN assignments a ON a.event_id=e.id AND a.version=e.version
     JOIN members m ON m.id=a.giver_id AND m.event_id=e.id AND m.status='approved'
-    JOIN users u ON u.id=m.user_id
-    WHERE e.status='drawn' AND u.notify_telegram=1 AND u.telegram_chat_id IS NOT NULL
-      AND EXISTS(SELECT 1 FROM audit d WHERE d.event_id=e.id AND d.action='draw' AND d.created_at>=?)`,
+    JOIN members receiver ON receiver.id=a.receiver_id AND receiver.event_id=e.id AND receiver.status='approved'
+    JOIN users u ON u.id=m.user_id CROSS JOIN ${channels} c
+    WHERE e.status='drawn' AND ${optedIn}
+      AND (c.channel<>'email' OR NOT EXISTS(
+        SELECT 1 FROM outbox o WHERE o.event_id=e.id AND o.version=e.version AND o.email=u.email
+        AND (o.state IN ('sending','sent') OR (o.state='queued' AND o.attempts<5))
+      ))`,
     now,
     now + 2 * day,
     now,
-    iso(now - 2 * day),
+    ...enabled,
   );
 }
 
@@ -467,22 +471,33 @@ async function content(db, job, event, now) {
       break;
     }
     case "draw": {
+      if (event.status !== "drawn" || event.version !== payload.version) break;
       if (
-        job.channel !== "telegram" ||
-        event.status !== "drawn" ||
-        event.version !== payload.version
+        !(await first(
+          db,
+          `SELECT 1 FROM assignments a
+        JOIN members giver ON giver.id=a.giver_id AND giver.event_id=a.event_id AND giver.status='approved'
+        JOIN members receiver ON receiver.id=a.receiver_id AND receiver.event_id=a.event_id AND receiver.status='approved'
+        WHERE a.event_id=? AND a.version=? AND giver.user_id=?`,
+          event.id,
+          event.version,
+          job.user_id,
+        ))
       )
         break;
       return {
         title: `La tua lettera per ${event.name}`,
-        message: "La lettera è pronta. Apri l’evento per leggerla in privato.",
+        message:
+          "I nomi sono stati estratti. Apri la tua lettera per scoprire in privato a chi farai il regalo.",
+        tab: "reveal",
+        linkLabel: "Apri la tua lettera",
       };
     }
   }
   return null;
 }
 
-function eventUrl(env, eventId, section) {
+function eventUrl(env, eventId, section, tab) {
   try {
     const app = new URL(env.APP_URL);
     if (
@@ -491,6 +506,7 @@ function eventUrl(env, eventId, section) {
     )
       return "";
     const url = new URL(`/events/${encodeURIComponent(eventId)}`, app.origin);
+    if (tab) url.searchParams.set("tab", tab);
     if (section) {
       url.searchParams.set("tab", "admin");
       url.hash = section;
@@ -512,10 +528,21 @@ async function deliver(env, job, now) {
     return false;
   const letter = await content(env.DB, job, event, now);
   if (!letter) return false;
-  const link = eventUrl(env, event.id, letter.section);
+  const link = eventUrl(env, event.id, letter.section, letter.tab);
+  const current = await eligibility(env.DB, job);
+  if (
+    !current ||
+    current.status !== event.status ||
+    current.version !== event.version ||
+    (job.channel === "email"
+      ? !current.notify_email || current.email !== event.email
+      : !current.notify_telegram ||
+        current.telegram_chat_id !== event.telegram_chat_id)
+  )
+    return false;
   if (job.channel === "email") {
     const message = escapeHtml(letter.message).replaceAll("\n", "<br>");
-    const html = `<p>${message}</p>${link ? `<p><a href="${escapeHtml(link)}">Apri l’evento</a></p>` : ""}`;
+    const html = `<p>${message}</p>${link ? `<p><a href="${escapeHtml(link)}">${escapeHtml(letter.linkLabel || "Apri l’evento")}</a></p>` : ""}`;
     await sendMail(
       env,
       event.email,
@@ -524,14 +551,6 @@ async function deliver(env, job, now) {
       `sotto-albero-notifica-${job.id}`,
     );
   } else {
-    const current = await eligibility(env.DB, job);
-    if (
-      !current?.notify_telegram ||
-      current.telegram_chat_id !== event.telegram_chat_id ||
-      current.status !== event.status ||
-      current.version !== event.version
-    )
-      return false;
     await telegramMessage(
       env,
       event.telegram_chat_id,
@@ -604,8 +623,8 @@ export async function runNotifications(env, now = Date.now()) {
   const enabled = configured(env);
   if (enabled.some(Boolean)) {
     const edition = calendar(now);
+    await enqueueDraws(env.DB, now, enabled);
     if (enabled[1]) {
-      await enqueueDraws(env.DB, now);
       await enqueueWelcome(env.DB, now);
     }
     await enqueueReminders(env.DB, now, enabled);

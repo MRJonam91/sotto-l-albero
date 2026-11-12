@@ -2,6 +2,8 @@
 
 Una web app privata per organizzare il Secret Santa con amici, colleghi e famiglia. Eventi separati, desideri e indovinelli, inviti, esclusioni tra partecipanti e una lettera da aprire per scoprire a chi fare il regalo.
 
+Ogni account può creare i propri eventi. Chi ha già aderito conserva l’accesso dopo la chiusura delle iscrizioni: dal vecchio invito basta accedere con la stessa email. La scadenza del link per nuove adesioni non elimina l’iscrizione. Dopo la prima apertura, la propria lettera mostra il nome direttamente; **Riapri la lettera** permette di rivedere la cerimonia. Il nome viene sempre recuperato dal server, senza salvarlo nel browser.
+
 ## Avvio sul proprio computer
 
 Richiede Node.js 24 e npm.

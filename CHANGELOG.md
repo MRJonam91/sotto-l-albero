@@ -1,5 +1,12 @@
 # Sotto l’Albero
 
+## 1.3.2
+
+- Chi è già iscritto ritrova l’evento dal vecchio invito anche dopo la chiusura delle iscrizioni e dopo l’estrazione. Se la sessione è scaduta, il sito invita ad accedere con la stessa email senza perdere il posto.
+- Ogni account autenticato può creare i propri eventi; la gestione degli eventi altrui resta riservata al rispettivo proprietario.
+- La prima apertura della lettera conserva la cerimonia. Le visite successive mostrano direttamente il nome, verificato nuovamente dal server; l’animazione si può rivedere su richiesta.
+- Gli avvisi dell’estrazione aprono direttamente la lettera. Lo scheduler recupera gli avvisi mancanti nei canali abilitati, senza duplicare quelli già inviati.
+
 ## 1.3.1
 
 - I menu restano visibili dopo il cambio di sezione anche sui browser mobili.
