@@ -1,5 +1,12 @@
 # Sotto l’Albero
 
+## 1.4.1
+
+- Curling dei regali nella sezione Giochi: sei tiri, urti fra pacchi, partita sullo stesso dispositivo o allenamento contro il computer e rivincita con partenza alternata.
+- Attivazione una tantum delle email anche per gli account esistenti, mantenendo Telegram facoltativo e la possibilità di disattivare in seguito gli avvisi.
+- Gli avvisi di estrazione già gestiti non vengono riproposti dopo la pulizia delle notifiche vecchie.
+- Includes the 1.4.0 catalog/navigation update, local curling, a one-time existing-account email opt-in and durable draw-notification deduplication. The other seven new demos remain outside production.
+
 ## 1.4.0
 
 - Sfide e Nome segreto sono raggiungibili dal menu principale, con selezione dello scambio e percorsi diretti che funzionano anche dopo un aggiornamento della pagina.

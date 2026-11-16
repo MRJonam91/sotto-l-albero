@@ -1,5 +1,7 @@
 # Cinque avventure natalizie da provare
 
+**Archivio:** questa direzione è stata sostituita dalle [otto nuove demo natalizie](../2026-11-minigiochi/README.md). I sorgenti restano per confronto; non sono più le anteprime da portare avanti. Nessun gioco pubblicato viene sostituito da questa archiviazione.
+
 Queste anteprime rispondono alla critica delle prime scene: scegliere corde o stelle cambiava l’aspetto, mentre il pulsante finale consegnava comunque i libri. Qui cambia il modo di agire e ciò che succede sullo schermo. Non sono attivate negli eventi né collegate alle API del portale.
 
 | Avventura | Cosa fai | Cosa cambia davvero |

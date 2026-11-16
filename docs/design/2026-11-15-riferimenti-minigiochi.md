@@ -1,5 +1,7 @@
 # Minigiochi natalizi: interazioni che cambiano davvero la scena
 
+**Stato del 16 novembre 2026:** l’utente non considera convincenti neppure le anteprime rielaborate. Questo documento resta come ricerca e diagnosi; la nuova proposta dettagliata è [Un Natale da giocare insieme](2026-11-16-minigiochi/README.md). Le vecchie scene non sono la base approvata da implementare.
+
 Ricerca del 15 novembre 2026: dal [catalogo FreeFrontend](https://freefrontend.com/javascript-games/) ai sorgenti originali degli autori. Analisi di istruzioni e codice, senza playtest né copia di codice o asset.
 
 ## Perché il ponte precedente non convince

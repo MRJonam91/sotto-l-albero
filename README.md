@@ -64,7 +64,7 @@ Le pagine di riepilogo si ricaricano automaticamente con un URL che evita le vec
 
 Le idee non ancora implementate sono in [Desideri e sfide](docs/design/2026-11-12-desideri-e-sfide.md).
 
-Le [cinque avventure rielaborate](docs/prototypes/2026-11-avventure/README.md) hanno anteprime giocabili separate dal prodotto. La [verifica 1.4.0](docs/release-1.4.0.md) distingue controlli locali e pubblicazione. / The five revised playable adventures remain review prototypes; the release note separates local verification from deployment.
+Il **Curling dei regali**, approvato per la versione 1.4.1, è nella sezione Giochi: due persone sullo stesso schermo oppure allenamento contro il computer, senza punti nell’evento. Le altre sette [demo natalizie](docs/prototypes/2026-11-minigiochi/README.md) restano nel laboratorio locale e si aprono da [questa raccolta](docs/prototypes/2026-11-minigiochi/index.html). Il [dossier progettuale](docs/design/2026-11-16-minigiochi/README.md) descrive giochi e indizi personali; la [verifica 1.4.1](docs/release-1.4.1.md) registra il rilascio. / Approved gift curling joins Games in 1.4.1 as a same-device match or computer practice. The other seven new demos remain local and outside the production bundle.
 
 ## Account, classifica e Telegram
 

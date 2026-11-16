@@ -1,0 +1,43 @@
+#winter-playground .wp-header{padding:17px 24px 20px;background:radial-gradient(ellipse at 90% 0,#446958 0,transparent 55%),#123d33}
+#winter-playground .wp-header .wp-brand{font-size:22px;display:inline-block}
+#winter-playground .wp-header .wp-label{font-size:11px;margin-top:3px}
+#winter-playground .wp-header h1{font-size:30px;margin:14px 0 5px}
+#winter-playground .wp-header p{font-size:12px}
+#winter-playground .wp-library{padding:12px 24px;gap:5px;grid-template-columns:minmax(0,1fr) auto;align-items:end;border-bottom:1px solid #c5cbb6}
+#winter-playground .wp-library>label{grid-column:1;grid-row:1}
+#winter-playground .wp-library>details{grid-column:1/-1}
+#winter-playground .wp-library>label{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:13px}
+#winter-playground .wp-library details>summary{font-size:11px;min-height:35px;padding:8px 0;color:#526b5e}
+#winter-playground .wp-library details>div{margin:10px 0}
+#winter-playground .wp-library details>div>span{font-size:11px;display:block;margin-bottom:6px}
+#winter-playground .demo{padding:20px 24px}
+#winter-playground .demo button{min-width:44px}
+#winter-playground .demo h2{font-size:29px}
+#winter-playground .demo header>p,#winter-playground .demo>p{font-size:13px}
+#winter-playground .demo .eyebrow{font-size:11px;color:#66745e}
+#winter-playground .demo .scene{box-shadow:inset 0 0 0 1px #e1c99433}
+#winter-playground .demo [data-draggable],#winter-playground .demo .draggable{user-select:none;-webkit-user-select:none}
+#winter-playground .wp-footer{font-size:11px;padding:13px 24px}
+#winter-playground #wp-open-profile{grid-column:2;grid-row:1;justify-self:end;font-size:12px;min-height:44px;padding:7px 12px}
+#winter-playground #wp-profile{color:#24433a;background:#f3ead7;border:1px solid #aab99e;border-radius:18px;width:auto;margin:16px;max-height:none;padding:20px;overflow:visible}
+
+#winter-playground #wp-profile h2{font:400 29px/1.15 Georgia,serif;margin:0 0 12px}
+#winter-playground #wp-profile h3{font:400 22px Georgia,serif;margin:0 0 8px}
+#winter-playground #wp-profile article{padding:16px 0;border-top:1px solid #bcc4ae}
+#winter-playground #wp-profile p{overflow-wrap:anywhere}
+@media(max-width:480px){
+ #winter-playground{border-radius:0}
+ #winter-playground .wp-header{padding:14px 15px}
+ #winter-playground .wp-header .wp-brand{font-size:21px}
+ #winter-playground .wp-header h1{font-size:25px;margin-top:9px}
+ #winter-playground .wp-header p{display:block;font-size:12px}
+ #winter-playground .wp-library{padding:10px 13px;gap:1px}
+ #winter-playground .wp-library>label{grid-template-columns:1fr;gap:4px}
+ #winter-playground .wp-library details>summary{padding:7px 0}
+ #winter-playground .demo{padding:16px 12px}
+ #winter-playground .demo h2{font-size:25px;line-height:1.15}
+ #winter-playground .demo header>p,#winter-playground .demo>p{font-size:12px;line-height:1.45}
+ #winter-playground #c4-brief .tiles{grid-template-columns:minmax(0,1fr)}
+ #winter-playground .wp-footer{padding:12px}
+}
+@media(prefers-reduced-motion:reduce){#winter-playground *{scroll-behavior:auto!important}}

@@ -576,6 +576,39 @@ it("recupera una sola volta le lettere già pronte sui canali scelti, anche senz
   expect(messages[0].text).not.toContain("Anna");
 });
 
+it("non ripete gli avvisi di estrazione dopo la pulizia della coda scaduta", async () => {
+  sql.exec(`UPDATE users SET notify_email=1,telegram_chat_id='101',notify_telegram=1 WHERE id='anna';
+    UPDATE events SET status='drawn',version=4 WHERE id='evento';
+    INSERT INTO assignments(event_id,version,giver_id,receiver_id) VALUES('evento',4,'ma','mb'),('evento',4,'mb','ma');`);
+  await runNotifications(env, now);
+  const original = sql
+    .prepare(
+      "SELECT id,channel,state FROM notification_jobs WHERE kind='draw' ORDER BY channel",
+    )
+    .all();
+  expect(original).toHaveLength(2);
+  expect(original.every((job) => job.state === "sent")).toBe(true);
+  const afterCleanup = now + 33 * 86_400_000;
+  await runNotifications(env, afterCleanup);
+  calls.length = 0;
+  await runNotifications(env, afterCleanup + 60_000);
+  expect(calls).toEqual([]);
+  expect(
+    sql
+      .prepare(
+        "SELECT id,channel,state FROM notification_jobs WHERE kind='draw' ORDER BY channel",
+      )
+      .all(),
+  ).toEqual(original);
+  expect(
+    sql
+      .prepare(
+        "SELECT COUNT(*) AS count FROM notification_jobs WHERE kind!='draw'",
+      )
+      .get().count,
+  ).toBe(0);
+});
+
 it.each(["queued", "sending", "sent"])(
   "non duplica una lettera email già %s nella vecchia coda",
   async (state) => {

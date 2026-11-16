@@ -30,6 +30,7 @@ import { gameCatalog } from "../shared/gameCatalog.js";
 import "./holiday.css";
 import "./game-catalog.css";
 const PracticeGameChallenge = lazy(() => import("./CompetitionChallenge.jsx"));
+const CurlingGame = lazy(() => import("./CurlingGame.jsx"));
 
 const stampIcons = {
   star: Star,
@@ -631,17 +632,40 @@ function Games({ collection, onAlbum, onDiscover, onGroups, onCompete }) {
             </Button>
           </article>
         ))}
+        <article className="game-catalog-item" aria-label="Curling dei regali">
+          <Button
+            type="button"
+            variant="outline"
+            aria-pressed={game === "curling"}
+            onClick={() => setGame("curling")}
+          >
+            Curling dei regali
+          </Button>
+          <p>
+            Fai scivolare i regali vicino alla lanterna. Gli urti possono
+            cambiare la partita.
+          </p>
+          <small>
+            Due persone sullo stesso schermo · oppure contro il computer · senza
+            classifica
+          </small>
+        </article>
         <TimedTreasures section="games" onDiscover={onDiscover} />
       </div>
       <div ref={playArea} tabIndex={-1}>
         {game === "quiz" && <Quiz collection={collection} />}
         {game === "memory" && <Memory collection={collection} />}
-        {game && !["quiz", "memory"].includes(game) && (
+        {game === "curling" && (
+          <Suspense fallback={<p role="status">Prepariamo il ghiaccio…</p>}>
+            <CurlingGame onClose={() => setGame(null)} />
+          </Suspense>
+        )}
+        {game && !["quiz", "memory", "curling"].includes(game) && (
           <PracticeChallenge key={game} gameId={game} />
         )}
         {!game && (
           <p className="quiet">
-            Sette giochi, un solo posto per trovarli. Da dove cominciamo?
+            Otto giochi, un solo posto per trovarli. Da dove cominciamo?
           </p>
         )}
       </div>

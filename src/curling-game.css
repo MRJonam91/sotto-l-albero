@@ -1,0 +1,199 @@
+.curling-game .f1-eyebrow {
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  color: #806644;
+}
+.curling-game .f1-score {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  background: #e6dcc3;
+  border-radius: 12px;
+  padding: 12px 15px;
+  font-size: 14px;
+}
+.curling-game .f1-rink {
+  position: relative;
+  width: min(100%, 470px);
+  margin: 15px auto;
+  background: #183b35;
+  border: 8px solid #23473d;
+  border-radius: 140px 140px 22px 22px;
+  box-shadow: 0 12px 25px #28493b22;
+  overflow: hidden;
+  aspect-ratio: 360/500;
+}
+.curling-game canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: pan-y;
+}
+.curling-game .f1-handle {
+  position: absolute;
+  left: 50%;
+  top: 86%;
+  transform: translate(-50%, -50%);
+  width: 54px;
+  height: 54px;
+  padding: 10px;
+  border: 0;
+  background: transparent;
+  touch-action: none;
+  user-select: none;
+  cursor: grab;
+}
+.curling-game .f1-handle:active {
+  cursor: grabbing;
+}
+.curling-game .f1-handle span {
+  display: block;
+  width: 32px;
+  height: 32px;
+  background: #b8564b;
+  border: 2px solid #f0c788;
+  border-radius: 5px;
+  box-shadow: 0 4px 0 #6d3a2c;
+  position: relative;
+}
+.curling-game .f1-handle span:before,
+.curling-game .f1-handle span:after {
+  content: "";
+  position: absolute;
+  background: #f7da96;
+  left: 12px;
+  top: 0;
+  width: 5px;
+  height: 28px;
+}
+.curling-game .f1-handle span:after {
+  left: 0;
+  top: 11px;
+  width: 28px;
+  height: 5px;
+}
+.curling-game .f1-instruction {
+  position: absolute;
+  bottom: 4.2%;
+  left: 0;
+  width: 100%;
+  text-align: center;
+  pointer-events: none;
+  color: #2e5b50;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+.curling-game .f1-settings {
+  border-top: 1px solid #c9c3aa;
+  padding-top: 4px;
+}
+.curling-game .f1-settings .controls {
+  align-items: end;
+}
+.curling-game input {
+  width: 125px;
+}
+.curling-game output {
+  min-width: 35px;
+}
+.curling-game .f1-settings p {
+  font-size: 12px;
+}
+.curling-game .controls button {
+  min-height: 44px;
+}
+.curling-game .f1-rink.aiming {
+  box-shadow:
+    0 0 0 3px #d2a563,
+    0 12px 25px #28493b22;
+}
+.curling-game [data-handle][hidden] {
+  display: none !important;
+}
+@media (max-width: 480px) {
+  .curling-game .f1-rink {
+    max-width: 350px;
+    border-width: 5px;
+  }
+  .curling-game .f1-score {
+    font-size: 12px;
+    padding: 10px;
+  }
+  .curling-game .f1-intro p {
+    font-size: 13px;
+  }
+  .curling-game > .controls {
+    gap: 6px;
+  }
+  .curling-game > .controls button {
+    font-size: 12px;
+    flex: 1;
+    padding: 9px 7px;
+  }
+}
+
+.curling-game .controls {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin: 14px 0;
+}
+.curling-game .controls button {
+  border: 1px solid #94744d;
+  border-radius: 5px;
+  padding: 10px 14px;
+  color: #3d4937;
+  background: #faf0da;
+}
+.curling-game .controls button.primary {
+  background: #23473d;
+  color: #fff4da;
+}
+.curling-game .controls label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+.curling-game .controls select {
+  max-width: 100%;
+  min-width: 0;
+  min-height: 44px;
+}
+.curling-game .controls input {
+  min-height: 44px;
+}
+.curling-game .curling-status {
+  min-height: 3em;
+  margin-bottom: 8px;
+}
+.curling-game .profile {
+  font-size: 12px;
+  margin-top: 18px;
+}
+.curling-game summary {
+  cursor: pointer;
+  min-height: 44px;
+  padding: 12px 0;
+}
+.curling-game canvas:focus-visible {
+  outline: 3px solid #795735;
+  outline-offset: -5px;
+}
+.curling-game .f1-handle:focus-visible {
+  outline: 3px solid #795735;
+  outline-offset: 0;
+}
+@media (max-width: 480px) {
+  .curling-game > .controls button {
+    flex: 1 1 auto;
+    white-space: nowrap;
+  }
+  .curling-game > .controls [data-launch] {
+    flex-basis: 100%;
+  }
+}

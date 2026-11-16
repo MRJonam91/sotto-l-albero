@@ -1,0 +1,33 @@
+// Local browser smoke checks for the three disposable social-game fragments.
+const fs = require('node:fs');
+const path = require('node:path');
+const assert = require('node:assert/strict');
+const { chromium } = require('@playwright/test');
+(async () => {
+  const html = ['c3','c4','c5'].map(id => fs.readFileSync(path.join(__dirname,id+'.html'),'utf8')).join('\n');
+  for (const match of html.matchAll(/<script>([\s\S]*?)<\/script>/g)) new Function(match[1]);
+  const executablePath=path.resolve('.wrangler/browsers/chromium_headless_shell-1248/chrome-headless-shell-win64/chrome-headless-shell.exe');
+  const browser = await chromium.launch({headless:true,executablePath});
+  const page=await browser.newPage({viewport:{width:1100,height:900},reducedMotion:'reduce'});
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.setContent('<!doctype html><html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{box-sizing:border-box}body{margin:0;background:#f7f0df;font:16px system-ui;color:#233e36}.demo{max-width:900px;padding:20px;margin:auto}.scene{height:320px}.controls{display:flex;flex-wrap:wrap;gap:12px;margin:16px 0}.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:12px}button,select,input{min-height:44px;padding:10px;border:1px solid #ad996d;border-radius:8px;font:inherit}button{cursor:pointer;background:#fff9e9}label{max-width:100%}.status{background:#e5eadc;padding:14px}</style></head><body>'+html+'</body></html>');
+  const click=async(id,action)=>page.locator('#g-'+id+' [data-'+id+'="'+action+'"]').click();
+  const text=async(id)=>page.locator('#'+id).textContent();
+  await click('c3','start');assert.match(await text('c3-status'),/Prima scegli/);
+  await click('c3','short');await click('c3','start');await click('c3','gestureAlt');
+  assert.match(await text('c3-log'),/ponte/);assert.ok(await page.locator('#c3-activity path').count());
+  await click('c3','next');assert.equal(await page.locator('#c3-surprise').isVisible(),true);
+  await click('c3','revise');await click('c3','gesture');assert.match(await text('c3-status'),/completa/);
+  await click('c3','reset');await page.locator('#c3-first').selectOption('craft');await page.locator('#c3-second').selectOption('cinema');await page.locator('#c3-event').selectOption('none');
+  await click('c3','start');await click('c3','gesture');assert.match(await text('c3-status'),/Primo foro/);assert.equal(await page.locator('[data-c3="next"]').isDisabled(),true);
+  await click('c3','gestureAlt');await click('c3','next');await click('c3','gestureAlt');assert.match(await text('c3-log'),/mistero dei biscotti/);
+  await page.locator('#g-c3 details').evaluate(e=>e.open=true);await click('c3','confirm');assert.match(await text('c3-card'),/Scrivi/);await page.locator('#c3-note').fill('Vorrei rilegare un quaderno');await click('c3','confirm');assert.match(await text('c3-card'),/confermata/);await page.locator('#c3-note').fill('Un quaderno piccolo');assert.match(await text('c3-card'),/nuovo/);
+  await click('c4','brief');await page.locator('#c4-size').selectOption('large');assert.equal(await page.locator('[data-c4="offer"]').isDisabled(),true);assert.match(await text('c4-conflict'),/limite/);await page.locator('#c4-size').selectOption('small');
+  await click('c4','offer');await page.locator('#c4-feedbacknote').fill('Preferisco pochi dettagli');await click('c4','simpler');await click('c4','revision');assert.match(await text('c4-role'),/identica/);await page.locator('#c4-style').selectOption('drawn');await click('c4','revision');await click('c4','detail');assert.match(await text('c4-history'),/Prima proposta/);assert.match(await text('c4-history'),/Versione rivista/);assert.match(await text('c4-history'),/pochi dettagli/);
+  await click('c5','play');await click('c5','next');assert.match(await text('c5-facts'),/consumati/);await click('c5','next');assert.match(await text('c5-facts'),/Tre persone riunite/);assert.match(await text('c5-facts'),/piazza/);
+  await click('c5','roof');await click('c5','play');await click('c5','next');await click('c5','next');assert.match(await text('c5-facts'),/sul tetto/);
+  await page.locator('#c5-prop3').selectOption('slide');await click('c5','play');assert.match(await text('c5-status'),/manca scivolo/);
+  await click('c5','ground');await page.locator('#c5-extra').selectOption('umbrella');await click('c5','play');assert.match(await text('c5-status'),/non ci sono più/);
+  await page.setViewportSize({width:320,height:800});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'No horizontal overflow at 320px');
+  assert.deepEqual(errors,[]);await browser.close();console.log('PASS social demos: C3 distance/weather/two-stitch/choice/profile; C4 limit/revision/history; C5 both endings/missing and consumed props; 320px; no script errors.');
+})().catch(e=>{console.error(e);process.exit(1)});

@@ -1,5 +1,7 @@
 # Cinque avventure natalizie per conoscersi giocando
 
+**Revisione successiva:** dopo il feedback negativo sulle anteprime, il [dossier del 16 novembre](2026-11-16-minigiochi/README.md) propone otto giochi con regole, partite esemplificative, profilo e criteri di playtest. Questa versione è conservata come storico, non come direzione approvata.
+
 Direzione aggiornata il 12 novembre 2026 dopo la revisione delle prime anteprime. Sostituisce la forma dei cinque giochi conoscitivi proposta in [Desideri e sfide](2026-11-12-desideri-e-sfide.md); gli appunti su inviti, esclusioni e collegamenti ai prodotti restano validi. Documento di progettazione e prototipi: queste avventure non sono attivate nell’app pubblicata.
 
 ## Obiettivo e forma del gioco

@@ -641,7 +641,9 @@ export async function runNotifications(env, now = Date.now()) {
   );
   await run(
     env.DB,
-    "DELETE FROM notification_jobs WHERE expires_at<?",
+    // Draw rows also remember delivery per event/version/channel. Retain them
+    // so catching up ready letters cannot resend one after queue cleanup.
+    "DELETE FROM notification_jobs WHERE expires_at<? AND kind!='draw'",
     now - 30 * day,
   );
 }
