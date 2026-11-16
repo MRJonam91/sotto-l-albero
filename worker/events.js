@@ -11,6 +11,8 @@ import {
 } from "./security.js";
 import { first, all, run, sendMail } from "./auth.js";
 import { matchParticipants } from "./matching.js";
+import { registrationNotice } from "./notifications.js";
+import { archiveCompetition } from "./competition.js";
 const nowIso = () => new Date().toISOString();
 const stmt = (db, sql, ...args) => db.prepare(sql).bind(...args);
 const audit = (db, eventId, userId, action) =>
@@ -36,6 +38,7 @@ function outputEvent(e, user, count) {
     version: e.version,
     historyDepth: e.history_depth,
     isAdmin: e.owner_id === user.id,
+    membership: e.membership ?? null,
     groupName: e.group_name,
     memberCount: count,
     error: e.error,
@@ -79,11 +82,6 @@ function dates(body) {
   return values.map((d) => d.toISOString());
 }
 export async function createEvent(db, user, body, groupId) {
-  if (!user.organizer)
-    throw new HttpError(
-      "Per creare un evento serve l’abilitazione di chi gestisce il sito.",
-      403,
-    );
   const name = safeText(body.name, 100, true),
     description = safeText(body.description, 2000),
     groupName = safeText(body.groupName, 100) || name;
@@ -219,7 +217,7 @@ export async function drawEvent(env, e, actor = "scheduler") {
         version,
         m.email,
         `La tua lettera per ${e.name} è pronta`,
-        `<p>Abbiamo estratto i nomi per <strong>${escapeHtml(e.name)}</strong>.</p><p><a href="${escapeHtml(env.APP_URL || "")}/events/${e.id}">Apri la tua lettera</a> e scopri per chi preparerai il regalo.</p>`,
+        `<p>Abbiamo estratto i nomi per <strong>${escapeHtml(e.name)}</strong>.</p><p><a href="${escapeHtml(env.APP_URL || "")}/events/${e.id}?tab=reveal">Apri la tua lettera</a> e scopri per chi preparerai il regalo.</p>`,
         e.id,
         claim,
         m.email,
@@ -259,7 +257,7 @@ export async function eventRoute(request, env, path, body, user) {
     if (method === "GET") {
       const rows = await all(
         db,
-        "SELECT DISTINCT e.*,g.name AS group_name,(SELECT COUNT(*) FROM members x WHERE x.event_id=e.id AND x.status='approved') AS member_count FROM events e JOIN groups g ON g.id=e.group_id LEFT JOIN members m ON m.event_id=e.id AND m.user_id=? AND m.status!='removed' WHERE e.owner_id=? OR m.id IS NOT NULL ORDER BY e.created_at DESC",
+        "SELECT DISTINCT e.*,g.name AS group_name,m.status AS membership,(SELECT COUNT(*) FROM members x WHERE x.event_id=e.id AND x.status='approved') AS member_count FROM events e JOIN groups g ON g.id=e.group_id LEFT JOIN members m ON m.event_id=e.id AND m.user_id=? AND m.status!='removed' WHERE e.owner_id=? OR m.id IS NOT NULL ORDER BY e.created_at DESC",
         user.id,
         user.id,
       );
@@ -286,13 +284,13 @@ export async function eventRoute(request, env, path, body, user) {
     const givenToken = safeText(body.token, 100, true);
     const e = await first(
       db,
-      "SELECT * FROM events WHERE id=? AND status='open' AND (invite_token=? OR EXISTS(SELECT 1 FROM invites i WHERE i.event_id=events.id AND i.token=? AND i.email=?))",
+      "SELECT * FROM events WHERE id=? AND (invite_token=? OR EXISTS(SELECT 1 FROM invites i WHERE i.event_id=events.id AND i.token=? AND i.email=?))",
       eid,
       givenToken,
       givenToken,
       user.email,
     );
-    if (!e || new Date(e.close_at).valueOf() <= Date.now())
+    if (!e)
       throw new HttpError(
         "Questo invito non è più valido o le iscrizioni sono chiuse.",
       );
@@ -303,24 +301,38 @@ export async function eventRoute(request, env, path, body, user) {
       user.id,
     );
     if (existing) return json({ ok: true, membership: existing.status });
-    const changed = await run(
-      db,
-      "INSERT INTO members(id,event_id,user_id,status,updated_at) SELECT ?,?,?,'pending',? WHERE EXISTS(SELECT 1 FROM events WHERE id=? AND status='open' AND version=?) AND ((SELECT COUNT(*) FROM members WHERE event_id=? AND status!='removed')<50) ON CONFLICT(event_id,user_id) DO UPDATE SET status='pending',updated_at=excluded.updated_at WHERE members.status='removed'",
-      id(),
-      eid,
-      user.id,
-      nowIso(),
-      eid,
-      e.version,
-      eid,
-    );
+    if (
+      e.owner_id === user.id &&
+      (e.status !== "open" || new Date(e.close_at).valueOf() <= Date.now())
+    )
+      return json({ ok: true, membership: null, isOwner: true });
+    if (e.status !== "open" || new Date(e.close_at).valueOf() <= Date.now())
+      throw new HttpError(
+        "Questo invito non è più valido o le iscrizioni sono chiuse.",
+      );
+    const joinedAt = Date.now();
+    const changed = await db.batch([
+      stmt(
+        db,
+        "INSERT INTO members(id,event_id,user_id,status,updated_at) SELECT ?,?,?,'pending',? WHERE EXISTS(SELECT 1 FROM events WHERE id=? AND status='open' AND version=? AND close_at>?) AND ((SELECT COUNT(*) FROM members WHERE event_id=? AND status!='removed')<50) ON CONFLICT(event_id,user_id) DO UPDATE SET status='pending',updated_at=excluded.updated_at WHERE members.status='removed'",
+        id(),
+        eid,
+        user.id,
+        new Date(joinedAt).toISOString(),
+        eid,
+        e.version,
+        new Date(joinedAt).toISOString(),
+        eid,
+      ),
+      registrationNotice(env, eid, user.id, joinedAt),
+    ]);
     const member = await first(
       db,
       "SELECT status FROM members WHERE event_id=? AND user_id=? AND status!='removed'",
       eid,
       user.id,
     );
-    if (!changed.meta.changes && !member)
+    if (!changed[0].meta.changes && !member)
       throw new HttpError(
         "Le iscrizioni sono cambiate o il gruppo è al completo.",
         409,
@@ -328,39 +340,83 @@ export async function eventRoute(request, env, path, body, user) {
     return json({ ok: true, membership: member?.status ?? "pending" });
   }
   const { e, member, admin } = await getEvent(db, eid, user);
+  if (
+    method === "POST" &&
+    (action === "recipient" || action === "assignments")
+  ) {
+    const fullList = action === "assignments";
+    if (fullList ? !admin : member?.status !== "approved")
+      throw new HttpError(
+        "Questa lettera non è disponibile per il tuo profilo.",
+        403,
+      );
+    if (fullList && body.confirm !== true)
+      throw new HttpError("Conferma che vuoi vedere tutti gli abbinamenti.");
+    if (body.version !== e.version || !["drawn", "archived"].includes(e.status))
+      throw new HttpError(
+        "L’estrazione non è disponibile per questa versione.",
+        409,
+      );
+
+    if (fullList) {
+      const assignments = await all(
+        db,
+        `SELECT a.giver_id AS giverId,a.receiver_id AS receiverId FROM assignments a
+         JOIN events current ON current.id=a.event_id AND current.version=a.version
+         WHERE current.id=? AND current.owner_id=? AND current.version=?
+         AND current.status IN ('drawn','archived') ORDER BY a.giver_id`,
+        eid,
+        user.id,
+        e.version,
+      );
+      if (!assignments.length)
+        throw new HttpError(
+          "Non ci sono abbinamenti per questa versione.",
+          409,
+        );
+      await audit(db, eid, user.id, "view_assignments").run();
+      return json({ assignments });
+    }
+
+    const recipient = await first(
+      db,
+      `SELECT u.name,receiver.wishlist FROM assignments a
+       JOIN events current ON current.id=a.event_id AND current.version=a.version
+       JOIN members giver ON giver.id=a.giver_id AND giver.event_id=current.id AND giver.status='approved'
+       JOIN members receiver ON receiver.id=a.receiver_id AND receiver.event_id=current.id AND receiver.status='approved'
+       JOIN users u ON u.id=receiver.user_id
+       WHERE current.id=? AND giver.user_id=? AND current.version=?
+       AND current.status IN ('drawn','archived')`,
+      eid,
+      user.id,
+      e.version,
+    );
+    if (!recipient)
+      throw new HttpError(
+        "La lettera non è disponibile per questa versione.",
+        409,
+      );
+    return json({
+      recipient: {
+        name: recipient.name,
+        wishlist: JSON.parse(recipient.wishlist),
+      },
+    });
+  }
   if (action === "" && method === "GET") {
     const members = await all(
       db,
       "SELECT m.id,m.user_id AS userId,u.name,m.status,m.wishlist,av.kind AS avatar_kind,CASE WHEN av.kind='photo' THEN av.revision ELSE av.preset END AS avatar_value FROM members m JOIN users u ON u.id=m.user_id LEFT JOIN user_avatars av ON av.user_id=u.id WHERE m.event_id=? AND m.status!='removed' ORDER BY m.updated_at",
       eid,
     );
-    const recipient =
-      member && e.status !== "open"
-        ? await first(
-            db,
-            "SELECT u.name,m.wishlist FROM assignments a JOIN members m ON m.id=a.receiver_id JOIN users u ON u.id=m.user_id WHERE a.event_id=? AND a.version=? AND a.giver_id=?",
-            eid,
-            e.version,
-            member.id,
-          )
-        : null;
-    const rules = admin
-      ? await all(
-          db,
-          "SELECT giver_id AS giverId,receiver_id AS receiverId,type FROM rules WHERE event_id=?",
-          eid,
-        )
-      : [];
-    const assignments =
-      admin && new URL(request.url).searchParams.get("reveal") === "1"
+    const rules =
+      admin && e.status === "open"
         ? await all(
             db,
-            "SELECT giver_id AS giverId,receiver_id AS receiverId FROM assignments WHERE event_id=? AND version=?",
+            "SELECT giver_id AS giverId,receiver_id AS receiverId,type FROM rules WHERE event_id=?",
             eid,
-            e.version,
           )
-        : undefined;
-    if (assignments) await audit(db, eid, user.id, "view_assignments").run();
+        : [];
     const invites = admin
       ? await all(
           db,
@@ -368,10 +424,13 @@ export async function eventRoute(request, env, path, body, user) {
           eid,
         )
       : [];
-    const visibleMembers =
-      !admin && member?.status !== "approved"
-        ? members.filter((m) => m.userId === user.id)
-        : members;
+    const visibleMembers = admin
+      ? members
+      : members.filter(
+          (m) =>
+            m.userId === user.id ||
+            (member?.status === "approved" && m.status === "approved"),
+        );
     return json({
       event: outputEvent(
         e,
@@ -390,10 +449,6 @@ export async function eventRoute(request, env, path, body, user) {
       ),
       rules,
       wishlist: member ? JSON.parse(member.wishlist) : [],
-      recipient: recipient
-        ? { name: recipient.name, wishlist: JSON.parse(recipient.wishlist) }
-        : null,
-      ...(assignments ? { assignments } : {}),
       invites,
     });
   }
@@ -457,7 +512,7 @@ export async function eventRoute(request, env, path, body, user) {
       ),
       stmt(
         db,
-        "INSERT INTO users(id,email,name,phone,notify_email) SELECT ?,?,?,?,0 WHERE EXISTS(SELECT 1 FROM events WHERE id=? AND draw_token=?) ON CONFLICT(email) DO NOTHING",
+        "INSERT INTO users(id,email,name,phone,notify_email) SELECT ?,?,?,?,1 WHERE EXISTS(SELECT 1 FROM events WHERE id=? AND draw_token=?) ON CONFLICT(email) DO NOTHING",
         id(),
         email,
         name,
@@ -710,7 +765,7 @@ export async function eventRoute(request, env, path, body, user) {
     return json({ ok: true });
   }
   if (action === "archive" && method === "POST") {
-    await run(db, "UPDATE events SET status='archived' WHERE id=?", eid);
+    await archiveCompetition(db, eid);
     return json({ ok: true });
   }
   if (action === "rotate-invite" && method === "POST") {
@@ -866,11 +921,11 @@ export async function eventRoute(request, env, path, body, user) {
 export async function inviteRoute(env, t, user) {
   const e = await first(
     env.DB,
-    "SELECT e.*,u.name AS organizer_name FROM events e JOIN users u ON u.id=e.owner_id WHERE e.status='open' AND (e.invite_token=? OR EXISTS(SELECT 1 FROM invites i WHERE i.event_id=e.id AND i.token=?))",
+    "SELECT e.*,u.name AS organizer_name FROM events e JOIN users u ON u.id=e.owner_id WHERE e.invite_token=? OR EXISTS(SELECT 1 FROM invites i WHERE i.event_id=e.id AND i.token=?)",
     t,
     t,
   );
-  if (!e || new Date(e.close_at).valueOf() <= Date.now())
+  if (!e)
     throw new HttpError("Questo invito è scaduto o è stato revocato.", 404);
   const member =
     user &&
@@ -880,6 +935,18 @@ export async function inviteRoute(env, t, user) {
       e.id,
       user.id,
     ));
+  const closed =
+    e.status !== "open" || new Date(e.close_at).valueOf() <= Date.now();
+  const isOwner = e.owner_id === user?.id;
+  if (closed && !user)
+    return json({
+      event: null,
+      membership: null,
+      closed: true,
+      requiresSignIn: true,
+    });
+  if (closed && !member && !isOwner)
+    throw new HttpError("Questo invito è scaduto o è stato revocato.", 404);
   return json({
     event: {
       id: e.id,
@@ -891,6 +958,8 @@ export async function inviteRoute(env, t, user) {
     },
     organizerName: e.organizer_name,
     membership: member?.status ?? null,
+    isOwner,
+    closed,
   });
 }
 export async function scheduled(env) {
@@ -903,6 +972,15 @@ export async function scheduled(env) {
     try {
       await drawEvent(env, e);
     } catch (error) {
+      if (!(error instanceof HttpError) || error.status >= 500) {
+        console.error(
+          "L’estrazione programmata verrà ritentata.",
+          e.id,
+          error?.name,
+        );
+        continue;
+      }
+      if (error.status === 409) continue;
       await run(
         env.DB,
         "UPDATE events SET error=? WHERE id=? AND version=?",
@@ -934,7 +1012,7 @@ export async function scheduled(env) {
         mail.version >= 0 &&
         !(await first(
           env.DB,
-          "SELECT 1 FROM events e JOIN members m ON m.event_id=e.id JOIN users u ON u.id=m.user_id WHERE e.id=? AND e.version=? AND m.status='approved' AND u.email=? AND u.notify_email=1",
+          "SELECT 1 FROM events e JOIN members m ON m.event_id=e.id JOIN users u ON u.id=m.user_id WHERE e.id=? AND e.version=? AND e.status='drawn' AND m.status='approved' AND u.email=? AND u.notify_email=1 AND EXISTS(SELECT 1 FROM assignments a WHERE a.event_id=e.id AND a.version=e.version AND a.giver_id=m.id)",
           mail.event_id,
           mail.version,
           mail.email,

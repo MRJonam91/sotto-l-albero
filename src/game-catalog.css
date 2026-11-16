@@ -1,0 +1,41 @@
+.game-catalog {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr));
+  align-items: stretch;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+.game-catalog-item {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #173329;
+}
+.game-catalog-item > .button:first-child {
+  justify-content: flex-start;
+  text-align: left;
+  white-space: normal;
+  min-height: 52px;
+}
+.game-catalog-item p {
+  margin: 14px 0 8px;
+  font-size: 13px;
+}
+.game-catalog-item small {
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+.game-catalog-item > .button:last-child {
+  align-self: flex-start;
+  margin-top: auto;
+}
+.practice-challenge > .button:last-child {
+  margin-top: 20px;
+}
+.practice-challenge > p:first-of-type {
+  color: #52694e;
+}

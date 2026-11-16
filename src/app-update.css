@@ -1,0 +1,16 @@
+.app-update {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--line);
+}
+.app-update p {
+  margin: 0;
+  flex: 1 1 240px;
+}
+.app-update .button {
+  flex-shrink: 0;
+}

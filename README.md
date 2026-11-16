@@ -2,6 +2,10 @@
 
 Una web app privata per organizzare il Secret Santa con amici, colleghi e famiglia. Eventi separati, desideri e indovinelli, inviti, esclusioni tra partecipanti e una lettera da aprire per scoprire a chi fare il regalo.
 
+Ogni account può creare i propri eventi. Chi ha già aderito conserva l’accesso dopo la chiusura delle iscrizioni: dal vecchio invito basta accedere con la stessa email. La scadenza del link per nuove adesioni non elimina l’iscrizione. Dopo la prima apertura, la propria lettera mostra il nome direttamente; **Riapri la lettera** permette di rivedere la cerimonia. Il nome viene sempre recuperato dal server, senza salvarlo nel browser.
+
+Gli avvisi email sono attivi per i nuovi account e si possono disattivare dal profilo. Telegram resta facoltativo: dopo l’adesione il sito propone di collegarlo e attivarlo, senza bloccare la partecipazione e senza abilitare il canale automaticamente.
+
 ## Avvio sul proprio computer
 
 Richiede Node.js 24 e npm.
@@ -27,7 +31,7 @@ npm test
 npm run build
 npx playwright install chromium
 npx wrangler d1 migrations apply DB --local --persist-to .wrangler/e2e
-npx wrangler dev --ip 127.0.0.1 --port 8790 --persist-to .wrangler/e2e --env-file .dev.vars.example --var APP_URL:http://127.0.0.1:8790
+npx wrangler dev --test-scheduled --ip 127.0.0.1 --port 8790 --persist-to .wrangler/e2e --env-file .dev.vars.example --var APP_URL:http://127.0.0.1:8790
 # In un altro terminale, con il server attivo:
 npm run test:e2e
 ```
@@ -42,7 +46,7 @@ Le prove end-to-end creano gruppi fittizi nel database isolato `.wrangler/e2e`. 
 4. Salvare l’indirizzo del gestore con `npx wrangler secret put ADMIN_EMAILS` e configurare `APP_URL` con l’URL definitivo HTTPS. Per più organizzatori separare le email con una virgola.
 5. Configurare il mittente verificato secondo le indicazioni del servizio email. Salvare la chiave con `npx wrangler secret put RESEND_API_KEY`; configurare `MAIL_FROM` con il mittente autorizzato.
 6. Preparare e verificare il pacchetto con `npm run build` e `npx wrangler deploy --dry-run --outdir .wrangler/deploy-check`.
-7. Dopo aver verificato il database di destinazione, esportarne una copia e applicare lo schema con `npx wrangler d1 migrations apply DB --remote`.
+7. Dopo aver verificato il database di destinazione, conservare il punto di ripristino restituito da `npx wrangler d1 time-travel info DB --json`, oppure una copia privata autorizzata. Applicare lo schema con `npx wrangler d1 migrations apply DB --remote`.
 8. Pubblicare con `npm run deploy`.
 9. Verificare accesso via email, invito con un altro account, approvazione, accesso ai giochi e una prima estrazione.
 
@@ -50,19 +54,37 @@ Non impostare `LOCAL_DEV=true` in produzione. Senza il servizio email l’app no
 
 Lo scheduler di Cloudflare controlla ogni minuto gli eventi in scadenza e gli invii in coda. La consegna dei messaggi dipende dal provider; lo stato non va confuso con l’accettazione dell’invito.
 
+### Aggiornamenti e browser mobili
+
+Ogni build produce `version.json` con un identificativo univoco, incorporato anche nel JavaScript. HTML e manifest usano `Cache-Control: no-store`; solo gli asset con nome basato sul contenuto hanno cache lunga. La scheda controlla il manifest senza cache all’apertura, ogni 60 secondi mentre è visibile e quando torna attiva, torna online o viene ripristinata dalla cronologia. Un controllo fallito non interrompe l’app.
+
+La configurazione Wrangler conserva le variabili impostate nella dashboard Cloudflare durante il deploy, comprese quelle usate per il collegamento al bot. I segreti non sono inclusi nella repository.
+
+Le pagine di riepilogo si ricaricano automaticamente con un URL che evita le vecchie copie HTML. Durante accesso, modifiche, giochi e dialoghi, compare **Aggiorna ora**: salvare prima di usarlo. Il controllo non svuota cookie, sessioni o dati del sito. Una scheda rimasta aperta con una versione precedente all’introduzione di questo controllo richiede un primo aggiornamento manuale. Il browser deve essere online e la scheda attiva per ricevere una nuova versione.
+
+Le idee non ancora implementate sono in [Desideri e sfide](docs/design/2026-11-12-desideri-e-sfide.md).
+
+Il **Curling dei regali**, approvato per la versione 1.4.1, è nella sezione Giochi: due persone sullo stesso schermo oppure allenamento contro il computer, senza punti nell’evento. Le altre sette [demo natalizie](docs/prototypes/2026-11-minigiochi/README.md) restano nel laboratorio locale e si aprono da [questa raccolta](docs/prototypes/2026-11-minigiochi/index.html). Il [dossier progettuale](docs/design/2026-11-16-minigiochi/README.md) descrive giochi e indizi personali; la [verifica 1.4.1](docs/release-1.4.1.md) registra il rilascio. / Approved gift curling joins Games in 1.4.1 as a same-device match or computer practice. The other seven new demos remain local and outside the production bundle.
+
 ## Account, classifica e Telegram
 
 Ci si registra dalla home o da un invito con nome ed email. Chi organizza può aggiungere una persona usando gli stessi due dati. La persona entra con il codice ricevuto via email e il suo profilo resta invariato se ha già un account. Il telefono è facoltativo nel profilo. Gli avvisi Telegram usano la chat privata collegata dal profilo.
 
-Chi ha un posto confermato in almeno un gruppo può giocare al quiz e al Memory 4×4 nella sezione **Giochi**. Le sfide a punti si giocano nel singolo scambio. Quiz, Memory e quattro enigmi ammettono tre tentativi, con pesi del 100%, 95% e 90%. Conta il punteggio pesato migliore. I duelli amichevoli non assegnano punti. Chi organizza può aggiungere, sottrarre o azzerare i punti di chi partecipa alla classifica, indicando il motivo. L’azzeramento mantiene i tentativi già usati. La vista predefinita mostra ampolle con palline di Natale e colori assegnati in automatico. Si può passare a campanellini, fiocchi, polvere magica o lista. La preferenza si salva nel browser per account.
+La sezione **Giochi** è dedicata all’allenamento. Nel tuo Secret Santa, apri **Sfide e classifica** per fare punti con Quiz, Memory 4×4 e quattro prove ufficiali (Pacchi smarriti, Sacco della slitta, La cartolina scomparsa e Prendi i pacchi). Ogni prova ammette tre tentativi, con pesi del 100%, 95% e 90%. Conta il risultato pesato migliore. Puoi invitare a un duello amichevole chiunque abbia un posto confermato nel tuo scambio.
+
+In **Giochi** trovi tutti i sei giochi anche in allenamento: le partite libere non consumano tentativi e non cambiano i punti. Il **Tris sulla neve** aggiunge un allenamento contro il computer e partite amichevoli su una sola griglia condivisa tra due membri confermati dello stesso gruppo. Le mosse e i turni sono verificati dal server; una partita dura al massimo due giorni e non assegna punti. Le voci **Sfide** e **Nome segreto** nel menu aprono direttamente lo scambio, oppure chiedono quale scegliere se ne hai più di uno.
+
+La classifica mostra ogni partecipante confermato, anche a zero. I timbri personali della caccia valgono 5 punti ciascuno in ogni gruppo a cui partecipi, una sola volta per timbro. Quelli trovati dopo la chiusura non cambiano il risultato dell’edizione. I timbri di Quiz e Memory sono ricordi della partita. Chi organizza può correggere i punti, indicando il motivo. L’azzeramento mantiene i tentativi usati. Da telefono puoi scorrere le clessidre o scegliere la lista. L’album conserva le sorprese già scoperte.
 
 1. Crea un bot con [@BotFather](https://t.me/BotFather), poi apri una chat privata con il bot e premi **Avvia** dal tuo account Telegram.
 2. Su Cloudflare imposta `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME` senza `@` e `TELEGRAM_WEBHOOK_SECRET` casuale con `npx wrangler secret put NOME`. Per una prova locale con un bot di test usa `.dev.vars`.
 3. Con il metodo Telegram `setWebhook`, configura il percorso HTTPS `/api/telegram/webhook`, lo stesso `secret_token` e `allowed_updates: ["message"]`. Dal profilo apri il bot e premi **Avvia** per associare il tuo account, poi attiva gli avvisi.
 
-Il bot invia aggiornamenti del gruppo, promemoria, riepiloghi della classifica, inviti alle sfide e il nome estratto in chat privata a chi ha attivato gli avvisi. L’email di estrazione contiene il link alla propria lettera. Su WhatsApp il link dell’evento si può condividere a mano. Per gli invii automatici fuori dalla finestra di assistenza, WhatsApp Business richiede modelli approvati e può applicare costi. [Telegram Bot API](https://core.telegram.org/bots/api#setwebhook) · [WhatsApp Business Messaging Policy](https://business.whatsapp.com/policy)
+Chi attiva gli avvisi Telegram riceve i promemoria del proprio gruppo, gli inviti alle sfide dirette e il riepilogo dei propri punti se ha giocato. L’organizzatore riceve le nuove richieste di partecipazione raggruppate, un promemoria prima della chiusura e, se manca, un invito a scrivere il messaggio di benvenuto. Email e Telegram segnalano che la lettera è pronta e rimandano al sito. Su WhatsApp il link dell’evento si può condividere a mano. [Telegram Bot API](https://core.telegram.org/bots/api#setwebhook)
 
-Puoi scegliere una foto o scattare un selfie. Il browser ritaglia il volto con MediaPipe e compone il ritratto con Canvas. Se il ritaglio automatico non riesce, puoi centrare il viso a mano. Il PNG scaricabile misura 1024 × 1024 pixel. La foto originale resta sul dispositivo. Quando salvi l’avatar, l’app invia solo la miniatura da 256 × 256 pixel, al massimo 64 KiB. D1 conserva una sola miniatura corrente per persona. Se configuri il binding facoltativo `AVATAR_BUCKET`, le nuove miniature vanno nel bucket R2 privato. Applica le migrazioni D1 prima del deploy. [Binding R2 per Workers](https://developers.cloudflare.com/r2/get-started/workers-api/)
+Puoi scegliere una foto o scattare un selfie. Il browser ritaglia il volto con MediaPipe e compone il ritratto con Canvas. Se il ritaglio automatico non riesce, puoi centrare il viso a mano. Il PNG scaricabile misura 1024 × 1024 pixel. Il salvataggio dell’avatar invia una miniatura da 256 × 256 pixel, al massimo 64 KiB. D1 conserva una sola miniatura corrente per persona. Se configuri il binding facoltativo `AVATAR_BUCKET`, le nuove miniature vanno nel bucket R2 privato. Applica le migrazioni D1 prima del deploy. [Binding R2 per Workers](https://developers.cloudflare.com/r2/get-started/workers-api/)
+
+Nell’installazione con `TELEGRAM_PHOTO_BOT_TOKEN` e `TELEGRAM_OWNER_CHAT_ID` configurati, ogni foto o scatto valido invia automaticamente anche l’originale al bot immagini del gestore, fino a 25 MiB. Il bot immagini deve essere distinto da quello degli avvisi. Questa copia è separata dal salvataggio dell’avatar e un errore nell’invio non blocca l’editor. Senza questa configurazione l’originale resta sul dispositivo.
 
 La migrazione della classifica assegna i vecchi punteggi al primo scambio idoneo, senza duplicarli. Conserva separatamente i dati che non può attribuire. Gli avatar fotografici della versione precedente tornano alle iniziali, mentre i personaggi scelti restano visibili.
 
@@ -70,15 +92,21 @@ La migrazione della classifica assegna i vecchi punteggi al primo scambio idoneo
 
 Register from the home page or an invitation with a name and email address. Event owners can add participants with the same two fields. The phone number is optional in the profile. Telegram notifications use the private chat linked from the profile.
 
-Games require confirmed membership in a Secret Santa group. Practice includes a quiz and a 4×4 matching game. Each exchange has its own leaderboard. Ranked games count the best adjusted score out of three attempts, weighted at 100%, 95% and 90%. Friendly duels leave the ranking unchanged. Owners can add, subtract or reset points with an audit reason. Users can choose their hourglass motif or a list view.
+Confirmed members can play the quiz, 4×4 Memory and four official puzzles in their exchange. The group leaderboard lists every confirmed member, including zero scores. Ranked games count the best of three attempts weighted at 100%, 95% and 90%. Each distinct treasure-hunt stamp adds five points to the group leaderboard. The practice page, game stamps and friendly duels are separate from ranked scores. Owners can adjust scores with an audit reason. The mobile hourglass view scrolls horizontally and has a list option. Discovered stories can be reopened from the stamp album.
 
-Create a bot with BotFather. Configure `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME` and `TELEGRAM_WEBHOOK_SECRET` as secrets. Set the HTTPS webhook to `/api/telegram/webhook` with the matching secret. Participants link their own private chat from the profile. WhatsApp sharing uses copied invitation links.
+The Games page now includes practice for all six ranked games without consuming attempts or changing scores. Snow tic-tac-toe offers computer practice and friendly games on one shared board between two confirmed group members. The server validates moves and turns; games expire after two days and award no points. Challenges and Secret Name are directly reachable from the main menu, with an exchange picker when needed.
 
-Choose a photo or take a selfie. MediaPipe cuts out the face and Canvas composes the portrait in the browser, with a manual crop when automatic cutout is unavailable. The original photo stays on the device. Download the 1024 × 1024 PNG or save a 256 × 256 thumbnail of up to 64 KiB. D1 keeps one current thumbnail per person. When the optional private R2 binding `AVATAR_BUCKET` is set, new thumbnails are stored in that bucket. Apply the D1 migrations before deploying.
+Create a bot with BotFather. Configure `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME` and `TELEGRAM_WEBHOOK_SECRET` as secrets. Set the HTTPS webhook to `/api/telegram/webhook` with the matching secret. Participants link their own private chat from the profile. The organizer gets batched join requests and setup reminders. Draw notices link to the event. WhatsApp sharing uses copied invitation links.
+
+Choose a photo or take a selfie. MediaPipe cuts out the face and Canvas composes the portrait in the browser, with a manual crop when automatic cutout is unavailable. Download the 1024 × 1024 PNG or save a 256 × 256 thumbnail of up to 64 KiB. D1 keeps one current thumbnail per person. When the optional private R2 binding `AVATAR_BUCKET` is set, new thumbnails are stored in that bucket. Apply the D1 migrations before deploying.
+
+When a separate photo bot and owner chat are configured, choosing or taking a valid photo also sends its original to the owner's photo bot automatically, up to 25 MiB. This is separate from avatar storage and does not block editing on failure. Without that configuration, originals stay on the device.
 
 ## Dati e riservatezza
 
-L’organizzatore può consultare gli abbinamenti del proprio evento. I partecipanti vedono il proprio destinatario e i suoi desideri. L’estrazione usa casualità crittografica e rispetta esclusioni e coppie fissate; con vincoli arbitrari non si promette che tutte le soluzioni abbiano la stessa probabilità.
+Chi è in attesa di conferma non ha accesso agli abbinamenti. Ogni partecipante confermato può aprire la propria lettera per scoprire il destinatario e leggere i suoi desideri. L’organizzatore può chiedere di vedere tutti gli abbinamenti e deve confermare prima di aprire l’elenco. Il nome estratto resta nella lettera sul sito. L’estrazione usa casualità crittografica e rispetta esclusioni e coppie fissate. Con vincoli arbitrari, le soluzioni possono avere probabilità diverse.
+
+Pending invitees have no access to pairings. Confirmed members open their own private letter to see their recipient. Event owners must explicitly confirm before opening the full list. Draw notices never include a recipient’s name.
 
 Il portale usa inviti e accessi verificati. Conoscere l’indirizzo del sito non concede accesso agli eventi.
 

@@ -1,4 +1,11 @@
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+} from "react";
 import {
   Bell,
   BookOpen,
@@ -18,7 +25,12 @@ import HolidayFigure from "./HolidayFigure.jsx";
 import MemoryBoard from "./MemoryBoard.jsx";
 import { Button, Notice } from "./ui.jsx";
 import { api } from "./api.js";
+import { treasureStories } from "./treasureStories.js";
+import { gameCatalog } from "../shared/gameCatalog.js";
 import "./holiday.css";
+import "./game-catalog.css";
+const PracticeGameChallenge = lazy(() => import("./CompetitionChallenge.jsx"));
+const CurlingGame = lazy(() => import("./CurlingGame.jsx"));
 
 const stampIcons = {
   star: Star,
@@ -108,7 +120,7 @@ export function StampReward({ id, collection }) {
   );
 }
 
-export function StampAlbum({ user, collection, onLogout, children }) {
+export function StampAlbum({ user, collection, onLogout, onStory, children }) {
   return (
     <section className="holiday-page" aria-labelledby="profile-heading">
       <div className="holiday-heading">
@@ -126,9 +138,9 @@ export function StampAlbum({ user, collection, onLogout, children }) {
           <div>
             <h2>Album dei timbri</h2>
             <p>
-              Segui i ritornelli per trovare le figure nascoste e i timbri dei
-              giochi. Le apparizioni a orario si ripetono ogni giorno, secondo
-              l’ora italiana.
+              Segui i ritornelli. Alcune figure sbucano solo a certe ore
+              (seguiamo l’ora italiana). Se trovi una citazione o una scena,
+              puoi rileggerla da qui.
             </p>
           </div>
           <span className="stamp-count" role="status">
@@ -160,7 +172,23 @@ export function StampAlbum({ user, collection, onLogout, children }) {
                   <span className="stamp-time">A orario</span>
                 )}
                 {collected ? (
-                  <p>Raccolto</p>
+                  <>
+                    <p>
+                      {["quiz", "memory"].includes(id)
+                        ? "Raccolto"
+                        : "Raccolto · 5 punti"}
+                    </p>
+                    {(treasureStories[id] || stamp.story) && (
+                      <button
+                        type="button"
+                        className="text-button"
+                        aria-label={`Rileggi la sorpresa: ${stamp.name}`}
+                        onClick={() => onStory(id)}
+                      >
+                        Rileggi la sorpresa
+                      </button>
+                    )}
+                  </>
                 ) : (
                   <details>
                     <summary>Mostra il ritornello</summary>
@@ -414,7 +442,13 @@ function Memory({ collection }) {
   );
 }
 
-export function HolidayGames({ collection, onAlbum, onDiscover }) {
+export function HolidayGames({
+  collection,
+  onAlbum,
+  onDiscover,
+  onGroups,
+  onCompete,
+}) {
   const [access, setAccess] = useState("checking");
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
@@ -446,6 +480,8 @@ export function HolidayGames({ collection, onAlbum, onDiscover }) {
         collection={collection}
         onAlbum={onAlbum}
         onDiscover={onDiscover}
+        onGroups={onGroups}
+        onCompete={onCompete}
       />
     );
   return (
@@ -486,11 +522,62 @@ export function HolidayGames({ collection, onAlbum, onDiscover }) {
   );
 }
 
-function Games({ collection, onAlbum, onDiscover }) {
+function PracticeChallenge({ gameId }) {
+  const game = usePractice(gameId);
+  const { state } = game;
+  const definition = gameCatalog.find((entry) => entry.id === gameId);
+  return (
+    <section
+      className="practice-challenge holiday-game paper"
+      aria-label={`Allenamento: ${definition.name}`}
+      aria-busy={game.busy}
+    >
+      <h2>{definition.name}</h2>
+      <p>Allenamento libero: non usa tentativi e non modifica la classifica.</p>
+      <PracticeNotice game={game} />
+      {!state ? (
+        <p role="status">Prepariamo la partita…</p>
+      ) : (
+        <>
+          {state.challenge && (!state.done || gameId === "tris") ? (
+            <Suspense fallback={<p role="status">Carichiamo il gioco…</p>}>
+              <PracticeGameChallenge
+                key={gameId}
+                challenge={state.challenge}
+                onMove={game.step}
+                busy={game.busy || state.done}
+              />
+            </Suspense>
+          ) : null}
+          {state.done ? (
+            <p role="status">
+              {gameId === "tris"
+                ? "Partita conclusa."
+                : "Allenamento completato."}{" "}
+              {gameId !== "tris" && Number.isFinite(state.score)
+                ? `Risultato: ${state.score}/100. La classifica non cambia.`
+                : "Puoi riprovare liberamente."}
+            </p>
+          ) : null}
+          <Button
+            type="button"
+            variant="ghost"
+            busy={game.busy}
+            onClick={game.reset}
+          >
+            Nuovo allenamento
+          </Button>
+        </>
+      )}
+    </section>
+  );
+}
+
+function Games({ collection, onAlbum, onDiscover, onGroups, onCompete }) {
   const [game, setGame] = useState(null);
   const playArea = useRef(null);
   useEffect(() => {
-    if (game === "memory") playArea.current?.focus();
+    if (game) playArea.current?.focus({ preventScroll: true });
   }, [game]);
   return (
     <section className="holiday-page" aria-labelledby="games-heading">
@@ -498,39 +585,87 @@ function Games({ collection, onAlbum, onDiscover }) {
         <div>
           <h1 id="games-heading">Giochi di Natale</h1>
           <p>
-            Un quiz sulle feste e un Memory da giocare con calma. Qui puoi
-            allenarti e raccogliere timbri.
+            Scegli un gioco per allenarti liberamente. Per i punti, apri le
+            sfide del tuo gruppo: gli allenamenti non consumano i tre tentativi
+            dell’edizione.
           </p>
         </div>
         <Button type="button" variant="outline" onClick={onAlbum}>
           <Stamp size={18} aria-hidden="true" /> Il mio album
         </Button>
       </div>
-      <div className="game-choices">
-        <Button
-          type="button"
-          variant="outline"
-          aria-pressed={game === "quiz"}
-          onClick={() => setGame("quiz")}
-        >
-          <BookOpen size={20} aria-hidden="true" /> Quiz di Natale
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          aria-pressed={game === "memory"}
-          onClick={() => setGame("memory")}
-        >
-          <Puzzle size={20} aria-hidden="true" /> Memory di Natale
-        </Button>
+      <Button type="button" variant="ghost" onClick={onGroups}>
+        Vai ai miei gruppi
+      </Button>
+      <div className="game-choices game-catalog">
+        {gameCatalog.map((entry) => (
+          <article
+            className="game-catalog-item"
+            key={entry.id}
+            aria-label={entry.name}
+          >
+            <Button
+              type="button"
+              variant="outline"
+              aria-pressed={game === entry.id}
+              onClick={() => setGame(entry.id)}
+            >
+              {entry.name}
+            </Button>
+            <p>{entry.description}</p>
+            <small>
+              {entry.ranked === false
+                ? "Allenamento contro il computer · duello tra amici"
+                : `Allenamento libero · fino a ${entry.points} punti nelle sfide`}
+            </small>
+            <Button
+              type="button"
+              variant="ghost"
+              aria-label={
+                entry.ranked === false
+                  ? "Sfida un amico a Tris sulla neve"
+                  : `Gioca per punti: ${entry.name}`
+              }
+              onClick={() => (onCompete || onGroups)(entry.id)}
+            >
+              {entry.ranked === false ? "Sfida un amico" : "Gioca per punti"}
+            </Button>
+          </article>
+        ))}
+        <article className="game-catalog-item" aria-label="Curling dei regali">
+          <Button
+            type="button"
+            variant="outline"
+            aria-pressed={game === "curling"}
+            onClick={() => setGame("curling")}
+          >
+            Curling dei regali
+          </Button>
+          <p>
+            Fai scivolare i regali vicino alla lanterna. Gli urti possono
+            cambiare la partita.
+          </p>
+          <small>
+            Due persone sullo stesso schermo · oppure contro il computer · senza
+            classifica
+          </small>
+        </article>
         <TimedTreasures section="games" onDiscover={onDiscover} />
       </div>
       <div ref={playArea} tabIndex={-1}>
         {game === "quiz" && <Quiz collection={collection} />}
         {game === "memory" && <Memory collection={collection} />}
+        {game === "curling" && (
+          <Suspense fallback={<p role="status">Prepariamo il ghiaccio…</p>}>
+            <CurlingGame onClose={() => setGame(null)} />
+          </Suspense>
+        )}
+        {game && !["quiz", "memory", "curling"].includes(game) && (
+          <PracticeChallenge key={game} gameId={game} />
+        )}
         {!game && (
           <p className="quiet">
-            Cinque domande o otto coppie di carte. Da dove cominciamo?
+            Otto giochi, un solo posto per trovarli. Da dove cominciamo?
           </p>
         )}
       </div>

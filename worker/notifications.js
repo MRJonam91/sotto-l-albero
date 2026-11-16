@@ -11,6 +11,7 @@ import { telegramAvailable, telegramMessage } from "./telegram.js";
 
 const hour = 3_600_000;
 const day = 24 * hour;
+const registrationWindow = 15 * 60_000;
 const maxAttempts = 5;
 const channels = "(SELECT 'email' AS channel UNION ALL SELECT 'telegram')";
 const optedIn = `((c.channel='email' AND u.notify_email=1 AND ?=1)
@@ -41,6 +42,32 @@ function configured(env) {
     Number(!!(env.RESEND_API_KEY && env.MAIL_FROM)),
     Number(telegramAvailable(env)),
   ];
+}
+
+export function registrationNotice(env, eventId, userId, now) {
+  const start = Math.floor(now / registrationWindow) * registrationWindow;
+  const end = start + registrationWindow;
+  return env.DB.prepare(
+    `INSERT OR IGNORE INTO ${columns}
+    SELECT e.id,u.id,'telegram','reminder',?,
+      json_object('field','registration','from',?,'until',?),?,?,?
+    FROM events e JOIN users u ON u.id=e.owner_id
+    JOIN members m ON m.event_id=e.id AND m.user_id=?
+    WHERE e.id=? AND e.status='open' AND u.id!=m.user_id
+      AND m.status='pending' AND m.updated_at=?
+      AND u.notify_telegram=1 AND u.telegram_chat_id IS NOT NULL AND ?=1`,
+  ).bind(
+    `registration:${start}`,
+    iso(start),
+    iso(end),
+    now,
+    end + day,
+    end,
+    userId,
+    eventId,
+    iso(now),
+    Number(telegramAvailable(env)),
+  );
 }
 
 async function enqueue(db, job, enabled = [1, 1]) {
@@ -132,51 +159,89 @@ async function enqueueDuels(db, now, enabled) {
   );
 }
 
-async function enqueueDraws(db, now) {
+async function enqueueDraws(db, now, enabled) {
   await run(
     db,
     `INSERT OR IGNORE INTO ${columns}
-    SELECT e.id,u.id,'telegram','draw',CAST(e.version AS TEXT),json_object('version',e.version),?,?,?
+    SELECT e.id,u.id,c.channel,'draw',CAST(e.version AS TEXT),json_object('version',e.version),?,?,?
     FROM events e JOIN assignments a ON a.event_id=e.id AND a.version=e.version
     JOIN members m ON m.id=a.giver_id AND m.event_id=e.id AND m.status='approved'
-    JOIN users u ON u.id=m.user_id
-    WHERE e.status='drawn' AND u.notify_telegram=1 AND u.telegram_chat_id IS NOT NULL
-      AND EXISTS(SELECT 1 FROM audit d WHERE d.event_id=e.id AND d.action='draw' AND d.created_at>=?)`,
+    JOIN members receiver ON receiver.id=a.receiver_id AND receiver.event_id=e.id AND receiver.status='approved'
+    JOIN users u ON u.id=m.user_id CROSS JOIN ${channels} c
+    WHERE e.status='drawn' AND ${optedIn}
+      AND (c.channel<>'email' OR NOT EXISTS(
+        SELECT 1 FROM outbox o WHERE o.event_id=e.id AND o.version=e.version AND o.email=u.email
+        AND (o.state IN ('sending','sent') OR (o.state='queued' AND o.attempts<5))
+      ))`,
     now,
     now + 2 * day,
     now,
-    iso(now - 2 * day),
+    ...enabled,
   );
 }
 
 async function enqueueReminders(db, now, enabled) {
+  const [emailEnabled, telegramEnabled] = enabled;
   for (const field of Object.keys(dateLabels)) {
-    for (const [from, until] of [
-      [now, now + hour],
-      [now + hour, now + day],
-    ]) {
+    const windows = [];
+    if (emailEnabled)
+      windows.push(
+        ["email", now, now + hour, "60m"],
+        ["email", now + hour, now + day, "24h"],
+      );
+    if (telegramEnabled) windows.push(["telegram", now, now + day, "24h"]);
+    for (const [channel, from, until, window] of windows) {
       const state =
         field === "gift_at"
           ? "e.status IN ('open','drawn')"
           : "e.status='open'";
+      const telegram = channel === "telegram";
+      const recipients =
+        telegram && field === "close_at"
+          ? "JOIN users u ON u.id=e.owner_id"
+          : "JOIN members m ON m.event_id=e.id AND m.status='approved' JOIN users u ON u.id=m.user_id";
+      const optedIn = telegram
+        ? `u.notify_telegram=1 AND u.telegram_chat_id IS NOT NULL
+           AND NOT EXISTS (SELECT 1 FROM notification_jobs j WHERE j.event_id=e.id
+             AND j.user_id=u.id AND j.channel='telegram' AND j.kind='reminder'
+             AND j.source_key='${field}:60m:' || e.${field} AND j.state='sent')`
+        : "u.notify_email=1";
       await run(
         db,
         `INSERT OR IGNORE INTO ${columns}
-        SELECT e.id,u.id,c.channel,'reminder',? || e.${field},json_object('field',?,'date',e.${field}),
-          ?,?,? FROM events e JOIN members m ON m.event_id=e.id AND m.status='approved'
-        JOIN users u ON u.id=m.user_id CROSS JOIN ${channels} c
+        SELECT e.id,u.id,?,'reminder',? || e.${field},
+          json_object('field',?,'date',e.${field}),?,?,?
+        FROM events e ${recipients}
         WHERE ${state} AND e.${field}>? AND e.${field}<=? AND ${optedIn}`,
-        `${field}:${from === now ? "60m" : "24h"}:`,
+        channel,
+        `${field}:${window}:`,
         field,
         now,
         until,
         now,
         iso(from),
         iso(until),
-        ...enabled,
       );
     }
   }
+}
+
+async function enqueueWelcome(db, now) {
+  await run(
+    db,
+    `INSERT OR IGNORE INTO ${columns}
+    SELECT e.id,u.id,'telegram','reminder','welcome',json_object('field','welcome'),?,?,?
+    FROM events e JOIN users u ON u.id=e.owner_id
+    WHERE e.status='open' AND trim(e.description)='' AND e.close_at>?
+      AND e.created_at BETWEEN ? AND ?
+      AND u.notify_telegram=1 AND u.telegram_chat_id IS NOT NULL`,
+    now,
+    now + day,
+    now,
+    iso(now + day),
+    iso(now - 7 * day),
+    iso(now - hour),
+  );
 }
 
 function calendar(now) {
@@ -208,9 +273,15 @@ async function enqueueWeekly(
     `INSERT OR IGNORE INTO ${columns}
     SELECT e.id,u.id,c.channel,'weekly',? || e.id,'{}',?,?,?
     FROM events e JOIN members m ON m.event_id=e.id AND m.status='approved'
-    JOIN competition_entries ce ON ce.event_id=e.id AND ce.user_id=m.user_id
     JOIN users u ON u.id=m.user_id CROSS JOIN ${channels} c
     WHERE e.status IN ('open','drawn') AND e.gift_at>=? AND e.gift_at<? AND ${optedIn}
+      AND (
+        EXISTS(SELECT 1 FROM competition_entries ce WHERE ce.event_id=e.id AND ce.user_id=u.id)
+        OR EXISTS(
+          SELECT 1 FROM competition_attempts a
+          WHERE a.event_id=e.id AND a.user_id=u.id AND a.duel_id='' AND a.raw_score IS NOT NULL
+        )
+      )
       AND NOT EXISTS (
         SELECT 1 FROM notification_jobs j
         WHERE j.event_id=e.id AND j.user_id=u.id AND j.channel=c.channel
@@ -229,7 +300,7 @@ async function enqueueWeekly(
 }
 
 async function enqueueChallenges(db, now, enabled, { year }) {
-  // Official games open together for each event. Duels are queued individually.
+  // Game announcements are email-only. Telegram duels are queued individually.
   await run(
     db,
     `INSERT OR IGNORE INTO ${columns}
@@ -247,18 +318,24 @@ async function enqueueChallenges(db, now, enabled, { year }) {
     iso(now - 7 * day),
     iso(now),
     editionStart(year + 1),
-    ...enabled,
+    enabled[0],
+    0,
   );
 }
 
 async function eligibility(db, job) {
   return first(
     db,
-    `SELECT e.*,u.email,u.notify_email,u.notify_telegram,u.telegram_chat_id,m.id AS member_id
-    FROM events e JOIN members m ON m.event_id=e.id AND m.status='approved'
-    JOIN users u ON u.id=m.user_id WHERE e.id=? AND u.id=?`,
-    job.event_id,
+    `SELECT e.*,u.email,u.notify_email,u.notify_telegram,u.telegram_chat_id
+    FROM events e JOIN users u ON u.id=?
+    WHERE e.id=? AND (
+      EXISTS(SELECT 1 FROM members m WHERE m.event_id=e.id AND m.user_id=u.id AND m.status='approved')
+      OR (e.owner_id=u.id AND ?='telegram' AND ?='reminder')
+    )`,
     job.user_id,
+    job.event_id,
+    job.channel,
+    job.kind,
   );
 }
 
@@ -273,6 +350,69 @@ async function content(db, job, event, now) {
         };
       break;
     case "reminder":
+      if (job.channel === "telegram") {
+        if (job.source_key.includes(":60m:")) break; // Skip old duplicate jobs.
+        if (["registration", "welcome", "close_at"].includes(payload.field)) {
+          if (event.owner_id !== job.user_id || event.status !== "open") break;
+          if (payload.field === "registration") {
+            const requests = await all(
+              db,
+              `SELECT u.name, EXISTS(
+                SELECT 1 FROM invites i WHERE i.event_id=m.event_id AND i.email=u.email AND i.state!='revoked'
+              ) AS invited FROM members m JOIN users u ON u.id=m.user_id
+              WHERE m.event_id=? AND m.status='pending' AND m.user_id!=?
+                AND m.updated_at>=? AND m.updated_at<?
+              ORDER BY m.updated_at,m.id`,
+              event.id,
+              job.user_id,
+              payload.from,
+              payload.until,
+            );
+            if (!requests.length) break;
+            const lines = requests
+              .slice(0, 8)
+              .map(({ name, invited }) =>
+                invited
+                  ? `${name} ha accettato l’invito.`
+                  : `${name} chiede di partecipare.`,
+              );
+            if (requests.length > 8)
+              lines.push(`Altre richieste da leggere: ${requests.length - 8}.`);
+            return {
+              title: `Iscrizioni a ${event.name}`,
+              message: [
+                ...lines,
+                "",
+                "Apri l’elenco per confermare le richieste.",
+              ].join("\n"),
+              section: "event-members",
+            };
+          }
+          if (payload.field === "welcome") {
+            if (
+              event.description.trim() ||
+              Date.parse(event.close_at) <= now + day
+            )
+              break;
+            return {
+              title: `Dai il benvenuto a chi partecipa a ${event.name}`,
+              message:
+                "Aggiungi due righe per accogliere il gruppo o spiegare come vi scambierete i regali.",
+              section: "event-settings",
+            };
+          }
+          if (
+            event.close_at !== payload.date ||
+            Date.parse(payload.date) <= now
+          )
+            break;
+          return {
+            title: `Le iscrizioni per ${event.name} chiudono a breve`,
+            message: `Il termine è il ${romeDate.format(new Date(payload.date))} (ora italiana). Controlla le richieste in attesa e verifica date e budget.${event.description.trim() ? "" : " Puoi ancora aggiungere un messaggio di benvenuto."}`,
+            section: "event-settings",
+          };
+        }
+      }
       if (
         dateLabels[payload.field] &&
         event[payload.field] === payload.date &&
@@ -300,7 +440,11 @@ async function content(db, job, event, now) {
       break;
     }
     case "challenge":
-      if (event.status !== "archived" && Date.parse(event.gift_at) >= now) {
+      if (
+        job.channel === "email" &&
+        event.status !== "archived" &&
+        Date.parse(event.gift_at) >= now
+      ) {
         return {
           title: `Le sfide di ${event.name} sono aperte`,
           message: "Il quiz, il memory e le prove del gruppo ti aspettano.",
@@ -327,33 +471,33 @@ async function content(db, job, event, now) {
       break;
     }
     case "draw": {
+      if (event.status !== "drawn" || event.version !== payload.version) break;
       if (
-        job.channel !== "telegram" ||
-        event.status !== "drawn" ||
-        event.version !== payload.version
+        !(await first(
+          db,
+          `SELECT 1 FROM assignments a
+        JOIN members giver ON giver.id=a.giver_id AND giver.event_id=a.event_id AND giver.status='approved'
+        JOIN members receiver ON receiver.id=a.receiver_id AND receiver.event_id=a.event_id AND receiver.status='approved'
+        WHERE a.event_id=? AND a.version=? AND giver.user_id=?`,
+          event.id,
+          event.version,
+          job.user_id,
+        ))
       )
         break;
-      const recipient = await first(
-        db,
-        `SELECT u.name FROM assignments a
-        JOIN members m ON m.id=a.receiver_id AND m.event_id=a.event_id AND m.status='approved'
-        JOIN users u ON u.id=m.user_id WHERE a.event_id=? AND a.version=? AND a.giver_id=?`,
-        event.id,
-        event.version,
-        event.member_id,
-      );
-      if (recipient)
-        return {
-          title: `La tua lettera per ${event.name}`,
-          message: `Quest’anno prepari un regalo per ${recipient.name}. Tieni il nome per te.`,
-        };
-      break;
+      return {
+        title: `La tua lettera per ${event.name}`,
+        message:
+          "I nomi sono stati estratti. Apri la tua lettera per scoprire in privato a chi farai il regalo.",
+        tab: "reveal",
+        linkLabel: "Apri la tua lettera",
+      };
     }
   }
   return null;
 }
 
-function eventUrl(env, eventId) {
+function eventUrl(env, eventId, section, tab) {
   try {
     const app = new URL(env.APP_URL);
     if (
@@ -361,7 +505,13 @@ function eventUrl(env, eventId) {
       !(env.LOCAL_DEV === "true" && app.protocol === "http:")
     )
       return "";
-    return new URL(`/events/${encodeURIComponent(eventId)}`, app.origin).href;
+    const url = new URL(`/events/${encodeURIComponent(eventId)}`, app.origin);
+    if (tab) url.searchParams.set("tab", tab);
+    if (section) {
+      url.searchParams.set("tab", "admin");
+      url.hash = section;
+    }
+    return url.href;
   } catch {
     return "";
   }
@@ -378,10 +528,21 @@ async function deliver(env, job, now) {
     return false;
   const letter = await content(env.DB, job, event, now);
   if (!letter) return false;
-  const link = eventUrl(env, event.id);
+  const link = eventUrl(env, event.id, letter.section, letter.tab);
+  const current = await eligibility(env.DB, job);
+  if (
+    !current ||
+    current.status !== event.status ||
+    current.version !== event.version ||
+    (job.channel === "email"
+      ? !current.notify_email || current.email !== event.email
+      : !current.notify_telegram ||
+        current.telegram_chat_id !== event.telegram_chat_id)
+  )
+    return false;
   if (job.channel === "email") {
     const message = escapeHtml(letter.message).replaceAll("\n", "<br>");
-    const html = `<p>${message}</p>${link ? `<p><a href="${escapeHtml(link)}">Apri l’evento</a></p>` : ""}`;
+    const html = `<p>${message}</p>${link ? `<p><a href="${escapeHtml(link)}">${escapeHtml(letter.linkLabel || "Apri l’evento")}</a></p>` : ""}`;
     await sendMail(
       env,
       event.email,
@@ -462,7 +623,10 @@ export async function runNotifications(env, now = Date.now()) {
   const enabled = configured(env);
   if (enabled.some(Boolean)) {
     const edition = calendar(now);
-    if (enabled[1]) await enqueueDraws(env.DB, now);
+    await enqueueDraws(env.DB, now, enabled);
+    if (enabled[1]) {
+      await enqueueWelcome(env.DB, now);
+    }
     await enqueueReminders(env.DB, now, enabled);
     await enqueueWeekly(env.DB, now, enabled, edition);
     await enqueueChallenges(env.DB, now, enabled, edition);
@@ -477,7 +641,9 @@ export async function runNotifications(env, now = Date.now()) {
   );
   await run(
     env.DB,
-    "DELETE FROM notification_jobs WHERE expires_at<?",
+    // Draw rows also remember delivery per event/version/channel. Retain them
+    // so catching up ready letters cannot resend one after queue cleanup.
+    "DELETE FROM notification_jobs WHERE expires_at<? AND kind!='draw'",
     now - 30 * day,
   );
 }

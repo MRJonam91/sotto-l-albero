@@ -1,0 +1,24 @@
+<div id="officina-avventure" lang="it" aria-label="Cinque avventure natalizie, anteprime giocabili">
+  <header class="oa-header"><span>Sotto l’Albero · Laboratorio</span><h1>Cosa inventeresti tu?</h1><p>Cinque scene da provare. Il racconto e le scelte restano in questa anteprima.</p></header>
+  <div class="oa-tabs" role="tablist" aria-label="Scegli un’avventura">
+    <button type="button" role="tab" id="oa-ponte" aria-controls="oa-panel-ponte" aria-selected="true" data-scene="ponte">Il ponte</button>
+    <button type="button" role="tab" id="oa-piazza" aria-controls="oa-panel-piazza" aria-selected="false" data-scene="piazza">La piazza</button>
+    <button type="button" role="tab" id="oa-vagone" aria-controls="oa-panel-vagone" aria-selected="false" data-scene="vagone">Il vagone</button>
+    <button type="button" role="tab" id="oa-casa" aria-controls="oa-panel-casa" aria-selected="false" data-scene="casa">La casa</button>
+    <button type="button" role="tab" id="oa-bottega" aria-controls="oa-panel-bottega" aria-selected="false" data-scene="bottega">La bottega</button>
+  </div>
+  <section id="oa-panel-ponte" role="tabpanel" aria-labelledby="oa-ponte" data-panel="ponte">%%PONTE%%</section>
+  <section id="oa-panel-piazza" role="tabpanel" aria-labelledby="oa-piazza" data-panel="piazza" hidden>%%PIAZZA%%</section>
+  <section id="oa-panel-vagone" role="tabpanel" aria-labelledby="oa-vagone" data-panel="vagone" hidden>%%VAGONE%%</section>
+  <section id="oa-panel-casa" role="tabpanel" aria-labelledby="oa-casa" data-panel="casa" hidden>%%CASA%%</section>
+  <section id="oa-panel-bottega" role="tabpanel" aria-labelledby="oa-bottega" data-panel="bottega" hidden>%%BOTTEGA%%</section>
+</div>
+<style>
+#officina-avventure{max-width:736px;margin:auto;color:#eee5d0;background:#173b32;font:400 14px/1.5 system-ui,sans-serif;border-radius:20px;overflow:hidden;color-scheme:light}#officina-avventure>.oa-header{padding:24px 26px 20px}#officina-avventure>.oa-header span{display:block;font:italic 22px Georgia,serif;padding-right:85px;color:#e2c58d}#officina-avventure>.oa-header h1{font:400 34px/1.1 Georgia,serif;margin:18px 0 10px}#officina-avventure>.oa-header p{font-size:12px;margin:0;color:#d4dece}#officina-avventure>.oa-tabs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;padding:0 12px 12px}#officina-avventure>.oa-tabs button{font:400 12px/1.2 system-ui,sans-serif;color:#d4dece;background:transparent;min-height:46px;min-width:0;border:1px solid #617863;border-radius:8px;padding:8px 3px;cursor:var(--cursor-interaction,pointer)}#officina-avventure>.oa-tabs button[aria-selected=true]{color:#173b32;background:#e7d7af;border-color:#e7d7af}#officina-avventure>[hidden]{display:none!important}#officina-avventure>[role=tabpanel]{background:#eee5d0}#officina-avventure #three-ways{border-radius:0}#officina-avventure #three-ways .tw-brand{display:none}#officina-avventure #three-ways .tw-kicker{margin-top:0}#officina-avventure #three-ways .tw-header{padding-top:22px;padding-bottom:18px}#officina-avventure #three-ways h1{font-size:33px}#officina-avventure #casa-inventata{border-radius:0}@media(max-width:480px){#officina-avventure>.oa-header{padding:22px 17px 18px}#officina-avventure>.oa-header h1{font-size:30px}#officina-avventure>.oa-tabs{padding:0 8px 10px;gap:3px}#officina-avventure>.oa-tabs button{font-size:11px}}
+</style>
+<script>
+(()=>{const r=document.getElementById('officina-avventure'),tabs=[...r.querySelectorAll('.oa-tabs button')],panels=[...r.querySelectorAll('[data-panel]')];
+function select(key,save=false){if(!panels.some(p=>p.dataset.panel===key))key='ponte';tabs.forEach(t=>t.setAttribute('aria-selected',String(t.dataset.scene===key)));panels.forEach(p=>p.hidden=p.dataset.panel!==key);if(save)window.openai?.setWidgetState?.({modelContent:{anteprima:'Cinque avventure rielaborate',avventura:key},privateContent:null}).catch(()=>{});}
+tabs.forEach((t,i)=>{t.addEventListener('click',()=>select(t.dataset.scene,true));t.addEventListener('keydown',e=>{let n=i;if(e.key==='ArrowRight')n=(i+1)%tabs.length;else if(e.key==='ArrowLeft')n=(i+tabs.length-1)%tabs.length;else if(e.key==='Home')n=0;else if(e.key==='End')n=tabs.length-1;else return;e.preventDefault();tabs[n].focus();select(tabs[n].dataset.scene,true);});});
+const restore=v=>{if(v?.modelContent?.anteprima==='Cinque avventure rielaborate')select(v.modelContent.avventura);};restore(window.openai?.widgetState);window.addEventListener('openai:set_globals',e=>restore(e.detail?.globals?.widgetState));})();
+</script>

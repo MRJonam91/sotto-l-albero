@@ -29,8 +29,12 @@ import {
   TimedTreasures,
 } from "./Holiday.jsx";
 import { useStampCollection } from "./useStampCollection.js";
+import { treasureStories } from "./treasureStories.js";
 import { stamps } from "../shared/stamps.js";
 import { version } from "../package.json";
+import AppUpdateNotice from "./AppUpdateNotice.jsx";
+import InviteNotificationHint from "./InviteNotificationHint.jsx";
+import EventShortcuts from "./EventShortcuts.jsx";
 const ProfileSettings = lazy(() => import("./ProfileSettings.jsx"));
 
 const sectionPaths = {
@@ -38,9 +42,20 @@ const sectionPaths = {
   wishes: "/desideri",
   archive: "/archivio",
   games: "/giochi",
+  challenges: "/sfide",
+  reveal: "/nome",
   profile: "/profilo",
   rules: "/regolamento",
 };
+const shortcutTabs = { challenges: "competition", reveal: "reveal" };
+function currentEventId() {
+  return (
+    location.pathname.match(/^\/events\/([^/]+)$/)?.[1] ||
+    (["/sfide", "/nome"].includes(location.pathname)
+      ? new URLSearchParams(location.search).get("event")
+      : null)
+  );
+}
 function currentSection() {
   return (
     Object.keys(sectionPaths).find(
@@ -51,22 +66,39 @@ function currentSection() {
   );
 }
 
+function requestedEventTab() {
+  const tab = new URLSearchParams(location.search).get("tab");
+  return ["overview", "wishlist", "reveal", "competition", "admin"].includes(
+    tab,
+  )
+    ? tab
+    : undefined;
+}
+
 function focusMain() {
-  requestAnimationFrame(() => document.getElementById("main")?.focus());
+  requestAnimationFrame(() => {
+    // Focus must not scroll the header out of view, especially on iOS.
+    document.getElementById("main")?.focus({ preventScroll: true });
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+  });
 }
 
 export default function App() {
   const [session, setSession] = useState(null),
     [loading, setLoading] = useState(true),
     [events, setEvents] = useState([]),
-    [eventId, setEventId] = useState(
-      () => location.pathname.match(/^\/events\/([^/]+)$/)?.[1] || null,
+    [eventsReady, setEventsReady] = useState(false),
+    [eventId, setEventId] = useState(currentEventId),
+    [eventTab, setEventTab] = useState(
+      () => requestedEventTab() ?? history.state?.eventTab,
     ),
     [section, setSection] = useState(currentSection),
     [create, setCreate] = useState(false),
     [error, setError] = useState(""),
     [secret, setSecret] = useState(null),
     [invite, setInvite] = useState(null),
+    [inviteError, setInviteError] = useState(""),
+    [showInviteNotice, setShowInviteNotice] = useState(false),
     [joining, setJoining] = useState(false),
     [snow, setSnow] = useState(
       () => localStorage.getItem("sla-snow") !== "off",
@@ -74,8 +106,12 @@ export default function App() {
   const token = location.pathname.match(/^\/invite\/([^/]+)$/)?.[1];
   const collection = useStampCollection(session?.user?.id);
   const loadEvents = useCallback(async () => {
-    const r = await api("/events");
-    setEvents(r.events);
+    try {
+      const r = await api("/events");
+      setEvents(r.events);
+    } finally {
+      setEventsReady(true);
+    }
   }, []);
   useEffect(() => {
     api("/me")
@@ -88,12 +124,15 @@ export default function App() {
     let active = true;
     api("/invite/" + encodeURIComponent(token)).then(
       (result) => {
-        if (active) setInvite(result);
+        if (active) {
+          setInvite(result);
+          setInviteError("");
+        }
       },
       (err) => {
         if (active) {
           setInvite(null);
-          setError(err.message);
+          setInviteError(err.message);
         }
       },
     );
@@ -110,6 +149,7 @@ export default function App() {
     setSession((s) => ({ ...s, user: null }));
     setEvents([]);
     setEventId(null);
+    setShowInviteNotice(false);
   }
   async function join() {
     setJoining(true);
@@ -119,6 +159,7 @@ export default function App() {
         token,
       });
       setInvite((current) => ({ ...current, membership: result.membership }));
+      setShowInviteNotice(true);
       await loadEvents();
     } catch (e) {
       setError(e.message);
@@ -127,14 +168,30 @@ export default function App() {
     }
   }
   function openEvent(id, eventTab) {
+    const nextTab = eventTab ?? (section === "wishes" ? "wishlist" : undefined);
     setEventId(id);
-    history.pushState({ eventTab, section }, "", `/events/${id}`);
+    setEventTab(nextTab);
+    setSection("events");
+    const url = new URL(`/events/${id}`, location.origin);
+    if (nextTab) url.searchParams.set("tab", nextTab);
+    history.pushState({ eventTab: nextTab, section: "events" }, "", url);
     focusMain();
+  }
+  function selectShortcut(id, replace = false) {
+    setEventId(id);
+    const url = new URL(sectionPaths[section], location.origin);
+    if (id) url.searchParams.set("event", id);
+    history[replace ? "replaceState" : "pushState"]({}, "", url);
+    if (!replace) focusMain();
   }
   function navigate(next) {
     setSection(next);
-    setEventId(null);
-    history.pushState({}, "", sectionPaths[next]);
+    const id = shortcutTabs[next] ? eventId : null;
+    setEventId(id);
+    setEventTab(shortcutTabs[next]);
+    const url = new URL(sectionPaths[next], location.origin);
+    if (id) url.searchParams.set("event", id);
+    history.pushState({}, "", url);
     focusMain();
     if (session?.user && next !== "games" && next !== "profile")
       loadEvents().catch((e) => setError(e.message));
@@ -145,7 +202,8 @@ export default function App() {
   }
   useEffect(() => {
     const back = () => {
-      setEventId(location.pathname.match(/^\/events\/([^/]+)$/)?.[1] || null);
+      setEventId(currentEventId());
+      setEventTab(requestedEventTab() ?? history.state?.eventTab);
       setSection(currentSection());
     };
     addEventListener("popstate", back);
@@ -186,18 +244,32 @@ export default function App() {
                 I desideri
               </button>
               <button
-                className={section === "archive" ? "selected" : ""}
-                aria-current={section === "archive" ? "page" : undefined}
-                onClick={() => navigate("archive")}
-              >
-                Archivio
-              </button>
-              <button
                 className={section === "games" ? "selected" : ""}
                 aria-current={section === "games" ? "page" : undefined}
                 onClick={() => navigate("games")}
               >
                 Giochi
+              </button>
+              <button
+                className={section === "challenges" ? "selected" : ""}
+                aria-current={section === "challenges" ? "page" : undefined}
+                onClick={() => navigate("challenges")}
+              >
+                Sfide
+              </button>
+              <button
+                className={section === "reveal" ? "selected" : ""}
+                aria-current={section === "reveal" ? "page" : undefined}
+                onClick={() => navigate("reveal")}
+              >
+                Nome segreto
+              </button>
+              <button
+                className={section === "archive" ? "selected" : ""}
+                aria-current={section === "archive" ? "page" : undefined}
+                onClick={() => navigate("archive")}
+              >
+                Archivio
               </button>
             </nav>
           ) : (
@@ -237,14 +309,35 @@ export default function App() {
           </div>
         </header>
         <main id="main" tabIndex={-1}>
-          <Notice error>{error}</Notice>
+          <AppUpdateNotice
+            idlePage={
+              !eventId && ["events", "wishes", "archive"].includes(section)
+            }
+          />
+          <Notice error>{error || (token ? inviteError : "")}</Notice>
           {section === "rules" ? (
             <SecretSantaRules />
           ) : loading ? (
             <div className="loading">Prepariamo le lettere…</div>
           ) : (
             <>
-              {invite && token && !eventId ? (
+              {invite?.requiresSignIn && token && !session?.user ? (
+                <section
+                  className="invitation paper"
+                  aria-label="Ritrova il tuo evento"
+                >
+                  <h2>Il tuo evento ti aspetta</h2>
+                  <p>
+                    Le iscrizioni sono chiuse. Se hai già aderito, puoi ancora
+                    aprire l’evento.
+                  </p>
+                  <p>
+                    Accedi qui sotto con la stessa email usata per partecipare.
+                    L’invito chiuso non cancella la tua iscrizione.
+                  </p>
+                </section>
+              ) : null}
+              {invite?.event && token && !eventId ? (
                 <section className="invitation paper">
                   <span className="eyebrow">Ti aspettiamo</span>
                   <h2>{invite.event.name}</h2>
@@ -267,10 +360,23 @@ export default function App() {
                     regalo.
                   </small>
                   {session?.user ? (
-                    invite.membership === "approved" ? (
+                    invite.membership === "approved" || invite.isOwner ? (
                       <div className="invitation-action">
-                        <p>Il tuo posto è confermato.</p>
-                        <Button onClick={() => openEvent(invite.event.id)}>
+                        <p>
+                          {invite.isOwner && !invite.membership
+                            ? "Questo è il tuo evento."
+                            : "Il tuo posto è confermato."}
+                        </p>
+                        <Button
+                          onClick={() =>
+                            openEvent(
+                              invite.event.id,
+                              invite.closed && invite.membership === "approved"
+                                ? "reveal"
+                                : undefined,
+                            )
+                          }
+                        >
                           Apri l’evento
                         </Button>
                       </div>
@@ -278,11 +384,15 @@ export default function App() {
                       <Button
                         onClick={join}
                         busy={joining}
-                        disabled={invite.membership === "pending"}
+                        disabled={
+                          invite.membership === "pending" || invite.closed
+                        }
                       >
                         {invite.membership === "pending"
                           ? "Richiesta inviata: ti faremo sapere"
-                          : "Voglio partecipare"}
+                          : invite.closed
+                            ? "Le iscrizioni sono chiuse"
+                            : "Voglio partecipare"}
                       </Button>
                     )
                   ) : (
@@ -290,16 +400,44 @@ export default function App() {
                       Accedi qui sotto per partecipare.
                     </p>
                   )}
+                  {showInviteNotice && session?.user ? (
+                    <InviteNotificationHint
+                      key={session.user.id}
+                      onConfigure={() => {
+                        setShowInviteNotice(false);
+                        navigate("profile");
+                        history.replaceState(
+                          history.state,
+                          "",
+                          "/profilo#telegram",
+                        );
+                      }}
+                      onDismiss={() => setShowInviteNotice(false)}
+                    />
+                  ) : null}
                 </section>
               ) : null}
               {!session?.user ? (
                 <Auth
+                  preferExisting={!!invite?.requiresSignIn || !!eventId}
                   local={session?.local}
                   mailConfigured={session?.mailConfigured}
                   onLogin={(user) => {
                     setError("");
                     setSession((s) => ({ ...s, user }));
                   }}
+                />
+              ) : shortcutTabs[section] ? (
+                <EventShortcuts
+                  events={events}
+                  loading={!eventsReady}
+                  selectedId={eventId}
+                  target={shortcutTabs[section]}
+                  user={session.user}
+                  onSelect={selectShortcut}
+                  onOverview={openEvent}
+                  onChange={loadEvents}
+                  onStamp={collection.collect}
                 />
               ) : eventId ? (
                 <>
@@ -312,10 +450,10 @@ export default function App() {
                     <ArrowLeft size={16} /> Tutti gli eventi
                   </button>
                   <Event
-                    key={eventId}
+                    key={`${eventId}:${eventTab || "overview"}`}
                     id={eventId}
                     initialTab={
-                      history.state?.eventTab ??
+                      eventTab ??
                       (section === "wishes" ? "wishlist" : "overview")
                     }
                     user={session.user}
@@ -332,6 +470,7 @@ export default function App() {
                   user={session.user}
                   collection={collection}
                   onLogout={logout}
+                  onStory={setSecret}
                 >
                   <Suspense
                     fallback={<p role="status">Carichiamo il profilo…</p>}
@@ -355,7 +494,10 @@ export default function App() {
                 <HolidayGames
                   key={session.user.id}
                   collection={collection}
+                  events={events}
+                  onCompete={() => navigate("challenges")}
                   onAlbum={() => navigate("profile")}
+                  onGroups={() => navigate("events")}
                   onDiscover={discover}
                 />
               ) : (
@@ -375,16 +517,9 @@ export default function App() {
                         Crea e condividi i tuoi gruppi. Giocate insieme e
                         organizzate lo scambio.
                       </p>
-                      {session.user.organizer ? (
-                        <Button onClick={() => setCreate(true)}>
-                          <Plus size={18} /> Crea un Secret Santa
-                        </Button>
-                      ) : (
-                        <p className="quiet">
-                          Hai ricevuto un invito? Apri il link per unirti al
-                          gruppo.
-                        </p>
-                      )}
+                      <Button onClick={() => setCreate(true)}>
+                        <Plus size={18} /> Crea un Secret Santa
+                      </Button>
                       {section === "events" && (
                         <>
                           <a className="santa-rules-link" href="/regolamento">
@@ -516,7 +651,7 @@ export default function App() {
                               ? "Crea uno scambio e manda l’invito al tuo gruppo."
                               : "Hai ricevuto un invito? Aprilo per partecipare. Lo scambio comparirà qui."}
                         </p>
-                        {session.user.organizer && section !== "archive" ? (
+                        {section !== "archive" ? (
                           <button
                             className="text-button"
                             onClick={() => setCreate(true)}
@@ -576,67 +711,54 @@ export default function App() {
           }}
         />
       ) : null}
-      {secret ? (
-        <Modal
-          title={
-            secret === "star"
-              ? "Hai acceso una stella."
-              : secret === "teapot"
-                ? "Questa teiera ci ricorda qualcosa…"
-                : stamps[secret].name
-          }
+      {secret && (
+        <Treasure
+          id={secret}
+          collection={collection}
           onClose={() => setSecret(null)}
-        >
-          {secret === "star" ? (
-            <>
-              <p className="quote">“I know him!”</p>
-              <p>
-                Buddy, <cite>Elf</cite> (2003). Quel momento in cui riconosci
-                una persona e non riesci a contenere la gioia.
-              </p>
-              <a
-                href="https://clip.cafe/elf-2003/and-i-said-i-know-im-gonna-call/"
-                target="_blank"
-                rel="noreferrer"
-              >
-                La battuta originale <ArrowUpRight size={14} />
-              </a>
-            </>
-          ) : secret === "teapot" ? (
-            <>
-              <p>
-                In <cite>Christmas Party</cite>, Jim prepara per Pam una teiera
-                piena di piccoli ricordi. Un regalo riuscito, a volte, comincia
-                dall’attenzione.
-              </p>
-              <p className="quiet">The Office · stagione 2, episodio 10</p>
-              <a
-                href="https://www.televisionacademy.com/features/news/online-originals/holiday-episodes-simpsons-the-oc-friends"
-                target="_blank"
-                rel="noreferrer"
-              >
-                La storia dell’episodio <ArrowUpRight size={14} />
-              </a>
-            </>
-          ) : (
-            <p className="hunt-discovery">
-              <StampIcon id={secret} size={35} /> {stamps[secret].story}
-            </p>
-          )}
-          <StampReward id={secret} collection={collection} />
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => {
-              setSecret(null);
-              navigate("profile");
-            }}
-          >
-            Apri l’album
-          </Button>
-        </Modal>
-      ) : null}
+          onAlbum={
+            section === "profile" && !eventId
+              ? undefined
+              : () => {
+                  setSecret(null);
+                  navigate("profile");
+                }
+          }
+        />
+      )}
     </>
+  );
+}
+
+function Treasure({ id, collection, onClose, onAlbum }) {
+  const scene = treasureStories[id];
+  return (
+    <Modal title={scene?.title ?? stamps[id].name} onClose={onClose}>
+      {scene?.quote && (
+        <blockquote className="quote" lang="en">
+          “{scene.quote}”
+        </blockquote>
+      )}
+      {scene && (
+        <p className="quiet">
+          <cite>{scene.source}</cite>
+        </p>
+      )}
+      <p className="hunt-discovery">
+        <StampIcon id={id} size={35} /> {scene?.story ?? stamps[id].story}
+      </p>
+      {scene && (
+        <a href={scene.link} target="_blank" rel="noreferrer">
+          {scene.linkLabel} <ArrowUpRight size={14} aria-hidden="true" />
+        </a>
+      )}
+      <StampReward id={id} collection={collection} />
+      {onAlbum && (
+        <Button type="button" variant="ghost" onClick={onAlbum}>
+          Apri l’album
+        </Button>
+      )}
+    </Modal>
   );
 }
 

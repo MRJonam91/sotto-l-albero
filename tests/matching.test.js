@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { matchParticipants } from "../worker/matching.js";
 import {
   isLocalRequest,
@@ -8,6 +8,56 @@ import {
 } from "../worker/security.js";
 
 describe("abbinamenti", () => {
+  it("non favorisce certi abbinamenti validi in un gruppo di quattro", () => {
+    let seed = 0x5eeda1;
+    const random = vi
+      .spyOn(crypto, "getRandomValues")
+      .mockImplementation((values) => {
+        for (let i = 0; i < values.length; i++) {
+          seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+          values[i] = seed ^ (seed >>> 16);
+        }
+        return values;
+      });
+    try {
+      const ids = ["a", "b", "c", "d"];
+      const counts = new Map();
+      for (let trial = 0; trial < 9000; trial++) {
+        const receivers = new Map(
+          matchParticipants(ids).map(({ giverId, receiverId }) => [
+            giverId,
+            receiverId,
+          ]),
+        );
+        const outcome = ids.map((id) => receivers.get(id)).join("");
+        counts.set(outcome, (counts.get(outcome) ?? 0) + 1);
+      }
+      expect(counts.size).toBe(9);
+      for (const count of counts.values()) {
+        expect(count).toBeGreaterThanOrEqual(850);
+        expect(count).toBeLessThanOrEqual(1150);
+      }
+    } finally {
+      random.mockRestore();
+    }
+  });
+
+  it("trova l’unico abbinamento possibile con venti partecipanti", () => {
+    const ids = Array.from({ length: 20 }, (_, index) => String(index));
+    const expected = ids.map((giverId, index) => ({
+      giverId,
+      receiverId: ids[(index + 1) % ids.length],
+    }));
+    const rules = expected.flatMap(({ giverId, receiverId }) =>
+      ids
+        .filter((id) => id !== receiverId && id !== giverId)
+        .map((id) => ({ giverId, receiverId: id, type: "exclude" })),
+    );
+    expect(matchParticipants(ids, rules)).toEqual(
+      expect.arrayContaining(expected),
+    );
+  });
+
   it("assegna una sola volta tutti i destinatari senza auto-regali", () => {
     for (let n = 3; n <= 50; n++) {
       const ids = Array.from({ length: n }, (_, i) => String(i));

@@ -206,7 +206,7 @@ export async function authRoute(request, env, path, body, user) {
     if (!u) {
       await run(
         env.DB,
-        "INSERT INTO users(id,email,name,organizer,phone,notify_email) VALUES(?,?,?,?,?,0) ON CONFLICT(email) DO NOTHING",
+        "INSERT INTO users(id,email,name,organizer,phone,notify_email) VALUES(?,?,?,?,?,1) ON CONFLICT(email) DO NOTHING",
         id(),
         email,
         entry.name,

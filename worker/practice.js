@@ -1,6 +1,30 @@
 import { first, run } from "./auth.js";
 import { HttpError, json, token } from "./security.js";
 import { createMemoryDeck, memoryCardCount } from "../shared/memory.js";
+import { gameCatalog } from "../shared/gameCatalog.js";
+import {
+  officialChallenge,
+  scoreOfficialChallenge,
+} from "../shared/officialChallenges.js";
+import {
+  newInteractiveChallenge,
+  publicInteractiveChallenge,
+  turnInteractiveChallenge,
+} from "./interactiveChallenges.js";
+
+function shuffled(values) {
+  const copy = [...values];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const limit = 4294967296 - (4294967296 % (i + 1));
+    let value;
+    do {
+      value = crypto.getRandomValues(new Uint32Array(1))[0];
+    } while (value >= limit);
+    const j = value % (i + 1);
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
 
 const QUESTION_TIME = 20_000;
 const questions = [
@@ -39,6 +63,12 @@ const questions = [
 function newState(game, now) {
   if (game === "quiz")
     return { index: 0, score: 0, questionDeadline: now + QUESTION_TIME };
+  if (game !== "memory") {
+    const challenge = newInteractiveChallenge(game) ?? officialChallenge(game);
+    if (!challenge)
+      throw new HttpError("Questo allenamento non è ancora disponibile.", 409);
+    return challenge;
+  }
   return {
     deck: createMemoryDeck(),
     open: [],
@@ -48,6 +78,20 @@ function newState(game, now) {
 }
 
 function view(game, state, revision, now) {
+  if (game !== "quiz" && game !== "memory") {
+    const done = state.practiceScore !== undefined;
+    return {
+      revision,
+      done,
+      challenge:
+        done && game !== "tris"
+          ? null
+          : state.interactive
+            ? publicInteractiveChallenge(state, now)
+            : state.challenge,
+      ...(done ? { score: state.practiceScore } : {}),
+    };
+  }
   if (game === "quiz") {
     const question = questions[state.index];
     return {
@@ -151,7 +195,18 @@ export async function practiceRoute(request, env, path, body, user) {
       throw new HttpError("Metodo non disponibile.", 405);
     return json({ allowed: await practiceAllowed(db, user.id) });
   }
-  const match = /^\/api\/practice\/(quiz|memory)\/(start|step)$/.exec(path);
+  if (path === "/api/practice/catalog") {
+    if (request.method !== "GET")
+      throw new HttpError("Metodo non disponibile.", 405);
+    return json({
+      allowed: await practiceAllowed(db, user.id),
+      games: gameCatalog.map(({ id, name }) => ({ id, name })),
+    });
+  }
+  const match =
+    /^\/api\/practice\/(quiz|memory|pacchi|slitta|cartolina|addobbi|tris)\/(start|step)$/.exec(
+      path,
+    );
   if (!match || request.method !== "POST")
     throw new HttpError("Partita non disponibile.", 404);
   if (!(await practiceAllowed(db, user.id)))
@@ -234,10 +289,16 @@ export async function practiceRoute(request, env, path, body, user) {
       "Il Memory ha una nuova griglia. Riapri la partita per continuare.",
       409,
     );
-  const feedback =
-    game === "quiz"
-      ? advanceQuiz(state, body.choice, body.timeout, now)
-      : advanceMemory(state, body);
+  let feedback;
+  if (game === "quiz")
+    feedback = advanceQuiz(state, body.choice, body.timeout, now);
+  else if (game === "memory") advanceMemory(state, body);
+  else {
+    const score = state.interactive
+      ? turnInteractiveChallenge(state, body, now, shuffled)
+      : scoreOfficialChallenge(state, body?.solution);
+    if (score !== null) state.practiceScore = score;
+  }
   const revision = token(),
     result = view(game, state, revision, now);
   const changed = await run(

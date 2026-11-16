@@ -4,7 +4,12 @@ import { eventRoute, inviteRoute, scheduled } from "./events.js";
 import { stampRoute } from "./stamps.js";
 import { practiceRoute } from "./practice.js";
 import { competitionRoute } from "./competition.js";
-import { avatarRoute, cleanRetiredAvatars, profileRoute } from "./profile.js";
+import {
+  avatarRoute,
+  cleanRetiredAvatars,
+  photoBackupRoute,
+  profileRoute,
+} from "./profile.js";
 import { telegramWebhook } from "./telegram.js";
 import { notificationRoute, runNotifications } from "./notifications.js";
 export default {
@@ -14,6 +19,10 @@ export default {
     if (!path.startsWith("/api/")) {
       const response = await env.ASSETS.fetch(request);
       const result = new Response(response.body, response);
+      if (result.headers.get("Content-Type")?.includes("text/html")) {
+        result.headers.set("Cache-Control", "no-store");
+        result.headers.set("Cloudflare-CDN-Cache-Control", "no-store");
+      }
       result.headers.set("X-Content-Type-Options", "nosniff");
       result.headers.set("Referrer-Policy", "same-origin");
       result.headers.set(
@@ -27,6 +36,8 @@ export default {
         throw new HttpError("Metodo non disponibile.", 405);
       if (path === "/api/telegram/webhook")
         return await telegramWebhook(request, env);
+      if (path === "/api/profile/photo-backup")
+        return await photoBackupRoute(request, env);
       let body = {};
       if (request.method !== "GET") {
         const origin = request.headers.get("Origin");

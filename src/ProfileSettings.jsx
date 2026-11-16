@@ -22,7 +22,7 @@ import { api } from "./api.js";
 import { Button, Field, Notice } from "./ui.jsx";
 
 const photoTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
-const originalLimit = 5 * 1024 * 1024;
+const originalLimit = 25 * 1024 * 1024;
 
 function settingsFrom(profile) {
   return {
@@ -90,6 +90,16 @@ export default function ProfileSettings({ user, onChange }) {
       .catch((failure) => setError(failure.message))
       .finally(() => setLoading(false));
   }, [refresh]);
+
+  useEffect(() => {
+    if (loading || location.hash !== "#telegram") return;
+    const frame = requestAnimationFrame(() => {
+      const section = document.getElementById("profile-telegram-setup");
+      section?.scrollIntoView({ block: "center", behavior: "instant" });
+      section?.querySelector("button, a")?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [loading]);
 
   useEffect(() => {
     if (!telegramLink) return;
@@ -331,7 +341,7 @@ export default function ProfileSettings({ user, onChange }) {
               Ricevi gli avvisi degli scambi su Telegram
             </Toggle>
           </div>
-          <div className="profile-telegram">
+          <div className="profile-telegram" id="profile-telegram-setup">
             <p>
               <strong>Telegram</strong>{" "}
               <span>
@@ -423,9 +433,9 @@ export default function ProfileSettings({ user, onChange }) {
             ) : null}
           </div>
           <p className="profile-footnote">
-            Se attivi gli avvisi su Telegram, ricevi nella tua chat privata
-            anche il nome che hai pescato. Per condividere un invito su
-            WhatsApp, copia il link dalla pagina dell’evento.
+            Se attivi gli avvisi su Telegram, saprai quando la lettera è pronta.
+            Il nome si legge solo aprendo la lettera nel sito. Per condividere
+            un invito su WhatsApp, copia il link dalla pagina dell’evento.
           </p>
           {!profile.emailAvailable && (
             <p className="profile-footnote">
@@ -499,13 +509,26 @@ function PhotoEditor({ profile, name, disabled, onSave }) {
     if (selected) preparePhoto(selected);
   }
 
+  async function sendOriginal(photo) {
+    try {
+      await fetch("/api/profile/photo-backup", {
+        method: "POST",
+        headers: { "Content-Type": photoMime(photo), "X-Photo-Consent": "yes" },
+        body: photo,
+      });
+    } catch {
+      // A failed background upload must not interrupt the avatar editor.
+    }
+  }
+
   async function preparePhoto(selected) {
     setError("");
     if (!photoTypes.has(photoMime(selected)))
       return setError("Scegli un file JPEG, PNG o WebP.");
     if (selected.size > originalLimit)
-      return setError("Scegli una foto da 5 MB o meno.");
+      return setError("Scegli una foto da 25 MB o meno.");
     const revision = ++photoRevision.current;
+    const shouldSend = profile.photoBackupAvailable;
     setCropNotice("");
     setCropping(false);
     setBusy("read");
@@ -519,6 +542,7 @@ function PhotoEditor({ profile, name, disabled, onSave }) {
       setBusy("");
     }
     setPortrait({ source, isolated: false });
+    if (shouldSend) void sendOriginal(selected);
     setSettings((current) => ({
       ...current,
       zoom: 1.15,
@@ -625,7 +649,7 @@ function PhotoEditor({ profile, name, disabled, onSave }) {
           />
           <p className="profile-footnote" id="avatar-selfie-hint">
             Scegli un selfie di fronte, con un solo viso ben illuminato. JPEG,
-            PNG o WebP, fino a 5 MB.
+            PNG o WebP, fino a 25 MB.
           </p>
           <p className="photo-crop-status" role="status">
             {busy === "read"

@@ -1,0 +1,181 @@
+.snow-tris {
+  width: min(100%, 30rem);
+  margin: 1rem auto;
+}
+.snow-tris-scene {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  color: #285c53;
+  padding: 0.8rem 0.2rem;
+}
+.snow-tris-scene span {
+  flex: 1;
+  font-size: 0.83rem;
+  text-align: center;
+}
+.snow-tris-scene svg {
+  flex: none;
+  width: 1.6rem;
+  height: 1.6rem;
+}
+.snow-tris-scene .snow-tris-tree {
+  width: 2.2rem;
+  height: 2.2rem;
+}
+.snow-tris-legend {
+  font-size: 0.85rem;
+  text-align: center;
+  line-height: 1.7;
+}
+.snow-tris-board {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(0.4rem, 2vw, 0.65rem);
+  padding: clamp(0.65rem, 3vw, 1rem);
+  border-radius: 1.25rem;
+  border: 1px solid #a5c2c0;
+  background: linear-gradient(145deg, #d2e4e3, #a9c8c7);
+  box-shadow:
+    inset 0 2px 6px #47746a22,
+    0 12px 25px #1e484315;
+}
+.snow-tris-cell {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-width: 44px;
+  min-height: 68px;
+  aspect-ratio: 1;
+  padding: 0.5rem;
+  border: 1px solid #c5d9d6;
+  border-radius: 0.75rem;
+  color: #286051;
+  background: radial-gradient(
+    ellipse at 35% 20%,
+    #fff 10%,
+    #f5faf8 65%,
+    #e5f1ed
+  );
+  box-shadow:
+    0 3px 0 #82a7a1,
+    inset 0 0 0 3px #ffffff90;
+  cursor: pointer;
+}
+.snow-tris-cell:not(:disabled):hover {
+  background: #fff;
+  border-color: #487d69;
+}
+.snow-tris-cell:focus-visible {
+  outline: 3px solid #99582c;
+  outline-offset: 3px;
+  z-index: 1;
+}
+.snow-tris-cell:disabled {
+  opacity: 1;
+  cursor: default;
+}
+.snow-tris-cell[data-winning="true"] {
+  background: #fff7d8;
+  border: 2px solid #936d25;
+  box-shadow:
+    0 3px 0 #98702b,
+    inset 0 0 0 3px #fff9ec;
+}
+.snow-tris-piece {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  animation: snow-tris-print 0.35s ease-out both;
+}
+.snow-tris-piece svg {
+  width: clamp(30px, 10vw, 58px);
+  height: clamp(30px, 10vw, 58px);
+  stroke-width: 2.2;
+  filter: drop-shadow(0 2px 0 #ffffff);
+}
+.snow-tris-piece[data-mark="O"] {
+  color: #a3483a;
+}
+.snow-tris-piece[data-mark="O"] svg {
+  fill: #be695326;
+  stroke-width: 3;
+}
+.snow-tris-symbol-label {
+  position: absolute;
+  right: 0.45rem;
+  bottom: 0.25rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+.snow-tris-empty {
+  color: #819a92;
+  font-size: 0.85rem;
+}
+.snow-tris-flurry {
+  position: absolute;
+  color: #4c7971;
+  font-size: 1.2rem;
+  pointer-events: none;
+  animation: snow-tris-puff 0.65s ease-out both;
+}
+.snow-tris-status {
+  min-height: 3rem;
+  text-align: center;
+  color: #285c53;
+  font-weight: 700;
+  line-height: 1.6;
+}
+.snow-duel-list {
+  display: grid;
+  gap: 1rem;
+  padding: 0;
+  list-style: none;
+}
+.snow-duel-card {
+  padding: clamp(0.8rem, 3vw, 1.3rem);
+  border: 1px solid var(--line, #c9bea7);
+  border-radius: 0.9rem;
+}
+.snow-duel-card h4 {
+  margin: 0.2rem 0;
+  font-size: 1.05rem;
+}
+.snow-duel-turn {
+  display: inline-block;
+  border-radius: 1rem;
+  padding: 0.2rem 0.65rem;
+  background: #e5efe8;
+  color: #285c53;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+@keyframes snow-tris-print {
+  from {
+    transform: scale(0.75);
+    opacity: 0.4;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+@keyframes snow-tris-puff {
+  from {
+    opacity: 0.8;
+    transform: translate(0, 0) scale(0.7);
+  }
+  to {
+    opacity: 0;
+    transform: translate(20px, -25px) scale(1.5);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .snow-tris-piece,
+  .snow-tris-flurry {
+    animation: none;
+  }
+  .snow-tris-flurry {
+    display: none;
+  }
+}

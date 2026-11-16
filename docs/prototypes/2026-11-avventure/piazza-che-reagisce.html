@@ -1,0 +1,121 @@
+<section id="piazza-reactive" aria-labelledby="piazza-title">
+  <header class="pr-heading"><span>Una festa da inventare</span><h2 id="piazza-title">La piazza senza Natale</h2><p>Gli addobbi sono spariti. Hai una tavola, un palco e qualche lanterna: dove fai nascere la festa?</p></header>
+  <div class="pr-tools" role="group" aria-label="Scegli cosa mettere nella piazza">
+    <button type="button" data-tool="table" aria-pressed="true"><span class="pr-tool-mark pr-table-mark" aria-hidden="true"></span>Tavola</button>
+    <button type="button" data-tool="stage" aria-pressed="false"><span class="pr-tool-mark pr-stage-mark" aria-hidden="true"></span>Palco</button>
+    <button type="button" data-tool="lantern" aria-pressed="false"><span class="pr-tool-mark pr-light-mark" aria-hidden="true"></span>Lanterne</button>
+    <button type="button" data-tool="erase" aria-pressed="false">Rimuovi</button>
+  </div>
+  <p class="pr-instruction">Scegli un oggetto, poi tocca un punto della piazza. Puoi usare anche Tab e Invio.</p>
+  <div class="pr-scene">
+    <canvas aria-label="Un villaggio natalizio e i suoi abitanti. Scegli i luoghi della festa con le nove caselle." role="img"></canvas>
+    <div class="pr-slots" role="group" aria-label="Nove punti della piazza"></div>
+    <span class="pr-scene-label">La piazza aspetta le tue idee</span>
+  </div>
+  <div class="pr-actions"><button class="pr-primary" type="button" data-open disabled>Apri la festa</button><button type="button" data-reset>Ricomincia</button></div>
+  <p class="pr-reaction" role="status" aria-live="polite">Metti almeno un oggetto nella piazza. Poi osserva chi si avvicina e da dove arriva.</p>
+  <details class="pr-recap" hidden><summary>Il tuo piccolo racconto</summary><p class="pr-facts"></p><label>Che cosa ti piacerebbe vivere di questa festa?<textarea rows="2" maxlength="280" placeholder="Se vuoi, aggiungi un dettaglio tuo."></textarea></label><button type="button" data-confirm>Questo racconto mi rappresenta</button><p class="pr-confirmation" role="status"></p></details>
+</section>
+<style>
+#piazza-reactive{--pr-pine:#153e33;--pr-cream:#f7ecd7;--pr-gold:#dec083;--pr-clay:#aa6260;color:var(--pr-pine);background:var(--pr-cream);font-family:Georgia,'Times New Roman',serif;padding:clamp(18px,4vw,30px);box-sizing:border-box;max-width:100%;overflow:hidden}
+#piazza-reactive *{box-sizing:border-box}
+#piazza-reactive .pr-heading{max-width:580px;margin-bottom:20px}
+#piazza-reactive .pr-heading>span{font:12px/1.5 system-ui,sans-serif;letter-spacing:.09em;text-transform:uppercase;color:#52675b}
+#piazza-reactive h2{font-weight:400;font-size:clamp(25px,4vw,34px);line-height:1.15;margin:5px 0 10px}
+#piazza-reactive p{font:14px/1.6 system-ui,sans-serif;margin:0}
+#piazza-reactive button,#piazza-reactive textarea{font:14px/1.35 system-ui,sans-serif}
+#piazza-reactive button{min-height:44px;min-width:44px;border:1px solid #153e3338;border-radius:7px;background:transparent;color:var(--pr-pine);padding:10px 13px;cursor:pointer}
+#piazza-reactive button:hover{background:#153e330c}
+#piazza-reactive button:disabled{opacity:.45;cursor:default}
+#piazza-reactive button[aria-pressed=true],#piazza-reactive .pr-primary{background:var(--pr-pine);color:var(--pr-cream);border-color:var(--pr-pine)}
+#piazza-reactive .pr-actions .pr-primary:hover{background:#235543;color:var(--pr-cream)}
+#piazza-reactive .pr-tools{display:flex;flex-wrap:wrap;gap:8px}
+#piazza-reactive .pr-tools button{display:flex;align-items:center;justify-content:center;gap:9px}
+#piazza-reactive .pr-tool-mark{width:15px;height:14px;position:relative;display:inline-block;flex:none;color:currentColor}
+#piazza-reactive .pr-table-mark:before{content:'';position:absolute;left:0;top:3px;width:15px;height:4px;border:1px solid currentColor}
+#piazza-reactive .pr-table-mark:after{content:'';position:absolute;left:2px;top:7px;width:11px;height:6px;border-inline:1px solid currentColor}
+#piazza-reactive .pr-stage-mark{border:1px solid currentColor;border-top:4px solid currentColor}
+#piazza-reactive .pr-stage-mark:after{content:'';position:absolute;left:6px;top:0;height:10px;border-left:1px solid currentColor}
+#piazza-reactive .pr-light-mark{border:1px solid currentColor;width:10px;height:12px;border-radius:2px;margin-inline:2px 3px}
+#piazza-reactive .pr-light-mark:before{content:'';position:absolute;left:1px;top:-4px;width:6px;height:4px;border:1px solid currentColor;border-radius:4px 4px 0 0}
+#piazza-reactive .pr-instruction{margin:12px 0;color:#4c6056;font-size:12px}
+#piazza-reactive .pr-scene{height:clamp(340px,58vw,430px);position:relative;border-radius:14px;overflow:hidden;background:#16342f}
+#piazza-reactive canvas{display:block;width:100%;height:100%}
+#piazza-reactive .pr-slots{position:absolute;left:25%;top:39.53%;width:50%;height:48.84%;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(3,minmax(0,1fr))}
+#piazza-reactive .pr-slots button{position:relative;min-width:0;min-height:44px;padding:3px;background:transparent;border:1px dashed #f7ecd746;border-radius:0;color:#f7ecd7;text-align:left;align-self:stretch;z-index:1}
+#piazza-reactive .pr-slots button:hover{background:#f7ecd715}
+#piazza-reactive .pr-slots button span{position:absolute;top:3px;left:5px;font-size:11px;background:#14382da8;padding:0 3px;border-radius:3px}
+#piazza-reactive .pr-slots button[data-filled=true]{border-color:#dec083aa}
+#piazza-reactive .pr-scene-label{position:absolute;left:12px;right:12px;bottom:8px;text-align:center;color:#f7ecd7;font:12px/1.4 system-ui,sans-serif;pointer-events:none}
+#piazza-reactive .pr-actions{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0 10px}
+#piazza-reactive .pr-reaction{min-height:46px;color:#425b4e}
+#piazza-reactive .pr-recap{border-top:1px solid #153e3330;margin-top:16px;padding-top:13px}
+#piazza-reactive summary{font:15px/1.6 system-ui,sans-serif;cursor:pointer}
+#piazza-reactive .pr-facts{margin:12px 0}
+#piazza-reactive label{display:block;font:13px/1.6 system-ui,sans-serif}
+#piazza-reactive textarea{display:block;width:100%;min-height:70px;margin:6px 0 12px;background:#fff7e9;color:var(--pr-pine);border:1px solid #153e334d;border-radius:6px;padding:10px;resize:vertical}
+#piazza-reactive .pr-confirmation{margin-top:8px}
+@media(max-width:380px){#piazza-reactive{padding:16px}#piazza-reactive .pr-tools{gap:6px}#piazza-reactive .pr-tools button{padding:9px 10px;font-size:13px}#piazza-reactive .pr-scene{height:350px}}
+</style>
+<script>
+(() => {
+  const root=document.getElementById('piazza-reactive');
+  const canvas=root.querySelector('canvas'),ctx=canvas.getContext('2d'),slots=root.querySelector('.pr-slots');
+  const status=root.querySelector('.pr-reaction'),label=root.querySelector('.pr-scene-label'),recap=root.querySelector('.pr-recap');
+  const layout=Array(9).fill(null),reduced=matchMedia('(prefers-reduced-motion: reduce)');
+  let selected='table',opened=false,frame=0,start=0,plans=[],scaleX=1;
+  const centers=Array.from({length:9},(_,i)=>({x:240+(i%3)*120,y:205+Math.floor(i/3)*70}));
+  const people=[
+    {name:'Ada',kind:'table',home:{x:97,y:181},color:'#cb8c6b'},
+    {name:'Ivo',kind:'table',home:{x:619,y:184},color:'#b9b48c'},
+    {name:'Noè',kind:'stage',home:{x:143,y:342},color:'#8fafac'},
+    {name:'Alma',kind:'stage',home:{x:581,y:344},color:'#bd7986'},
+    {name:'Teo',kind:'light',home:{x:355,y:121},color:'#e1bc70'},
+    {name:'Mira',kind:'wander',home:{x:82,y:272},color:'#bd9bb5'}
+  ].map(p=>({...p,pos:{...p.home}}));
+  const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+  function nearest(list,from){return [...list].sort((a,b)=>distance(a,from)-distance(b,from))[0]}
+  function locations(type){return centers.flatMap((point,i)=>layout[i]===type?[{...point,slot:i,type}]:[])}
+  function roundRect(x,y,w,h,r,fill){ctx.fillStyle=fill;ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fill()}
+  function polygon(points,color){ctx.fillStyle=color;ctx.beginPath();points.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));ctx.closePath();ctx.fill()}
+  function house(x,y,w,h,color,tilt){ctx.save();ctx.translate(x,y);ctx.rotate(tilt);roundRect(-w/2,0,w,h,3,color);polygon([[-w*.62,5],[0,-29],[w*.63,5]],'#eee2cd');polygon([[-w*.63,7],[0,-22],[w*.63,7]],'#496353');roundRect(-8,h-27,16,27,6,'#173a31');roundRect(-w*.31,12,11,16,2,'#edc77e');roundRect(w*.16,12,11,16,2,'#edc77e');ctx.restore()}
+  function pine(x,y,size){polygon([[x,y-size],[x-size*.5,y],[x+size*.5,y]],'#335d4d');polygon([[x,y-size],[x-size*.18,y-size*.65],[x+size*.18,y-size*.65]],'#eee7d8')}
+  function person(p){const r=Math.max(8,5.5/scaleX);ctx.save();ctx.translate(p.pos.x,p.pos.y);ctx.fillStyle='#081d2355';ctx.beginPath();ctx.ellipse(0,5,r*.8,3,0,0,Math.PI*2);ctx.fill();roundRect(-r*.6,-r*.7,r*1.2,r*1.15,r*.3,p.color);ctx.fillStyle='#e9c5a7';ctx.beginPath();ctx.arc(0,-r*.92,r*.45,0,Math.PI*2);ctx.fill();polygon([[-r*.65,-r*1.2],[r*.5,-r*1.2],[r*.1,-r*1.98]],p.color);roundRect(-r*.65,-r*1.25,r*1.3,r*.15,1,'#efe5ce');ctx.restore()}
+  function furniture(type,p){ctx.save();ctx.translate(p.x,p.y);const k=Math.max(1,.72/scaleX);ctx.scale(k,1);if(type==='table'){roundRect(-27,-6,54,13,4,'#b97a57');roundRect(-24,-10,48,7,2,'#e8c690');for(const x of [-18,18])roundRect(x-2,7,4,11,1,'#9a674e');roundRect(-14,-13,28,5,2,'#a95450');for(const x of [-18,18]){ctx.fillStyle='#f2e6cc';ctx.beginPath();ctx.ellipse(x,-9,5,2,0,0,7);ctx.fill()}}
+    if(type==='stage'){roundRect(-29,-2,58,18,3,'#9c6563');polygon([[-34,-3],[0,-39],[34,-3]],'#d1ac76');roundRect(-26,-4,7,18,1,'#e5be80');roundRect(20,-4,7,18,1,'#e5be80');roundRect(-4,-20,3,19,1,'#f2dec0');ctx.fillStyle='#f2dec0';ctx.beginPath();ctx.arc(-2,-22,4,0,7);ctx.fill()}
+    if(type==='lantern'){const glow=ctx.createRadialGradient(0,-7,1,0,-7,43);glow.addColorStop(0,'#f6d47766');glow.addColorStop(1,'#f6d47700');ctx.fillStyle=glow;ctx.fillRect(-44,-50,88,88);roundRect(-2,-28,4,41,1,'#c6b18b');roundRect(-9,-32,18,23,4,'#d1ac76');roundRect(-5,-28,10,15,2,'#ffdfa0');polygon([[-13,-31],[0,-40],[13,-31]],'#ead1a3')}
+    ctx.restore()}
+  function draw(){const box=canvas.getBoundingClientRect(),dpr=Math.min(devicePixelRatio||1,2);if(box.width<=0||box.height<=0)return;if(canvas.width!==Math.round(box.width*dpr)||canvas.height!==Math.round(box.height*dpr)){canvas.width=Math.round(box.width*dpr);canvas.height=Math.round(box.height*dpr)}scaleX=box.width/720;ctx.setTransform(canvas.width/720,0,0,canvas.height/430,0,0);ctx.clearRect(0,0,720,430);ctx.fillStyle='#14382f';ctx.fillRect(0,0,720,430);ctx.fillStyle='#e8d8aa';ctx.beginPath();ctx.arc(612,45,18,0,7);ctx.fill();for(let i=0;i<27;i++){ctx.fillStyle='#efdfbd77';ctx.fillRect((i*113+19)%720,17+(i*43)%78,2,2)}
+    polygon([[0,169],[166,137],[355,147],[569,135],[720,170],[720,430],[0,430]],'#50685c');polygon([[178,164],[542,164],[602,401],[126,401]],'#64786a');polygon([[335,127],[377,127],[408,430],[306,430]],'#9d9c8266');
+    for(let i=0;i<45;i++){ctx.fillStyle='#ece4d133';ctx.beginPath();ctx.ellipse((i*167+37)%720,150+(i*67)%270,2,1,0,0,7);ctx.fill()}
+    pine(24,164,61);pine(665,272,80);pine(682,155,54);pine(41,389,74);pine(535,124,49);
+    house(95,113,69,63,'#ae7770',-.08);house(612,116,75,66,'#a49370',.08);house(354,61,81,59,'#74978c',-.04);house(89,213,66,58,'#729082',.07);house(143,290,69,55,'#a19080',-.07);house(580,285,68,58,'#957b91',.07);
+    layout.forEach((type,i)=>{if(type)furniture(type,centers[i])});[...people].sort((a,b)=>a.pos.y-b.pos.y).forEach(person);
+  }
+  function buildPlans(){const tables=locations('table'),stages=locations('stage'),lights=locations('lantern'),activities=[...tables,...stages];
+    plans=people.map((p,i)=>{let target,path=[];if(p.kind==='light'){if(lights.length){const first=nearest(lights,p.home);const near=activities.filter(a=>distance(a,first)<=155);target=nearest(near,first)||first;path=[first]}else target=null}
+      else if(p.kind==='wander'){if(lights.length)path=[nearest(lights,p.home)];target=nearest(activities,path[0]||p.home)||path[0]}
+      else{target=nearest(p.kind==='table'?tables:stages,p.home)||nearest(activities,p.home)||nearest(lights,p.home)}
+      if(!target)return{points:[{...p.pos},{...p.home}],target:null};
+      const angle=i*1.9;const offset=target.type==='stage'?{x:-35+i*12,y:25+Math.abs(2-i)*6}:{x:Math.cos(angle)*28,y:18+Math.sin(angle)*9};
+      return{points:[{...p.pos},{x:p.pos.x,y:target.y+27},...path,{x:target.x+offset.x,y:target.y+offset.y}],target};});
+    const lightPlan=plans[4];let text=[];
+    if(tables.length)text.push('Ada e Ivo raggiungono la tavola più vicina alle loro case.');
+    if(stages.length)text.push('Alma e Noè attraversano la piazza verso il palco.');
+    if(lights.length)text.push(lightPlan.target?.type!=='lantern'?'La lanterna accompagna Teo fino alla festa vicina.':'Teo esce dalla sua porta e si ferma nel cerchio di luce. Avvicina una tavola o un palco per accompagnarlo fino al gruppo.');
+    else text.push('Teo resta sulla soglia: una luce lungo il percorso potrebbe invitarlo a uscire.');
+    status.textContent=text.join(' ');label.textContent='La piazza prende la forma che le hai dato';
+  }
+  function at(points,t){const lengths=points.slice(1).map((p,i)=>distance(points[i],p)),sum=lengths.reduce((a,b)=>a+b,0);let left=t*sum;for(let i=0;i<lengths.length;i++){if(left<=lengths[i]){const q=lengths[i]?left/lengths[i]:1;return{x:points[i].x+(points[i+1].x-points[i].x)*q,y:points[i].y+(points[i+1].y-points[i].y)*q}}left-=lengths[i]}return points.at(-1)}
+  function animate(time){if(!root.isConnected)return;const elapsed=time-start;people.forEach((p,i)=>{const t=reduced.matches?1:Math.min(1,Math.max(0,(elapsed-i*170)/3300));p.pos=at(plans[i].points,t*t*(3-2*t))});draw();if(!reduced.matches&&elapsed<4400)frame=requestAnimationFrame(animate)}
+  function react(){cancelAnimationFrame(frame);buildPlans();start=performance.now();frame=requestAnimationFrame(animate);recap.hidden=false;root.querySelector('.pr-facts').textContent=layout.flatMap((type,i)=>type?[`Hai messo ${type==='table'?'una tavola':type==='stage'?'un palco':'una lanterna'} nel punto ${i+1}.`]:[]).join(' ');root.querySelector('.pr-confirmation').textContent='';}
+  function render(){[...slots.children].forEach((button,i)=>{button.dataset.filled=!!layout[i];button.setAttribute('aria-label',`Riga ${Math.floor(i/3)+1}, colonna ${i%3+1}: ${layout[i]?({table:'tavola',stage:'palco',lantern:'lanterna'})[layout[i]]:'spazio libero'}. Metti ${selected==='erase'?'rimuovi oggetto':({table:'una tavola',stage:'un palco',lantern:'una lanterna'})[selected]}.`)});root.querySelector('[data-open]').disabled=!layout.some(Boolean);draw()}
+  for(let i=0;i<9;i++){const button=document.createElement('button');button.type='button';button.innerHTML=`<span>${i+1}</span>`;button.addEventListener('click',()=>{layout[i]=selected==='erase'?null:selected;render();if(opened){if(layout.some(Boolean))react();else{opened=false;cancelAnimationFrame(frame);people.forEach(p=>p.pos={...p.home});recap.hidden=true;label.textContent='La piazza aspetta le tue idee';status.textContent='La piazza è di nuovo libera. Dove vuoi cominciare?';draw()}}});slots.append(button)}
+  root.querySelectorAll('[data-tool]').forEach(button=>button.addEventListener('click',()=>{selected=button.dataset.tool;root.querySelectorAll('[data-tool]').forEach(other=>other.setAttribute('aria-pressed',other===button));render()}));
+  root.querySelector('[data-open]').addEventListener('click',()=>{opened=true;react()});
+  root.querySelector('[data-reset]').addEventListener('click',()=>{cancelAnimationFrame(frame);layout.fill(null);opened=false;people.forEach(p=>p.pos={...p.home});root.querySelector('textarea').value='';root.querySelector('.pr-confirmation').textContent='';recap.hidden=true;label.textContent='La piazza aspetta le tue idee';status.textContent='La piazza è di nuovo libera. Scegli un oggetto e un punto da trasformare.';render()});
+  root.querySelector('[data-confirm]').addEventListener('click',()=>{root.querySelector('.pr-confirmation').textContent='Hai confermato il tuo racconto. Le scelte della scena restano un gioco: solo tu puoi dire che cosa ti rappresenta.'});
+  root.querySelector('textarea').addEventListener('input',()=>{root.querySelector('.pr-confirmation').textContent=''});
+  new ResizeObserver(draw).observe(canvas);render();
+})();
+</script>

@@ -3,8 +3,11 @@ import { DatabaseSync } from "node:sqlite";
 import { readFileSync, readdirSync } from "node:fs";
 import { competitionRoute, getLeaderboard } from "../worker/competition.js";
 import { practiceRoute } from "../worker/practice.js";
+import { eventRoute } from "../worker/events.js";
+import { stampRoute } from "../worker/stamps.js";
 
 const eventMigration = "0009_event_competition.sql";
+const stampMigration = "0012_stamp_ranking_cutoff.sql";
 
 function applyMigration(sql, file) {
   sql.exec(
@@ -116,15 +119,29 @@ async function completeQuiz(user, attempt, correct) {
 }
 
 describe("competition", () => {
-  it("requires approval and explicit signup, and lets an owner see the board without playing", async () => {
+  it("includes all approved members and starts ranked play without a second signup", async () => {
     await expect(api(guest)).rejects.toMatchObject({ status: 403 });
     await expect(api(owner, "/join", {})).rejects.toMatchObject({
       status: 403,
     });
-    await expect(start(anna, "quiz")).rejects.toMatchObject({ status: 403 });
-    expect((await api(owner)).canPlay).toBe(false);
-    await api(anna, "/join", {});
-    expect((await api(anna, "", undefined, "copy")).joined).toBe(false);
+    const board = await api(owner);
+    expect(board.canPlay).toBe(false);
+    expect(
+      board.leaderboard.map(({ userId, score }) => [userId, score]),
+    ).toEqual([
+      ["anna", 0],
+      ["bea", 0],
+    ]);
+    expect((await start(anna, "quiz")).game).toBe("quiz");
+    expect(await api(anna, "/join", {})).toEqual({ joined: true });
+    expect((await api(anna, "", undefined, "copy")).joined).toBe(true);
+    env.DB.sql
+      .prepare("UPDATE members SET status='removed' WHERE id='mb'")
+      .run();
+    expect((await api(owner)).leaderboard.map((row) => row.userId)).toEqual([
+      "anna",
+    ]);
+    await expect(start(bea, "memory")).rejects.toMatchObject({ status: 403 });
   });
 
   it("isolates scores, attempts, adjustments and duels between events in the same group and year", async () => {
@@ -324,9 +341,11 @@ describe("competition", () => {
   });
 
   it("lets two players take the same duel asynchronously, without ranking points", async () => {
-    await api(anna, "/join", {});
-    await api(bea, "/join", {});
+    await expect(
+      api(anna, "/duels", { userId: guest.id }),
+    ).rejects.toMatchObject({ status: 403 });
     const { duelId } = await api(anna, "/duels", { userId: bea.id });
+    expect((await api(bea)).duels[0].id).toBe(duelId);
     const a = await start(anna, "duel", duelId);
     const b = await start(bea, "duel", duelId);
     expect(a.question).toEqual(b.question);
@@ -340,6 +359,435 @@ describe("competition", () => {
       [0, 1],
       [0, 1],
     ]);
+  });
+
+  it("counts unique collectible stamps, exposes game scores, and resets current points per event", async () => {
+    env.DB.sql.exec(`
+      INSERT INTO user_stamps(user_id,stamp) VALUES
+        ('anna','star'),('anna','cookie'),('anna','quiz'),('anna','memory'),('anna','unknown'),('guest','star');
+      INSERT OR IGNORE INTO user_stamps(user_id,stamp) VALUES('anna','star');
+    `);
+    const before = (await api(owner)).leaderboard[0];
+    expect(before).toMatchObject({
+      userId: "anna",
+      score: 10,
+      stampPoints: 10,
+      gamePoints: 0,
+    });
+    await completeQuiz(anna, await start(anna, "quiz"), true);
+    expect((await api(owner)).leaderboard[0]).toMatchObject({
+      score: 310,
+      stampPoints: 10,
+      gamePoints: 300,
+      scores: {
+        quiz: 300,
+        memory: 0,
+        pacchi: 0,
+        slitta: 0,
+        cartolina: 0,
+        addobbi: 0,
+      },
+    });
+    await api(owner, "/adjust", {
+      userId: anna.id,
+      kind: "reset",
+      reason: "Nuovo turno",
+    });
+    expect(
+      (await api(anna)).leaderboard.find((row) => row.userId === anna.id).score,
+    ).toBe(0);
+    expect((await api(anna, "", undefined, "copy")).leaderboard[0].score).toBe(
+      10,
+    );
+    env.DB.sql.exec(
+      "INSERT OR IGNORE INTO user_stamps(user_id,stamp) VALUES('anna','star'); INSERT INTO user_stamps(user_id,stamp) VALUES('anna','bell')",
+    );
+    expect((await api(anna)).leaderboard[0]).toMatchObject({
+      score: 5,
+      stampPoints: 15,
+    });
+    await api(owner, "/adjust", {
+      userId: bea.id,
+      kind: "add",
+      points: 7,
+      reason: "Premio",
+    });
+    expect((await api(owner)).leaderboard[0]).toMatchObject({
+      userId: bea.id,
+      score: 7,
+    });
+  });
+
+  it("freezes collectible points at archive even when two actions share the same millisecond", async () => {
+    const clock = vi.spyOn(Date, "now");
+    try {
+      const instant = Date.now();
+      clock.mockReturnValue(instant);
+      await stampRoute("POST", env.DB, anna.id, { stamp: "star" });
+      const attempt = await start(anna, "quiz");
+      const path = "/api/events/event/archive";
+      const archive = () =>
+        eventRoute(
+          new Request("https://albero.example" + path, { method: "POST" }),
+          env,
+          path,
+          {},
+          owner,
+        );
+      expect((await archive()).status).toBe(200);
+      await stampRoute("POST", env.DB, anna.id, { stamp: "gift" });
+      expect((await getLeaderboard(env.DB, event))[0]).toMatchObject({
+        stampPoints: 5,
+        score: 5,
+      });
+      expect(
+        (await api(anna, "", undefined, "copy")).leaderboard[0],
+      ).toMatchObject({ stampPoints: 10, score: 10 });
+      expect((await api(anna)).closed).toBe(true);
+      await expect(start(anna, "memory")).rejects.toMatchObject({
+        status: 409,
+      });
+      await expect(action(anna, attempt, { choice: 0 })).rejects.toMatchObject({
+        status: 409,
+      });
+      await expect(
+        api(owner, "/adjust", {
+          userId: anna.id,
+          kind: "reset",
+          reason: "Chiusa",
+        }),
+      ).rejects.toMatchObject({ status: 409 });
+      expect((await archive()).status).toBe(200);
+      expect((await getLeaderboard(env.DB, event))[0].stampPoints).toBe(5);
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
+  it("uses the Rome New Year cutoff for closed standings and for a later reset", async () => {
+    const year = new Date(event.gift_at).getUTCFullYear();
+    const cutoff = Date.parse(`${year}-12-31T23:00:00.000Z`);
+    const clock = vi.spyOn(Date, "now").mockReturnValue(cutoff - 1);
+    try {
+      await stampRoute("POST", env.DB, anna.id, { stamp: "star" });
+      clock.mockReturnValue(cutoff);
+      await stampRoute("POST", env.DB, anna.id, { stamp: "gift" });
+      await stampRoute("POST", env.DB, anna.id, { stamp: "star" });
+      const closed = await api(anna);
+      expect(closed.closed).toBe(true);
+      expect(closed.leaderboard[0]).toMatchObject({ score: 5, stampPoints: 5 });
+      const reset = await api(owner, "/adjust", {
+        userId: anna.id,
+        kind: "reset",
+        reason: "Rettifica",
+      });
+      expect(reset.leaderboard[0]).toMatchObject({
+        score: 0,
+        stampPoints: 5,
+        adjustment: -5,
+      });
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
+  it.each([
+    [
+      "pacchi",
+      "match",
+      {
+        nina: "biscotti",
+        teo: "lanterna",
+        lea: "tazza",
+        omar: "libro",
+        ada: "sciarpa",
+        milo: "puzzle",
+      },
+    ],
+    ["slitta", "pack", ["libro", "lanterna", "biscotti", "sciarpa"]],
+  ])(
+    "validates and ranks the interactive %s challenge without exposing its answer",
+    async (game, type, solution) => {
+      const attempt = await start(anna, game);
+      expect(attempt.challenge).toMatchObject({
+        type,
+        edition: 2,
+        prompt: expect.any(String),
+        clues: expect.any(Array),
+      });
+      expect(attempt.challenge).not.toHaveProperty("answer");
+      expect(attempt.question).toBeUndefined();
+      expect(await start(anna, game)).toEqual(attempt);
+      await expect(
+        action(anna, attempt, { solution: null }),
+      ).rejects.toMatchObject({ status: 400 });
+      expect(await action(anna, attempt, { solution })).toMatchObject({
+        done: true,
+        score: 100,
+        challenge: null,
+      });
+      const second = await start(anna, game);
+      expect(await action(anna, second, { solution })).toMatchObject({
+        done: true,
+        score: 95,
+      });
+      expect((await api(owner)).leaderboard[0]).toMatchObject({
+        score: 100,
+        scores: { [game]: 100 },
+      });
+    },
+  );
+
+  it("requires inspecting the rooms, saves progress, and deducts points for a wrong lock", async () => {
+    let round = await start(anna, "cartolina");
+    expect(round.challenge).toMatchObject({
+      type: "escape",
+      room: 1,
+      total: 2,
+      notes: [],
+    });
+    expect(JSON.stringify(round)).not.toMatch(/374|answer|forata/);
+    await expect(
+      action(anna, round, { move: "unlock", choice: "374" }),
+    ).rejects.toMatchObject({ status: 400 });
+    for (const choice of ["registro", "cartolina", "finestra", "scaffale"]) {
+      round = await action(anna, round, { move: "inspect", choice });
+    }
+    expect((await start(anna, "cartolina")).challenge.notes).toHaveLength(4);
+    round = await action(anna, round, { move: "unlock", choice: "123" });
+    expect(round.challenge).toMatchObject({ room: 1, mistakes: 1 });
+    round = await action(anna, round, { move: "unlock", choice: "374" });
+    expect(round.challenge).toMatchObject({
+      room: 2,
+      notes: [],
+      hasPlate: true,
+    });
+    await expect(
+      action(anna, round, { move: "use", choice: "cartolina" }),
+    ).rejects.toMatchObject({ status: 400 });
+    for (const choice of ["lampada", "cartolina", "mappa"]) {
+      round = await action(anna, round, { move: "inspect", choice });
+    }
+    expect(round.challenge.ready).toBe(false);
+    expect(JSON.stringify(round)).not.toContain("R N A");
+    round = await action(anna, round, { move: "use", choice: "lampada" });
+    expect(round.challenge.ready).toBe(false);
+    round = await action(anna, round, { move: "inspect", choice: "cartolina" });
+    expect(round.challenge.ready).toBe(true);
+    expect(JSON.stringify(round)).toContain("R N A");
+    expect(
+      await action(anna, round, { move: "unlock", choice: "renna" }),
+    ).toMatchObject({ done: true, score: 85, challenge: null });
+  });
+
+  it("scores only a timely matching parcel in each wave and rejects repeated moves", async () => {
+    const clock = vi.spyOn(Date, "now");
+    const now = Date.parse("2026-11-10T12:00:00Z");
+    clock.mockReturnValue(now);
+    try {
+      let round = await start(anna, "addobbi");
+      expect(round.challenge).toMatchObject({
+        type: "catch",
+        wave: 1,
+        total: 8,
+        parcelIds: [],
+      });
+      await expect(
+        action(anna, round, { move: "catch", choice: "stella" }),
+      ).rejects.toMatchObject({ status: 400 });
+      round = await action(anna, round, { move: "begin" });
+      expect(round.challenge.parcelIds).toContain(round.challenge.target);
+      expect(round.challenge).toMatchObject({
+        duration: 6500,
+        points: 0,
+        lost: 0,
+        value: 8,
+      });
+      await expect(
+        action(anna, round, { move: "timeout" }),
+      ).rejects.toMatchObject({ status: 409 });
+      const previous = round;
+      round = await action(anna, round, {
+        move: "catch",
+        choice: round.challenge.target,
+      });
+      expect(round.challenge).toMatchObject({
+        wave: 2,
+        caught: 1,
+        duration: 5900,
+        points: 8,
+      });
+      await expect(
+        action(anna, previous, {
+          move: "catch",
+          choice: previous.challenge.target,
+        }),
+      ).rejects.toMatchObject({ status: 409 });
+      clock.mockReturnValue(now + 20_000);
+      round = await action(anna, round, {
+        move: "catch",
+        choice: round.challenge.target,
+      });
+      expect(round.challenge).toMatchObject({
+        wave: 3,
+        caught: 1,
+        lost: 1,
+        points: 3,
+      });
+      for (let wave = 3; wave <= 8; wave++) {
+        round = await action(anna, round, {
+          move: "catch",
+          choice: round.challenge.target,
+        });
+      }
+      expect(round).toMatchObject({ done: true, score: 86 });
+
+      let second = await start(anna, "addobbi");
+      second = await action(anna, second, { move: "begin" });
+      second = await action(anna, second, {
+        move: "catch",
+        choice: second.challenge.target,
+      });
+      second = await action(anna, second, { move: "pass" });
+      clock.mockReturnValue(now + 40_000);
+      second = await action(anna, second, { move: "timeout" });
+      expect(second.challenge).toMatchObject({ wave: 4, lost: 2, points: 0 });
+      const wrong = second.challenge.parcelIds.find(
+        (id) => id !== second.challenge.target,
+      );
+      expect(
+        await action(anna, second, { move: "catch", choice: wrong }),
+      ).toMatchObject({ done: true, score: 0 });
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
+  it("can still finish saved versions of the cipher and ornament games", async () => {
+    for (const [game, type, state, solution] of [
+      [
+        "cartolina",
+        "cipher",
+        {
+          challenge: { type: "cipher", edition: 2, ciphertext: "ZLNBP WL" },
+          answer: [7, 11],
+        },
+        [7, 11],
+      ],
+      [
+        "addobbi",
+        "order",
+        {
+          challenge: {
+            type: "order",
+            items: [{ id: "stella" }, { id: "renna" }],
+          },
+          answer: ["renna", "stella"],
+        },
+        ["renna", "stella"],
+      ],
+    ]) {
+      env.DB.sql
+        .prepare(
+          "INSERT INTO competition_attempts(id,event_id,user_id,game,ordinal,state,expires) VALUES(?,'event','anna',?,1,?,?)",
+        )
+        .run(game, game, JSON.stringify(state), Date.now() + 60_000);
+      const saved = await start(anna, game);
+      expect(saved.challenge.type).toBe(type);
+      expect(await action(anna, saved, { solution })).toMatchObject({
+        done: true,
+        score: 100,
+      });
+    }
+  });
+
+  it.each([
+    ["cartolina", "cipher", "escape"],
+    ["addobbi", "order", "catch"],
+  ])(
+    "switches an unfinished %s attempt without spending another try",
+    async (game, legacy, current) => {
+      env.DB.sql
+        .prepare(
+          "INSERT INTO competition_attempts(id,event_id,user_id,game,ordinal,state,expires,raw_score,score) VALUES('best','event','anna',?,1,'{}',?,80,80)",
+        )
+        .run(game, Date.now() + 60_000);
+      env.DB.sql
+        .prepare(
+          "INSERT INTO competition_attempts(id,event_id,user_id,game,ordinal,state,expires) VALUES('old','event','anna',?,2,?,?)",
+        )
+        .run(
+          game,
+          JSON.stringify({ challenge: { type: legacy } }),
+          Date.now() + 60_000,
+        );
+      const previous = await start(anna, game);
+      expect(previous.challenge.type).toBe(legacy);
+      const { attempt } = await api(anna, "/start", {
+        game,
+        replaceLegacyAttempt: previous.id,
+      });
+      expect(attempt).toMatchObject({
+        id: previous.id,
+        revision: previous.revision + 1,
+        ordinal: 2,
+        challenge: { type: current },
+      });
+      expect(await start(anna, game)).toMatchObject({
+        revision: attempt.revision,
+        challenge: { type: current },
+      });
+      const board = await api(anna);
+      expect(board.games.find((item) => item.id === game)).toMatchObject({
+        attempts: 2,
+        best: 80,
+      });
+      await expect(
+        action(anna, previous, { solution: [] }),
+      ).rejects.toMatchObject({ status: 409 });
+    },
+  );
+
+  it("grades incorrect choices and keeps a legacy multiple-choice challenge playable", async () => {
+    const oldState = {
+      questions: [
+        { text: "Una vecchia prova", options: ["No", "Sì"], answer: 1 },
+      ],
+      index: 0,
+      correct: 0,
+    };
+    env.DB.sql
+      .prepare(
+        "INSERT INTO competition_attempts(id,event_id,user_id,game,ordinal,state,expires) VALUES('legacy','event','anna','pacchi',1,?,?)",
+      )
+      .run(JSON.stringify(oldState), Date.now() + 60_000);
+    const resumed = await start(anna, "pacchi");
+    expect(resumed).toMatchObject({
+      id: "legacy",
+      question: { text: "Una vecchia prova" },
+    });
+    expect(await action(anna, resumed, { choice: 1 })).toMatchObject({
+      done: true,
+      score: 100,
+    });
+    const memory = await start(anna, "pacchi");
+    expect(memory).toMatchObject({ ordinal: 2, challenge: { type: "match" } });
+    expect(
+      await action(anna, memory, {
+        solution: {
+          nina: "lanterna",
+          teo: "biscotti",
+          lea: "tazza",
+          omar: "libro",
+          ada: "sciarpa",
+          milo: "puzzle",
+        },
+      }),
+    ).toMatchObject({ score: 64 });
+    const pack = await start(anna, "slitta");
+    expect(
+      await action(anna, pack, { solution: ["coperta", "tazza", "gioco"] }),
+    ).toMatchObject({ score: 0 });
   });
 });
 
@@ -369,10 +817,14 @@ it("moves legacy scores to one eligible event and keeps duels on their original 
         VALUES ('adjustment','group',2026,'anna','owner','add',10,'Correzione',100);
     `);
     applyMigration(legacy.sql, eventMigration);
+    applyMigration(legacy.sql, stampMigration);
     expect(await getLeaderboard(legacy, { id: "first" })).toMatchObject([
       { userId: "anna", score: 250 },
     ]);
-    expect(await getLeaderboard(legacy, { id: "second" })).toEqual([]);
+    expect(await getLeaderboard(legacy, { id: "second" })).toMatchObject([
+      { userId: "anna", score: 0 },
+      { userId: "bea", score: 0 },
+    ]);
     const attempts = legacy.sql
       .prepare("SELECT id,event_id FROM competition_attempts ORDER BY id")
       .all();
@@ -400,6 +852,35 @@ it("moves legacy scores to one eligible event and keeps duels on their original 
     expect(quarantine).toEqual([
       { kind: "attempt", userId: "guest" },
       { kind: "entry", userId: "guest" },
+    ]);
+  } finally {
+    legacy.sql.close();
+  }
+});
+
+it("preserves undated stamps for legacy archives and excludes new ones after the upgrade", async () => {
+  const legacy = database(stampMigration);
+  try {
+    legacy.sql.exec(`
+      INSERT INTO users(id,email,name) VALUES('anna','anna@example.test','Anna');
+      INSERT INTO groups(id,owner_id,name) VALUES('group','anna','Famiglia');
+      INSERT INTO events(id,owner_id,group_id,name,budget,description,close_at,draw_at,gift_at,status,invite_token,created_at)
+      VALUES('old','anna','group','Natale',20,'','','','2099-12-20T00:00:00.000Z','archived','inv','');
+      INSERT INTO members(id,event_id,user_id,status,updated_at) VALUES('m','old','anna','approved','');
+      INSERT INTO user_stamps(user_id,stamp) VALUES('anna','star');
+    `);
+    applyMigration(legacy.sql, stampMigration);
+    const { archived_at } = legacy.sql
+      .prepare("SELECT archived_at FROM events WHERE id='old'")
+      .get();
+    expect(archived_at).toBeGreaterThan(0);
+    legacy.sql
+      .prepare(
+        "INSERT INTO user_stamps(user_id,stamp,collected_at) VALUES('anna','gift',?)",
+      )
+      .run(archived_at);
+    expect(await getLeaderboard(legacy, { id: "old" })).toMatchObject([
+      { userId: "anna", stampPoints: 5, score: 5 },
     ]);
   } finally {
     legacy.sql.close();
@@ -450,6 +931,7 @@ it("uses the same server deadline after reopening and gives no points for a late
     await api(anna, "/join", {});
     const attempt = await start(anna, "quiz");
     expect(attempt.timeRemaining).toBe(20_000);
+    expect((await api(anna)).active[0].timeRemaining).toBe(20_000);
     await expect(
       action(anna, attempt, { timeout: true }),
     ).rejects.toMatchObject({ status: 409 });

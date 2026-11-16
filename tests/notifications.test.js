@@ -9,6 +9,7 @@ import {
   cleanRetiredAvatars,
 } from "../worker/profile.js";
 import { telegramWebhook } from "../worker/telegram.js";
+import { eventRoute } from "../worker/events.js";
 import worker from "../worker/index.js";
 import {
   notificationRoute,
@@ -119,7 +120,11 @@ beforeEach(() => {
     ('ma','evento','anna','approved',''),('mb','evento','bruno','approved',''),('mc','evento','chiara','pending','');`);
   calls = [];
   vi.stubGlobal("fetch", async (url, init) => {
-    calls.push({ url: String(url), body: init?.body });
+    calls.push({
+      url: String(url),
+      body: init?.body,
+      redirect: init?.redirect,
+    });
     if (
       String(url).endsWith("/sendMessage") ||
       String(url).endsWith("/sendDocument")
@@ -202,30 +207,176 @@ it("consuma il collegamento Telegram una sola volta e soltanto nella chat privat
   });
 });
 
-it("non espone percorsi per l’upload dell’originale nell’edizione pubblica", async () => {
+it("rifiuta l’upload dell’originale anche in presenza di un bucket e del consenso precedente", async () => {
+  const path = "/api/profile/photo-original";
+  const headers = { "Content-Type": "image/png", "X-Photo-Consent": "yes" };
+  await expect(
+    profileRoute(request(path, "POST", png, headers), env, path, {}, user),
+  ).rejects.toMatchObject({ status: 404 });
+  expect(calls).toEqual([]);
+  expect(images.size).toBe(0);
+});
+
+const localOrigin = "http://127.0.0.1:8787";
+const backupPng = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+X2ioAAAAASUVORK5CYII=",
+  "base64",
+);
+
+function enablePhotoBot() {
+  env.LOCAL_DEV = "true";
+  env.TELEGRAM_PHOTO_BOT_TOKEN = "56789:photo-test-token";
+  env.TELEGRAM_OWNER_CHAT_ID = "9001";
+}
+
+function backupRequest({
+  origin = localOrigin,
+  cookie = true,
+  consent = true,
+  base = localOrigin,
+  body = backupPng,
+  mime = "image/png",
+} = {}) {
   const session = "a".repeat(64);
   sql
-    .prepare("INSERT INTO sessions(digest,user_id,expires) VALUES(?,?,?)")
+    .prepare(
+      "INSERT OR IGNORE INTO sessions(digest,user_id,expires) VALUES(?,?,?)",
+    )
     .run(
       createHash("sha256").update(session).digest("hex"),
       user.id,
       Date.now() + 60_000,
     );
-  for (const path of [
-    "/api/profile/photo-original",
-    "/api/profile/photo-backup",
-  ]) {
-    const response = await worker.fetch(
-      request(path, "POST", JSON.stringify({}), {
-        "Content-Type": "application/json",
-        Cookie: "santa_session=" + session,
-      }),
+  const headers = new Headers({
+    "Content-Type": mime,
+    "X-Owner-Chat-Id": "9999",
+  });
+  if (origin) headers.set("Origin", origin);
+  if (cookie) headers.set("Cookie", `santa_session=${session}`);
+  if (consent) headers.set("X-Photo-Consent", "yes");
+  return worker.fetch(
+    new Request(base + "/api/profile/photo-backup", {
+      method: "POST",
+      body,
+      headers,
+    }),
+    env,
+  );
+}
+
+async function localProfile() {
+  return (
+    await profileRoute(
+      new Request(localOrigin + "/api/profile"),
       env,
-    );
-    expect(response.status).toBe(404);
-  }
+      "/api/profile",
+      {},
+      user,
+    )
+  ).json();
+}
+
+it("richiede consenso, sessione e origine corretta anche in produzione", async () => {
+  enablePhotoBot();
+  expect((await localProfile()).photoBackupAvailable).toBe(true);
+  env.LOCAL_DEV = "false";
+  expect((await (await profile()).json()).photoBackupAvailable).toBe(true);
+  const https = {
+    base: "https://santa.example",
+    origin: "https://santa.example",
+  };
+  expect((await backupRequest({ ...https, cookie: false })).status).toBe(401);
+  expect((await backupRequest({ ...https, consent: false })).status).toBe(403);
+  expect((await backupRequest({ ...https, origin: null })).status).toBe(403);
+  expect(
+    (await backupRequest({ ...https, origin: "https://altro.example" })).status,
+  ).toBe(403);
   expect(calls).toEqual([]);
+  expect((await backupRequest(https)).status).toBe(200);
+  expect(calls[0].body.get("chat_id")).toBe("9001");
+});
+
+it("permette HTTP soltanto sull’anteprima locale", async () => {
+  enablePhotoBot();
+  expect((await backupRequest({ cookie: false })).status).toBe(401);
+  expect((await backupRequest({ consent: false })).status).toBe(403);
+  expect((await backupRequest({ origin: null })).status).toBe(403);
+  expect(
+    (await backupRequest({ origin: "https://altro.example" })).status,
+  ).toBe(403);
+  env.LOCAL_DEV = "false";
+  expect((await localProfile()).photoBackupAvailable).toBe(false);
+  expect((await backupRequest()).status).toBe(404);
+  const remote = "http://santa.example";
+  env.LOCAL_DEV = "true";
+  expect((await backupRequest({ base: remote, origin: remote })).status).toBe(
+    404,
+  );
+  expect(calls).toEqual([]);
+});
+
+it("usa soltanto il bot immagini, invia i byte originali alla chat configurata e non li salva", async () => {
+  enablePhotoBot();
+  delete env.TELEGRAM_BOT_TOKEN;
+  const settings = await localProfile();
+  expect(settings).toMatchObject({
+    photoBackupAvailable: true,
+    telegramAvailable: false,
+  });
+  expect(JSON.stringify(settings)).not.toContain("9001");
+  const result = await backupRequest();
+  expect(result.status).toBe(200);
+  expect(await result.json()).toEqual({ ok: true });
+  expect(calls).toHaveLength(1);
+  expect(calls[0].url).toBe(
+    "https://api.telegram.org/bot56789:photo-test-token/sendDocument",
+  );
+  expect(calls[0].redirect).toBe("manual");
+  expect(calls[0].body.get("chat_id")).toBe("9001");
+  expect(
+    Buffer.from(await calls[0].body.get("document").arrayBuffer()),
+  ).toEqual(backupPng);
   expect(images.size).toBe(0);
+  expect(sql.prepare("SELECT COUNT(*) AS n FROM user_avatars").get().n).toBe(0);
+});
+
+it("non usa il bot notifiche e rifiuta una destinazione che non sia una chat privata", async () => {
+  enablePhotoBot();
+  expect((await localProfile()).photoBackupAvailable).toBe(true);
+  env.TELEGRAM_OWNER_CHAT_ID = "-1001234567890";
+  expect((await localProfile()).photoBackupAvailable).toBe(false);
+  expect((await backupRequest()).status).toBe(503);
+  env.TELEGRAM_OWNER_CHAT_ID = "9001";
+  env.TELEGRAM_PHOTO_BOT_TOKEN = env.TELEGRAM_BOT_TOKEN;
+  expect((await localProfile()).photoBackupAvailable).toBe(false);
+  expect((await backupRequest()).status).toBe(503);
+  delete env.TELEGRAM_PHOTO_BOT_TOKEN;
+  expect((await localProfile()).photoBackupAvailable).toBe(false);
+  expect((await backupRequest()).status).toBe(503);
+  expect(calls).toEqual([]);
+});
+
+it("rifiuta file non validi e nasconde i dettagli del provider quando l’invio fallisce", async () => {
+  enablePhotoBot();
+  expect(
+    (await backupRequest({ body: new Uint8Array(25 * 1024 * 1024 + 1) }))
+      .status,
+  ).toBe(413);
+  expect((await backupRequest({ body: jpeg256() })).status).toBe(415);
+  expect(calls).toEqual([]);
+  vi.stubGlobal("fetch", async () => {
+    throw new Error(
+      "Errore " +
+        env.TELEGRAM_PHOTO_BOT_TOKEN +
+        " alla chat " +
+        env.TELEGRAM_OWNER_CHAT_ID,
+    );
+  });
+  const result = await backupRequest();
+  expect(result.status).toBe(503);
+  const detail = await result.text();
+  expect(detail).not.toContain(env.TELEGRAM_PHOTO_BOT_TOKEN);
+  expect(detail).not.toContain(env.TELEGRAM_OWNER_CHAT_ID);
 });
 
 it("conserva la miniatura solo in R2, la serve agli iscritti autorizzati e rimuove le versioni sostituite", async () => {
@@ -381,7 +532,7 @@ it("la migrazione conserva i preset ed elimina i riferimenti agli avatar Telegra
   }
 });
 
-it("manda il nome estratto soltanto nella chat del donatore consenziente e una sola volta", async () => {
+it("invia un solo avviso generico alla chat del donatore che ha attivato Telegram", async () => {
   sql.exec(`UPDATE users SET telegram_chat_id='101',notify_telegram=1 WHERE id='anna';
     UPDATE users SET telegram_chat_id='202',notify_telegram=0 WHERE id='bruno';
     UPDATE events SET status='drawn',version=4,draw_at='2026-12-03T15:59:00.000Z' WHERE id='evento';
@@ -392,14 +543,106 @@ it("manda il nome estratto soltanto nella chat del donatore consenziente e una s
   const sent = calls
     .filter((call) => call.url.endsWith("/sendMessage"))
     .map((call) => JSON.parse(call.body))
-    .filter((call) => call.text.includes("Tieni il nome per te."));
+    .filter((call) => call.text.includes("La tua lettera per Regali"));
   expect(sent).toHaveLength(1);
   expect(sent[0]).toMatchObject({
     chat_id: "101",
-    text: expect.stringContaining("Bruno"),
+    text: expect.not.stringContaining("Bruno"),
   });
   expect(sent[0]).not.toHaveProperty("parse_mode");
+  expect(sent[0].text).toContain("/events/evento?tab=reveal");
 });
+
+it("recupera una sola volta le lettere già pronte sui canali scelti, anche senza audit recente", async () => {
+  sql.exec(`UPDATE users SET notify_email=1 WHERE id='anna';
+    UPDATE users SET telegram_chat_id='202',notify_telegram=1 WHERE id='bruno';
+    UPDATE events SET status='drawn',version=4,created_at='2026-11-01T00:00:00.000Z',draw_at='2026-11-20T00:00:00.000Z' WHERE id='evento';
+    INSERT INTO assignments(event_id,version,giver_id,receiver_id) VALUES('evento',4,'ma','mb'),('evento',4,'mb','ma');`);
+  await runNotifications(env, now);
+  await runNotifications(env, now + 60000);
+  const emails = calls
+    .filter((call) => call.url === "https://api.resend.com/emails")
+    .map((call) => JSON.parse(call.body));
+  const messages = calls
+    .filter((call) => call.url.endsWith("/sendMessage"))
+    .map((call) => JSON.parse(call.body));
+  expect(emails).toHaveLength(1);
+  expect(emails[0].to).toEqual(["anna@example.test"]);
+  expect(emails[0].html).toContain("/events/evento?tab=reveal");
+  expect(emails[0].html).not.toContain("Bruno");
+  expect(messages).toHaveLength(1);
+  expect(messages[0].chat_id).toBe("202");
+  expect(messages[0].text).toContain("/events/evento?tab=reveal");
+  expect(messages[0].text).not.toContain("Anna");
+});
+
+it("non ripete gli avvisi di estrazione dopo la pulizia della coda scaduta", async () => {
+  sql.exec(`UPDATE users SET notify_email=1,telegram_chat_id='101',notify_telegram=1 WHERE id='anna';
+    UPDATE events SET status='drawn',version=4 WHERE id='evento';
+    INSERT INTO assignments(event_id,version,giver_id,receiver_id) VALUES('evento',4,'ma','mb'),('evento',4,'mb','ma');`);
+  await runNotifications(env, now);
+  const original = sql
+    .prepare(
+      "SELECT id,channel,state FROM notification_jobs WHERE kind='draw' ORDER BY channel",
+    )
+    .all();
+  expect(original).toHaveLength(2);
+  expect(original.every((job) => job.state === "sent")).toBe(true);
+  const afterCleanup = now + 33 * 86_400_000;
+  await runNotifications(env, afterCleanup);
+  calls.length = 0;
+  await runNotifications(env, afterCleanup + 60_000);
+  expect(calls).toEqual([]);
+  expect(
+    sql
+      .prepare(
+        "SELECT id,channel,state FROM notification_jobs WHERE kind='draw' ORDER BY channel",
+      )
+      .all(),
+  ).toEqual(original);
+  expect(
+    sql
+      .prepare(
+        "SELECT COUNT(*) AS count FROM notification_jobs WHERE kind!='draw'",
+      )
+      .get().count,
+  ).toBe(0);
+});
+
+it.each(["queued", "sending", "sent"])(
+  "non duplica una lettera email già %s nella vecchia coda",
+  async (state) => {
+    sql.exec(`UPDATE users SET notify_email=1 WHERE id='anna';
+    UPDATE events SET status='drawn',version=4,created_at='2026-11-01T00:00:00.000Z',draw_at='2026-11-20T00:00:00.000Z' WHERE id='evento';
+    INSERT INTO assignments(event_id,version,giver_id,receiver_id) VALUES('evento',4,'ma','mb'),('evento',4,'mb','ma');
+    INSERT INTO outbox(id,event_id,version,email,subject,html,state) VALUES('old','evento',4,'anna@example.test','La tua lettera','', '${state}');`);
+    await runNotifications(env, now);
+    expect(calls).toEqual([]);
+  },
+);
+
+it.each(["cancelled", "archived", "removed", "old-version", "opt-out"])(
+  "non consegna una lettera accodata diventata %s",
+  async (condition) => {
+    sql.exec(`UPDATE users SET notify_email=1,telegram_chat_id='101',notify_telegram=1 WHERE id='anna';
+    UPDATE events SET status='drawn',version=4,created_at='2026-11-01T00:00:00.000Z',draw_at='2026-11-20T00:00:00.000Z' WHERE id='evento';
+    INSERT INTO assignments(event_id,version,giver_id,receiver_id) VALUES('evento',4,'ma','mb'),('evento',4,'mb','ma');
+    INSERT INTO notification_jobs(event_id,user_id,channel,kind,source_key,payload,created_at,expires_at,next_at)
+    VALUES('evento','anna','email','draw','4',json_object('version',4),${now},${now + 86400000},${now}),
+      ('evento','anna','telegram','draw','4',json_object('version',4),${now},${now + 86400000},${now});`);
+    if (condition === "cancelled")
+      sql.exec("UPDATE events SET status='open',version=5");
+    if (condition === "archived")
+      sql.exec("UPDATE events SET status='archived'");
+    if (condition === "removed")
+      sql.exec("UPDATE members SET status='removed' WHERE user_id='anna'");
+    if (condition === "old-version") sql.exec("UPDATE events SET version=5");
+    if (condition === "opt-out")
+      sql.exec("UPDATE users SET notify_email=0,notify_telegram=0");
+    await runNotifications(env, now);
+    expect(calls).toEqual([]);
+  },
+);
 
 it("ricontrolla iscrizione e consenso al momento dell’invio e non accoda avvisi di altri organizzatori", async () => {
   sql.exec(
@@ -462,4 +705,96 @@ it("accoda una sola volta il riepilogo, il promemoria e l’invito al duello", a
     ),
   ).toHaveLength(1);
   expect(sent.every((call) => call.chat_id === "101")).toBe(true);
+});
+
+it("raggruppa le nuove richieste per il solo organizzatore, anche se non partecipa", async () => {
+  vi.setSystemTime(now);
+  try {
+    sql.exec(`UPDATE events SET description='Ci vediamo a Natale',close_at='2026-12-10T16:00:00.000Z',draw_at='2026-12-11T16:00:00.000Z';
+      UPDATE users SET telegram_chat_id=CASE id WHEN 'anna' THEN '101' ELSE '202' END,notify_telegram=1 WHERE id IN ('anna','bruno');
+      DELETE FROM members WHERE user_id IN ('anna','chiara');
+      INSERT INTO invites(id,event_id,email,state,created_at,token) VALUES ('personale','evento','chiara@example.test','sent','2026-12-03T15:00:00.000Z','per-chiara');`);
+    const join = (id, token) =>
+      eventRoute(
+        request("/api/events/evento/join", "POST"),
+        env,
+        "/api/events/evento/join",
+        { token },
+        { id, email: `${id}@example.test` },
+      );
+    await Promise.all([
+      join("chiara", "per-chiara"),
+      join("estraneo", "abc"),
+      join("chiara", "per-chiara"),
+    ]);
+    await runNotifications(env, now + 60_000);
+    expect(calls).toEqual([]);
+    await runNotifications(env, now + 15 * 60_000);
+    await runNotifications(env, now + 16 * 60_000);
+    const sent = calls.map((call) => JSON.parse(call.body));
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({
+      chat_id: "101",
+      text: expect.stringContaining("Chiara ha accettato l’invito"),
+    });
+    expect(sent[0].text).toContain("Estraneo chiede di partecipare");
+    expect(sent[0].text).toContain("/events/evento?tab=admin#event-members");
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it("riserva il promemoria delle iscrizioni all’organizzatore e invia un solo avviso per scadenza", async () => {
+  sql.exec(`UPDATE events SET close_at='2026-12-04T16:00:00.000Z',draw_at='2026-12-05T16:00:00.000Z';
+    UPDATE users SET telegram_chat_id=CASE id WHEN 'anna' THEN '101' ELSE '202' END,notify_telegram=1 WHERE id IN ('anna','bruno');`);
+  await runNotifications(env, now);
+  await runNotifications(env, now + 23 * 3_600_000);
+  const sent = calls.map((call) => JSON.parse(call.body));
+  expect(sent).toHaveLength(1);
+  expect(sent[0]).toMatchObject({
+    chat_id: "101",
+    text: expect.stringContaining("Le iscrizioni per Regali chiudono a breve"),
+  });
+  expect(sent[0].text).toContain("messaggio di benvenuto");
+  expect(sent[0].text).toContain("/events/evento?tab=admin#event-settings");
+});
+
+it("non invia il riepilogo se la chat viene riassegnata mentre prepara i nomi", async () => {
+  sql.exec(`UPDATE events SET description='Ci vediamo a Natale',close_at='2026-12-10T16:00:00.000Z',draw_at='2026-12-11T16:00:00.000Z';
+    UPDATE users SET telegram_chat_id='101',notify_telegram=1 WHERE id='anna';
+    UPDATE members SET updated_at='2026-12-03T15:50:00.000Z' WHERE id='mc';
+    INSERT INTO notification_jobs(event_id,user_id,channel,kind,source_key,payload,created_at,expires_at,next_at)
+    VALUES('evento','anna','telegram','reminder','registration:test',
+      json_object('field','registration','from','2026-12-03T15:45:00.000Z','until','2026-12-03T16:00:00.000Z'),
+      ${now},${now + 60_000},${now});`);
+  const prepare = env.DB.prepare;
+  let changed = false;
+  env.DB.prepare = (query) => {
+    const statement = prepare(query);
+    if (!query.includes("AS invited")) return statement;
+    return {
+      bind(...args) {
+        const rows = statement.bind(...args);
+        return {
+          async all() {
+            const result = await rows.all();
+            sql.exec(`UPDATE users SET telegram_chat_id=NULL,notify_telegram=0 WHERE id='anna';
+              UPDATE users SET telegram_chat_id='101',notify_telegram=1 WHERE id='estraneo';`);
+            changed = true;
+            return result;
+          },
+        };
+      },
+    };
+  };
+  await runNotifications(env, now);
+  expect(changed).toBe(true);
+  expect(calls).toEqual([]);
+  expect(
+    sql
+      .prepare(
+        "SELECT state FROM notification_jobs WHERE source_key='registration:test'",
+      )
+      .get(),
+  ).toEqual({ state: "skipped" });
 });

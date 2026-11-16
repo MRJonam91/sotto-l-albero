@@ -18,6 +18,10 @@ function database() {
     "0009_event_competition.sql",
     "0010_avatar_storage.sql",
     "0011_avatar_thumbnail.sql",
+    "0012_stamp_ranking_cutoff.sql",
+    "0013_practice_catalog.sql",
+    "0014_tris_duels.sql",
+    "0015_existing_email_notifications.sql",
   ])
     sql.exec(
       readFileSync(new URL(`../migrations/${file}`, import.meta.url), "utf8"),
@@ -74,6 +78,7 @@ async function api(path, method = "GET", body, cookie = "") {
     status: response.status,
     data: await response.json(),
     cookie: response.headers.get("Set-Cookie")?.split(";")[0],
+    cacheControl: response.headers.get("Cache-Control"),
   };
 }
 async function login(email) {
@@ -106,11 +111,209 @@ async function event(cookie) {
     )
   ).data.event;
 }
+
+async function readAssignments(path, organizer) {
+  const { event } = (await api(path, "GET", null, organizer)).data;
+  return api(
+    `${path}/assignments`,
+    "POST",
+    { version: event.version, confirm: true },
+    organizer,
+  );
+}
 beforeEach(() => {
   env = { DB: database(), LOCAL_DEV: "true", APP_URL: "http://127.0.0.1:8787" };
 });
 
 describe("API privata", () => {
+  it("restituisce solo la propria iscrizione nell’elenco per i collegamenti diretti", async () => {
+    const owner = await login("owner-shortcuts@example.test");
+    const member = await login("member-shortcuts@example.test");
+    const e = await event(owner);
+    expect(
+      (
+        await api(
+          `/events/${e.id}/join`,
+          "POST",
+          { token: e.inviteToken },
+          member,
+        )
+      ).status,
+    ).toBe(200);
+    const pending = (
+      await api("/events", "GET", null, member)
+    ).data.events.find((row) => row.id === e.id);
+    expect(pending.membership).toBe("pending");
+    await env.DB.prepare(
+      "UPDATE members SET status='approved' WHERE event_id=?",
+    )
+      .bind(e.id)
+      .run();
+    expect(
+      (await api("/events", "GET", null, member)).data.events.find(
+        (row) => row.id === e.id,
+      ).membership,
+    ).toBe("approved");
+    const owned = (await api("/events", "GET", null, owner)).data.events.find(
+      (row) => row.id === e.id,
+    );
+    expect(owned.membership).toBe(null);
+    expect(owned.isAdmin).toBe(true);
+    await env.DB.prepare("UPDATE members SET status='removed' WHERE event_id=?")
+      .bind(e.id)
+      .run();
+    expect(
+      (await api("/events", "GET", null, member)).data.events.some(
+        (row) => row.id === e.id,
+      ),
+    ).toBe(false);
+  });
+  it("riapre gli inviti dei membri dopo chiusura, estrazione e archivio senza riaprire le iscrizioni", async () => {
+    const owner = await login("owner@example.test");
+    const approved = await login("approved@example.test");
+    const pending = await login("pending@example.test");
+    const removed = await login("removed@example.test");
+    const fresh = await login("fresh@example.test");
+    const e = await event(owner);
+    const path = `/events/${e.id}`;
+    const invite = `/invite/${e.inviteToken}`;
+    for (const cookie of [approved, pending, removed])
+      expect(
+        (await api(`${path}/join`, "POST", { token: e.inviteToken }, cookie))
+          .status,
+      ).toBe(200);
+    await env.DB.prepare(
+      "UPDATE members SET status='approved' WHERE event_id=? AND user_id=(SELECT id FROM users WHERE email='approved@example.test')",
+    )
+      .bind(e.id)
+      .run();
+    await env.DB.prepare(
+      "UPDATE members SET status='removed' WHERE event_id=? AND user_id=(SELECT id FROM users WHERE email='removed@example.test')",
+    )
+      .bind(e.id)
+      .run();
+    expect((await api(invite, "GET", null, approved)).data.membership).toBe(
+      "approved",
+    );
+    await env.DB.prepare(
+      "UPDATE events SET close_at='2000-01-01T00:00:00.000Z' WHERE id=?",
+    )
+      .bind(e.id)
+      .run();
+    for (const status of ["open", "drawn", "archived"]) {
+      await env.DB.prepare("UPDATE events SET status=? WHERE id=?")
+        .bind(status, e.id)
+        .run();
+      expect((await api(invite, "GET", null, owner)).data).toMatchObject({
+        event: { id: e.id },
+        isOwner: true,
+        closed: true,
+      });
+      expect(
+        (await api(`${path}/join`, "POST", { token: e.inviteToken }, owner))
+          .data,
+      ).toMatchObject({ isOwner: true, membership: null });
+      for (const [cookie, membership] of [
+        [approved, "approved"],
+        [pending, "pending"],
+      ]) {
+        const reopened = await api(invite, "GET", null, cookie);
+        expect(reopened.status).toBe(200);
+        expect(reopened.data).toMatchObject({
+          event: { id: e.id },
+          membership,
+          closed: true,
+        });
+        expect(
+          (await api(`${path}/join`, "POST", { token: e.inviteToken }, cookie))
+            .data.membership,
+        ).toBe(membership);
+        expect(
+          (await api("/events", "GET", null, cookie)).data.events.some(
+            (x) => x.id === e.id,
+          ),
+        ).toBe(true);
+        expect((await api(path, "GET", null, cookie)).status).toBe(200);
+      }
+      expect((await api(invite)).data).toMatchObject({
+        event: null,
+        membership: null,
+        closed: true,
+        requiresSignIn: true,
+      });
+      for (const cookie of [fresh, removed]) {
+        expect((await api(invite, "GET", null, cookie)).status).toBe(404);
+        expect(
+          (await api(`${path}/join`, "POST", { token: e.inviteToken }, cookie))
+            .status,
+        ).toBe(400);
+        expect((await api(path, "GET", null, cookie)).status).toBe(403);
+      }
+    }
+    await env.DB.prepare(
+      "UPDATE events SET invite_token='replacement-token' WHERE id=?",
+    )
+      .bind(e.id)
+      .run();
+    expect((await api(invite, "GET", null, approved)).status).toBe(404);
+    expect(
+      (await api(`${path}/join`, "POST", { token: e.inviteToken }, approved))
+        .status,
+    ).toBe(400);
+    expect((await api(path, "GET", null, approved)).status).toBe(200);
+    const counts = await env.DB.prepare(
+      "SELECT status,COUNT(*) AS n FROM members WHERE event_id=? GROUP BY status ORDER BY status",
+    )
+      .bind(e.id)
+      .all();
+    expect(counts.results).toEqual([
+      { status: "approved", n: 1 },
+      { status: "pending", n: 1 },
+      { status: "removed", n: 1 },
+    ]);
+  });
+
+  it("permette agli account normali di creare e gestire solo i propri eventi", async () => {
+    const owner = await login("owner@example.test");
+    const regular = await login("regular@example.test");
+    expect((await api("/me", "GET", null, regular)).data.user.organizer).toBe(
+      false,
+    );
+    const own = await api(
+      "/events",
+      "POST",
+      {
+        name: "Il mio Natale",
+        budget: 20,
+        closeAt: "2099-12-01T18:00:00Z",
+        drawAt: "2099-12-02T18:00:00Z",
+        giftAt: "2099-12-24T18:00:00Z",
+      },
+      regular,
+    );
+    expect(own.status).toBe(201);
+    expect(own.data.event.isAdmin).toBe(true);
+    expect((await api("/me", "GET", null, regular)).data.user.organizer).toBe(
+      false,
+    );
+    const foreign = await event(owner);
+    await api(
+      `/events/${foreign.id}/join`,
+      "POST",
+      { token: foreign.inviteToken },
+      regular,
+    );
+    for (const action of ["duplicate", "rotate-invite", "draw", "archive"])
+      expect(
+        (await api(`/events/${foreign.id}/${action}`, "POST", {}, regular))
+          .status,
+      ).toBe(403);
+    expect(
+      (await api(`/events/${own.data.event.id}/duplicate`, "POST", {}, regular))
+        .status,
+    ).toBe(201);
+  });
+
   it("registra con nome ed email e permette di aggiungere il recapito dal profilo", async () => {
     const email = "nuovo@example.test";
     const requested = await api("/auth/request", "POST", {
@@ -127,8 +330,55 @@ describe("API privata", () => {
       phone: null,
     });
     expect(session.data.user).not.toHaveProperty("telegram_chat_id");
-    const updated = await api("/profile", "PUT", { phone: "+39 320 000 0000" }, session.cookie);
+    expect(
+      await env.DB.prepare(
+        "SELECT notify_email,notify_telegram FROM users WHERE email=?",
+      )
+        .bind(email)
+        .first(),
+    ).toEqual({ notify_email: 1, notify_telegram: 0 });
+    const updated = await api(
+      "/profile",
+      "PUT",
+      { phone: "+39 320 000 0000" },
+      session.cookie,
+    );
     expect(updated.data.phone).toBe("+393200000000");
+  });
+
+  it("non riattiva l’email disabilitata quando un account esistente accede di nuovo", async () => {
+    const email = "email-spenta@example.test";
+    const firstCode = await api("/auth/request", "POST", {
+      email,
+      name: "Ada",
+    });
+    expect(
+      (
+        await api("/auth/verify", "POST", {
+          email,
+          code: firstCode.data.devCode,
+        })
+      ).status,
+    ).toBe(200);
+    await env.DB.prepare("UPDATE users SET notify_email=0 WHERE email=?")
+      .bind(email)
+      .run();
+    const secondCode = await api("/auth/request", "POST", { email });
+    expect(
+      (
+        await api("/auth/verify", "POST", {
+          email,
+          code: secondCode.data.devCode,
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      await env.DB.prepare(
+        "SELECT notify_email,notify_telegram FROM users WHERE email=?",
+      )
+        .bind(email)
+        .first(),
+    ).toEqual({ notify_email: 0, notify_telegram: 0 });
   });
 
   it("restituisce lo stato effettivo sul link e preserva la conferma", async () => {
@@ -182,6 +432,13 @@ describe("API privata", () => {
     expect((await api(path + "/accounts", "POST", fields, owner)).status).toBe(
       201,
     );
+    expect(
+      await env.DB.prepare(
+        "SELECT notify_email,notify_telegram FROM users WHERE email=?",
+      )
+        .bind(email)
+        .first(),
+    ).toEqual({ notify_email: 1, notify_telegram: 0 });
     const request = await api("/auth/request", "POST", { email });
     expect(request.status).toBe(200);
     const session = await api("/auth/verify", "POST", {
@@ -193,6 +450,9 @@ describe("API privata", () => {
       phone: null,
       organizer: false,
     });
+    await env.DB.prepare("UPDATE users SET notify_email=0 WHERE email=?")
+      .bind(email)
+      .run();
     expect(
       (
         await api(
@@ -203,6 +463,13 @@ describe("API privata", () => {
         )
       ).status,
     ).toBe(201);
+    expect(
+      await env.DB.prepare(
+        "SELECT notify_email,notify_telegram FROM users WHERE email=?",
+      )
+        .bind(email)
+        .first(),
+    ).toEqual({ notify_email: 0, notify_telegram: 0 });
     expect(
       (await api("/me", "GET", null, session.cookie)).data.user,
     ).toMatchObject({ name: "Ada", phone: null });
@@ -487,7 +754,7 @@ describe("API privata", () => {
     );
     expect(
       (await api("/events", "POST", { name: "Altro" }, stranger)).status,
-    ).toBe(403);
+    ).toBe(400);
     const cookies = [
       admin,
       await login("bea@example.com"),
@@ -517,6 +784,12 @@ describe("API privata", () => {
       hint: "Ha pagine",
       answer: "Un romanzo",
     };
+    const pending = await login("attesa@example.com");
+    const path = `/events/${e.id}`;
+    expect(
+      (await api(`${path}/join`, "POST", { token: e.inviteToken }, pending))
+        .data.membership,
+    ).toBe("pending");
     expect(
       (
         await api(
@@ -533,23 +806,95 @@ describe("API privata", () => {
     expect((await api(`/events/${e.id}/draw`, "POST", {}, admin)).status).toBe(
       200,
     );
-    const a = (await api(`/events/${e.id}?reveal=1`, "GET", null, admin)).data;
+    const sealed = (await api(`/events/${e.id}`, "GET", null, cookies[1])).data;
+    expect(sealed.recipient).toBeUndefined();
+    const oldOwnerRead = (await api(`${path}?reveal=1`, "GET", null, admin))
+      .data;
+    expect(oldOwnerRead.assignments).toBeUndefined();
+    expect(oldOwnerRead.rules).toEqual([]);
+    const version = sealed.event.version;
+    expect(
+      (await api(`${path}/assignments`, "POST", { version }, admin)).status,
+    ).toBe(400);
+    const a = (await readAssignments(path, admin)).data;
     expect(a.assignments).toHaveLength(3);
     const b = (await api(`/events/${e.id}?reveal=1`, "GET", null, cookies[1]))
       .data;
     expect(b.assignments).toBeUndefined();
     expect(b.event.inviteToken).toBeUndefined();
     expect(b.rules).toEqual([]);
-    expect(b.recipient.name).toBeTruthy();
+    expect(b.recipient).toBeUndefined();
+    const pendingView = (await api(`${path}?reveal=1`, "GET", null, pending))
+      .data;
+    expect(pendingView.members.map((m) => m.name)).toEqual(["attesa"]);
+    expect(pendingView.recipient).toBeUndefined();
+    expect(pendingView.assignments).toBeUndefined();
+    for (const c of [pending, stranger, ""]) {
+      for (const endpoint of ["recipient", "assignments"]) {
+        const denied = await api(
+          `${path}/${endpoint}`,
+          "POST",
+          { version, confirm: true },
+          c,
+        );
+        expect(denied.status).toBe(c ? 403 : 401);
+        expect(denied.data).not.toHaveProperty("recipient");
+        expect(denied.data).not.toHaveProperty("assignments");
+      }
+    }
+    expect(
+      (
+        await api(
+          `${path}/assignments`,
+          "POST",
+          { version, confirm: true },
+          cookies[1],
+        )
+      ).status,
+    ).toBe(403);
+    const giver = oldOwnerRead.members.find((m) => m.name === "bea");
+    const pair = a.assignments.find((item) => item.giverId === giver.id);
+    const receiver = oldOwnerRead.members.find((m) => m.id === pair.receiverId);
+    const own = await api(
+      `${path}/recipient`,
+      "POST",
+      { version, giverId: pair.receiverId },
+      cookies[1],
+    );
+    expect(own.cacheControl).toBe("no-store");
+    expect(own.data.recipient.name).toBe(receiver.name);
+    expect(own.data).not.toHaveProperty("assignments");
     expect((await api(`/events/${e.id}/draw`, "POST", {}, admin)).status).toBe(
       200,
     );
-    expect(
-      (await api(`/events/${e.id}?reveal=1`, "GET", null, admin)).data
-        .assignments,
-    ).toEqual(a.assignments);
+    expect((await readAssignments(path, admin)).data.assignments).toEqual(
+      a.assignments,
+    );
     expect(
       (await api(`/events/${e.id}/rules`, "PUT", { rules: [] }, admin)).status,
+    ).toBe(409);
+    expect(
+      (
+        await api(
+          `${path}/cancel`,
+          "POST",
+          { version, reason: "Prova revoca" },
+          admin,
+        )
+      ).status,
+    ).toBe(200);
+    expect(
+      (await api(`${path}/recipient`, "POST", { version }, cookies[1])).status,
+    ).toBe(409);
+    expect(
+      (
+        await api(
+          `${path}/assignments`,
+          "POST",
+          { version, confirm: true },
+          admin,
+        )
+      ).status,
     ).toBe(409);
   });
   it("revoca gli inviti e respinge iscrizioni tardive", async () => {
@@ -649,6 +994,64 @@ describe("API privata", () => {
       ).status,
     ).toBe("open");
   });
+  it("ritenta l’estrazione programmata dopo un errore temporaneo del database", async () => {
+    const admin = await login("anna@example.com");
+    const e = await event(admin);
+    for (const cookie of [
+      admin,
+      await login("bea@example.com"),
+      await login("carlo@example.com"),
+    ]) {
+      await api(
+        `/events/${e.id}/join`,
+        "POST",
+        { token: e.inviteToken },
+        cookie,
+      );
+    }
+    const { members } = (await api(`/events/${e.id}`, "GET", null, admin)).data;
+    for (const member of members) {
+      await api(
+        `/events/${e.id}/members/${member.id}`,
+        "POST",
+        { status: "approved" },
+        admin,
+      );
+    }
+    await env.DB.prepare(
+      "UPDATE events SET draw_at='2000-01-01T00:00:00.000Z' WHERE id=?",
+    )
+      .bind(e.id)
+      .run();
+    const batch = vi
+      .spyOn(env.DB, "batch")
+      .mockRejectedValueOnce(new Error("D1 temporaneamente indisponibile"));
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await scheduled(env);
+      expect(
+        await env.DB.prepare("SELECT status,error FROM events WHERE id=?")
+          .bind(e.id)
+          .first(),
+      ).toEqual({ status: "open", error: null });
+      expect(
+        (await api(`/events/${e.id}?reveal=1`, "GET", null, admin)).data
+          .assignments ?? [],
+      ).toHaveLength(0);
+      await scheduled(env);
+      const { event: drawn } = (
+        await api(`/events/${e.id}`, "GET", null, admin)
+      ).data;
+      const { assignments } = (await readAssignments(`/events/${e.id}`, admin))
+        .data;
+      expect(drawn.status).toBe("drawn");
+      expect(assignments).toHaveLength(3);
+    } finally {
+      batch.mockRestore();
+      log.mockRestore();
+    }
+  });
+
   it("un iscritto in attesa non legge i nomi degli altri partecipanti", async () => {
     const admin = await login("anna@example.com"),
       e = await event(admin),
@@ -798,6 +1201,154 @@ describe("API privata", () => {
       ).status,
     ).toBe(200);
   });
+  it.each([3, 5, 10, 15, 20])(
+    "estrae tutti i %i partecipanti con regole e storico dopo aver risolto un conflitto",
+    async (size) => {
+      const admin = await login("anna@example.com");
+      const people = [];
+      for (let i = 0; i < size; i++) {
+        const name = `persona-${i}`;
+        const email = `${name}@example.test`;
+        people.push({ name, email, cookie: await login(email) });
+      }
+
+      async function enroll(edition) {
+        const path = `/events/${edition.id}`;
+        for (const { cookie } of people) {
+          expect(
+            (
+              await api(
+                `${path}/join`,
+                "POST",
+                { token: edition.inviteToken },
+                cookie,
+              )
+            ).status,
+          ).toBe(200);
+        }
+        const { members } = (await api(path, "GET", null, admin)).data;
+        expect(members).toHaveLength(size);
+        const membersByName = new Map(
+          members.map((member) => [member.name, member.id]),
+        );
+        for (const member of members) {
+          expect(
+            (
+              await api(
+                `${path}/members/${member.id}`,
+                "POST",
+                { status: "approved" },
+                admin,
+              )
+            ).status,
+          ).toBe(200);
+        }
+        return people.map(({ name }) => membersByName.get(name));
+      }
+
+      const prior = await event(admin);
+      const priorPath = `/events/${prior.id}`;
+      const priorIds = await enroll(prior);
+      const priorRules = priorIds.map((giverId, index) => ({
+        giverId,
+        receiverId: priorIds[(index + 1) % size],
+        type: "fixed",
+      }));
+      expect(
+        (await api(`${priorPath}/rules`, "PUT", { rules: priorRules }, admin))
+          .status,
+      ).toBe(200);
+      expect((await api(`${priorPath}/draw`, "POST", {}, admin)).status).toBe(
+        200,
+      );
+      expect(
+        (await api(`${priorPath}/archive`, "POST", {}, admin)).status,
+      ).toBe(200);
+
+      const duplicate = await api(
+        `${priorPath}/duplicate`,
+        "POST",
+        { name: "Seconda edizione" },
+        admin,
+      );
+      expect(duplicate.status).toBe(201);
+      const current = duplicate.data.event;
+      const path = `/events/${current.id}`;
+      const ids = await enroll(current);
+      const offset = size === 3 ? 1 : 2;
+      const imported = {
+        giverEmail: people[1].email,
+        receiverEmail: people[(1 + offset) % size].email,
+      };
+      expect(
+        (await api(`${path}/history`, "POST", { pairs: [imported] }, admin))
+          .status,
+      ).toBe(200);
+
+      const conflictingRule = {
+        giverId: ids[0],
+        receiverId: ids[1],
+        type: "fixed",
+      };
+      expect(
+        (await api(`${path}/rules`, "PUT", { rules: [conflictingRule] }, admin))
+          .status,
+      ).toBe(200);
+      const refused = await api(`${path}/draw`, "POST", {}, admin);
+      expect(refused.status).toBe(400);
+      expect(refused.data.error).toMatch(/conflitto/);
+      const persisted = await env.DB.prepare(
+        "SELECT status,(SELECT COUNT(*) FROM assignments WHERE event_id=e.id) AS assigned,(SELECT COUNT(*) FROM outbox WHERE event_id=e.id) AS queued FROM events e WHERE id=?",
+      )
+        .bind(current.id)
+        .first();
+      expect(persisted).toEqual({ status: "open", assigned: 0, queued: 0 });
+
+      const validFixed = { ...conflictingRule, receiverId: ids.at(-1) };
+      const explicitExclusion = {
+        giverId: ids[2],
+        receiverId: ids[(2 + offset) % size],
+        type: "exclude",
+      };
+      expect(
+        (
+          await api(
+            `${path}/rules`,
+            "PUT",
+            { rules: [validFixed, explicitExclusion] },
+            admin,
+          )
+        ).status,
+      ).toBe(200);
+      expect((await api(`${path}/draw`, "POST", {}, admin)).status).toBe(200);
+      const { event: drawn } = (await api(path, "GET", null, admin)).data;
+      const { assignments } = (await readAssignments(path, admin)).data;
+      expect(assignments).toHaveLength(size);
+      const receivers = new Map(
+        assignments.map(({ giverId, receiverId }) => [giverId, receiverId]),
+      );
+      expect([...receivers.keys()].sort()).toEqual(ids.toSorted());
+      expect([...receivers.values()].sort()).toEqual(ids.toSorted());
+      expect(receivers.get(ids[0])).toBe(validFixed.receiverId);
+      expect(receivers.get(ids[1])).not.toBe(ids[(1 + offset) % size]);
+      expect(receivers.get(ids[2])).not.toBe(explicitExclusion.receiverId);
+      for (const [index, id] of ids.entries()) {
+        const receiver = receivers.get(id);
+        expect(receiver).not.toBe(id);
+        expect(receiver).not.toBe(ids[(index + 1) % size]);
+        const { recipient } = (
+          await api(
+            `${path}/recipient`,
+            "POST",
+            { version: drawn.version },
+            people[index].cookie,
+          )
+        ).data;
+        expect(recipient.name).toBe(people[ids.indexOf(receiver)].name);
+      }
+    },
+  );
+
   it("limita lo storico automatico e permette di cancellare gli abbinamenti importati", async () => {
     const admin = await login("anna@example.com"),
       e = await event(admin);

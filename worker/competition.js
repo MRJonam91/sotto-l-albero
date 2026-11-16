@@ -2,48 +2,50 @@ import { all, first, run } from "./auth.js";
 import { HttpError, id, json, safeText } from "./security.js";
 import { createMemoryDeck, memoryCardCount } from "../shared/memory.js";
 import { quizQuestions } from "../shared/quizQuestions.js";
+import {
+  officialChallenge,
+  scoreOfficialChallenge,
+} from "../shared/officialChallenges.js";
+import { stamps } from "../shared/stamps.js";
+import { trisDuelsRoute } from "./trisDuels.js";
+import { gameDefinitions } from "../shared/gameCatalog.js";
+import {
+  newInteractiveChallenge,
+  publicInteractiveChallenge,
+  turnInteractiveChallenge,
+  interactiveEdition,
+} from "./interactiveChallenges.js";
 
 const DAY = 86_400_000;
 const QUESTION_TIME = 20_000;
 const isTimed = (game) => game === "quiz" || game === "duel";
 const multipliers = [1, 0.95, 0.9];
 const games = {
-  quiz: { name: "Quiz di Natale", points: 300 },
-  memory: { name: "Memory di Natale", points: 300 },
-  pacchi: { name: "Pacchi smarriti", points: 100 },
-  slitta: { name: "Sacco della slitta", points: 100 },
-  cartolina: { name: "Cartolina cifrata", points: 100 },
-  addobbi: { name: "Addobbi in ordine", points: 100 },
+  ...gameDefinitions,
+  cartolina: {
+    ...gameDefinitions.cartolina,
+    edition: interactiveEdition,
+    type: "escape",
+  },
+  addobbi: {
+    ...gameDefinitions.addobbi,
+    edition: interactiveEdition,
+    type: "catch",
+  },
 };
 
-const questions = quizQuestions;
-
-const puzzles = {
-  pacchi: [
-    "Il pacco tondo è per Nina. Il libro va a Teo. Il pacco rimasto è un paio di guanti: a chi va, se manca solo Lea?",
-    ["A Nina", "A Lea", "A Teo"],
-    1,
-  ],
-  slitta: [
-    "Restano 5 kg sulla slitta. Il libro pesa 2 kg, la tazza 3 e il gioco 4. Quali due regali riempiono lo spazio senza superare il limite?",
-    ["Il libro e la tazza", "Il libro e il gioco", "La tazza e il gioco"],
-    0,
-  ],
-  cartolina: [
-    "La cartolina è scritta al contrario: E T S E F. Quale parola nasconde?",
-    ["Fuochi", "Fette", "Feste"],
-    2,
-  ],
-  addobbi: [
-    "La stella viene dopo il fiocco. La campanella viene prima del fiocco. In che ordine appendi gli addobbi?",
-    [
-      "Fiocco, stella, campanella",
-      "Campanella, fiocco, stella",
-      "Stella, campanella, fiocco",
-    ],
-    1,
-  ],
-};
+const collectibleStamps = Object.keys(stamps).filter(
+  (stamp) => stamp !== "quiz" && stamp !== "memory",
+);
+const stampFilter = `stamp IN (${collectibleStamps.map(() => "?").join(",")})`;
+const pointsPerStamp = 5;
+const gameIds = Object.keys(games);
+const gameBreakdown = gameIds
+  .map(
+    (game) =>
+      `COALESCE(MAX(CASE WHEN best.game='${game}' THEN best.score END),0) AS ${game}`,
+  )
+  .join(", ");
 
 const romeYear = new Intl.DateTimeFormat("it-IT", {
   year: "numeric",
@@ -53,6 +55,34 @@ const yearOf = (event) => Number(romeYear.format(new Date(event.gift_at)));
 const yearStart = (year) => `${year - 1}-12-31T23:00:00.000Z`;
 const yearEnd = (year) => Date.parse(yearStart(year + 1));
 const stmt = (db, query, ...args) => db.prepare(query).bind(...args);
+const stillOpen =
+  "EXISTS (SELECT 1 FROM events WHERE id=competition_attempts.event_id AND status<>'archived')";
+
+// At the Rome year boundary, local midnight is 23:00 UTC.
+const seasonEndSql =
+  "CAST(strftime('%s', printf('%04d-12-31 23:00:00', CAST(strftime('%Y',e.gift_at,'+1 hour') AS INTEGER))) AS INTEGER)*1000";
+const stampCountSql = (user, cutoff) => `(
+  SELECT COUNT(DISTINCT stamp)*${pointsPerStamp} FROM user_stamps
+  WHERE user_id=${user} AND ${stampFilter} AND (collected_at IS NULL OR collected_at<${cutoff})
+)`;
+const stampPointsSql = (user) => `
+  CASE WHEN e.archived_stamp_points IS NOT NULL THEN COALESCE(
+    (SELECT value FROM json_each(e.archived_stamp_points) WHERE key=${user}),0
+  ) ELSE ${stampCountSql(user, `MIN(${seasonEndSql},COALESCE(e.archived_at,${seasonEndSql}))`)} END
+`;
+
+export function archiveCompetition(db, eventId) {
+  return run(
+    db,
+    `UPDATE events AS e SET status='archived', archived_at=?, archived_stamp_points=(
+      SELECT json_group_object(m.user_id,${stampCountSql("m.user_id", seasonEndSql)})
+      FROM members m WHERE m.event_id=e.id AND m.status='approved'
+    ) WHERE id=? AND status<>'archived'`,
+    Date.now(),
+    ...collectibleStamps,
+    eventId,
+  );
+}
 
 function shuffled(values) {
   const copy = [...values];
@@ -64,10 +94,8 @@ function shuffled(values) {
   return copy;
 }
 
-function questionSet(game) {
-  const selected = Object.hasOwn(puzzles, game)
-    ? [puzzles[game]]
-    : shuffled(questions).slice(0, 10);
+function questionSet() {
+  const selected = shuffled(quizQuestions).slice(0, 10);
   return selected.map(([text, options, answer]) => {
     const order = shuffled(options.map((_, index) => index));
     return {
@@ -87,26 +115,31 @@ export async function getLeaderboard(db, event) {
       FROM competition_attempts
       WHERE event_id=? AND duel_id='' AND score IS NOT NULL
       GROUP BY user_id,game
+    ), standings AS (
+      SELECT u.id AS userId,u.name,COALESCE(c.adjustment,0) AS adjustment,
+        COALESCE(SUM(best.score),0) AS gamePoints,
+        ${stampPointsSql("u.id")} AS stampPoints,
+        ${gameBreakdown}
+      FROM members m
+      JOIN events e ON e.id=m.event_id
+      JOIN users u ON u.id=m.user_id
+      LEFT JOIN competition_entries c ON c.event_id=m.event_id AND c.user_id=m.user_id
+      LEFT JOIN best ON best.user_id=m.user_id
+      WHERE m.event_id=? AND m.status='approved'
+      GROUP BY u.id,u.name,c.adjustment
     )
-    SELECT u.id AS userId,u.name,c.adjustment,
-      MAX(0,COALESCE(SUM(best.score),0)+c.adjustment) AS score,
-      COALESCE(MAX(CASE WHEN best.game='quiz' THEN best.score END),0) AS quiz,
-      COALESCE(MAX(CASE WHEN best.game='memory' THEN best.score END),0) AS memory
-    FROM competition_entries c
-    JOIN users u ON u.id=c.user_id
-    JOIN members m ON m.event_id=c.event_id AND m.user_id=c.user_id AND m.status='approved'
-    LEFT JOIN best ON best.user_id=c.user_id
-    WHERE c.event_id=?
-    GROUP BY u.id,u.name,c.adjustment
-    ORDER BY score DESC,u.name COLLATE NOCASE,u.id
+    SELECT *,MAX(0,gamePoints+stampPoints+adjustment) AS score FROM standings
+    ORDER BY score DESC,name COLLATE NOCASE,userId
   `,
     event.id,
+    ...collectibleStamps,
     event.id,
   );
   let rank = 0;
   return rows.map((row, index) => {
     if (index === 0 || rows[index - 1].score !== row.score) rank = index + 1;
-    return { ...row, rank };
+    const scores = Object.fromEntries(gameIds.map((game) => [game, row[game]]));
+    return { ...row, scores, rank };
   });
 }
 
@@ -127,17 +160,7 @@ async function access(db, eventId, userId) {
       403,
     );
   }
-  const year = yearOf(event);
-  return {
-    event,
-    year,
-    entry: await first(
-      db,
-      "SELECT adjustment FROM competition_entries WHERE event_id=? AND user_id=?",
-      event.id,
-      userId,
-    ),
-  };
+  return { event, year: yearOf(event) };
 }
 
 function publicAttempt(attempt, now) {
@@ -164,6 +187,18 @@ function publicAttempt(attempt, now) {
         paired: state.matched.includes(position),
       })),
     };
+  }
+  if (state.interactive) {
+    return {
+      ...result,
+      challenge: done ? null : publicInteractiveChallenge(state, now),
+      ...(done && state.interactive === "catch" && state.edition
+        ? { caught: state.caught, lost: state.lost }
+        : {}),
+    };
+  }
+  if (state.challenge) {
+    return { ...result, challenge: done ? null : state.challenge };
   }
   const question = state.questions[state.index];
   return {
@@ -222,7 +257,8 @@ async function duelList(db, eventId, userId, now) {
 }
 
 async function board(db, context, userId, now) {
-  const { event, year, entry } = context;
+  const { event, year } = context;
+  const closed = event.status === "archived" || now >= yearEnd(year);
   const totals = await all(
     db,
     `
@@ -232,24 +268,25 @@ async function board(db, context, userId, now) {
     event.id,
     userId,
   );
-  const active = entry
-    ? await all(
-        db,
-        `
+  const active =
+    event.approved && !closed
+      ? await all(
+          db,
+          `
     SELECT * FROM competition_attempts WHERE event_id=? AND user_id=?
       AND raw_score IS NULL AND expires>?
   `,
-        event.id,
-        userId,
-        now,
-      )
-    : [];
+          event.id,
+          userId,
+          now,
+        )
+      : [];
   const leaderboard = await getLeaderboard(db, event);
   return json({
     year,
-    closed: now >= yearEnd(year),
+    closed,
     canPlay: !!event.approved,
-    joined: !!entry,
+    joined: !!event.approved,
     games: Object.entries(games).map(([key, game]) => {
       const total = totals.find((item) => item.game === key);
       return {
@@ -261,15 +298,15 @@ async function board(db, context, userId, now) {
       };
     }),
     leaderboard,
-    duels: entry ? await duelList(db, event.id, userId, now) : [],
-    active: active.map(publicAttempt),
+    duels: event.approved ? await duelList(db, event.id, userId, now) : [],
+    active: active.map((attempt) => publicAttempt(attempt, now)),
   });
 }
 
 function requireActive(context, now) {
   if (!context.event.approved)
     throw new HttpError("Serve un’iscrizione approvata all’evento.", 403);
-  if (now >= yearEnd(context.year))
+  if (context.event.status === "archived" || now >= yearEnd(context.year))
     throw new HttpError("Questa edizione è conclusa.", 409);
 }
 
@@ -311,12 +348,30 @@ async function startGame(db, context, body, userId, now) {
     );
   const previous = await latest();
   if (previous && previous.raw_score === null && previous.expires > now) {
+    const state = JSON.parse(previous.state);
+    const replacement =
+      body.replaceLegacyAttempt === previous.id &&
+      (state.edition ?? 0) < interactiveEdition
+        ? newInteractiveChallenge(game)
+        : null;
+    if (replacement) {
+      await run(
+        db,
+        `UPDATE competition_attempts SET state=?,expires=?,revision=revision+1
+         WHERE id=? AND revision=? AND raw_score IS NULL AND expires>? AND ${stillOpen}`,
+        JSON.stringify(replacement),
+        Math.min(now + DAY, yearEnd(year)),
+        previous.id,
+        previous.revision,
+        now,
+      );
+      return json({ attempt: publicAttempt(await latest(), now) });
+    }
     if (game === "memory") {
-      const state = JSON.parse(previous.state);
       if (state.deck.length !== memoryCardCount) {
         await run(
           db,
-          "UPDATE competition_attempts SET state=?,revision=revision+1 WHERE id=? AND revision=? AND raw_score IS NULL AND expires>?",
+          `UPDATE competition_attempts SET state=?,revision=revision+1 WHERE id=? AND revision=? AND raw_score IS NULL AND expires>? AND ${stillOpen}`,
           JSON.stringify(newRankedMemory(state.mistakes)),
           previous.id,
           previous.revision,
@@ -326,12 +381,11 @@ async function startGame(db, context, body, userId, now) {
       }
     }
     if (isTimed(game)) {
-      const state = JSON.parse(previous.state);
       if (!state.questionDeadline) {
         state.questionDeadline = now + QUESTION_TIME;
         await run(
           db,
-          "UPDATE competition_attempts SET state=?,revision=revision+1 WHERE id=? AND revision=? AND raw_score IS NULL",
+          `UPDATE competition_attempts SET state=?,revision=revision+1 WHERE id=? AND revision=? AND raw_score IS NULL AND ${stillOpen}`,
           JSON.stringify(state),
           previous.id,
           previous.revision,
@@ -348,29 +402,34 @@ async function startGame(db, context, body, userId, now) {
   const state =
     game === "memory"
       ? newRankedMemory()
-      : {
-          questions: duel ? JSON.parse(duel.questions) : questionSet(game),
+      : (newInteractiveChallenge(game) ??
+        officialChallenge(game) ?? {
+          questions: duel ? JSON.parse(duel.questions) : questionSet(),
           index: 0,
           correct: 0,
           ...(isTimed(game) ? { questionDeadline: now + QUESTION_TIME } : {}),
-        };
+        });
   const expiry = Math.min(duel ? duel.expires : now + DAY, yearEnd(year));
   await run(
     db,
     `
     INSERT INTO competition_attempts(id,event_id,user_id,game,duel_id,ordinal,state,expires)
-    VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(event_id,user_id,game,duel_id,ordinal) DO NOTHING
+    SELECT ?,id,?,?,?,?,?,? FROM events WHERE id=? AND status<>'archived'
+    ON CONFLICT(event_id,user_id,game,duel_id,ordinal) DO NOTHING
   `,
     id(),
-    event.id,
     userId,
     game,
     duelId,
     ordinal,
     JSON.stringify(state),
     expiry,
+    event.id,
   );
-  return json({ attempt: publicAttempt(await latest(), now) });
+  const started = await latest();
+  if (started?.ordinal !== ordinal)
+    throw new HttpError("Questa edizione è conclusa.", 409);
+  return json({ attempt: publicAttempt(started, now) });
 }
 
 function newRankedMemory(mistakes = 0) {
@@ -461,7 +520,11 @@ async function gameAction(db, context, body, userId, now) {
   const rawScore =
     attempt.game === "memory"
       ? turnMemory(state, body)
-      : turnQuiz(state, attempt.game, body, now);
+      : state.interactive
+        ? turnInteractiveChallenge(state, body, now, shuffled)
+        : state.challenge
+          ? scoreOfficialChallenge(state, body?.solution)
+          : turnQuiz(state, attempt.game, body, now);
   const score =
     rawScore === null || attempt.duel_id
       ? null
@@ -470,7 +533,7 @@ async function gameAction(db, context, body, userId, now) {
     db,
     `
     UPDATE competition_attempts SET state=?,raw_score=?,score=?,revision=revision+1
-    WHERE id=? AND revision=? AND raw_score IS NULL AND expires>?
+    WHERE id=? AND revision=? AND raw_score IS NULL AND expires>? AND ${stillOpen}
   `,
     JSON.stringify(state),
     rawScore,
@@ -490,11 +553,12 @@ async function gameAction(db, context, body, userId, now) {
           stmt(
             db,
             `
-          INSERT INTO user_stamps(user_id,stamp)
-          SELECT user_id,? FROM competition_attempts WHERE id=? AND raw_score IS NOT NULL
+          INSERT INTO user_stamps(user_id,stamp,collected_at)
+          SELECT user_id,?,? FROM competition_attempts WHERE id=? AND raw_score IS NOT NULL
           ON CONFLICT(user_id,stamp) DO NOTHING
         `,
             stamp,
+            now,
             attempt.id,
           ),
         ])
@@ -520,6 +584,8 @@ async function adjust(db, context, body, ownerId, now) {
   const { event } = context;
   if (event.owner_id !== ownerId)
     throw new HttpError("I punti li gestisce chi organizza l’evento.", 403);
+  if (event.status === "archived")
+    throw new HttpError("Questa edizione è conclusa.", 409);
   const kind = body?.kind,
     userId = safeText(body?.userId, 64, true);
   const reason = safeText(body?.reason, 300, true);
@@ -531,54 +597,64 @@ async function adjust(db, context, body, ownerId, now) {
   ) {
     throw new HttpError("Scegli un’azione e indica da 1 a 1000 punti.");
   }
-  const entry = await first(
+  const member = await first(
     db,
-    `SELECT 1 FROM competition_entries c
-     JOIN members m ON m.event_id=c.event_id AND m.user_id=c.user_id AND m.status='approved'
-     WHERE c.event_id=? AND c.user_id=?`,
+    "SELECT 1 FROM members WHERE event_id=? AND user_id=? AND status='approved'",
     event.id,
     userId,
   );
-  if (!entry)
-    throw new HttpError("La persona non è iscritta alla classifica.", 404);
+  if (!member)
+    throw new HttpError(
+      "La persona non ha un’iscrizione approvata all’evento.",
+      404,
+    );
   const delta = kind === "subtract" ? -points : points;
   const update =
     kind === "reset"
       ? stmt(
           db,
           `
-      UPDATE competition_entries SET adjustment=-(SELECT COALESCE(SUM(best),0) FROM (
-        SELECT MAX(score) AS best FROM competition_attempts
-        WHERE event_id=? AND user_id=? AND duel_id='' GROUP BY game
-      )) WHERE event_id=? AND user_id=?
+      INSERT INTO competition_entries(event_id,user_id,adjustment)
+      SELECT e.id,?, -(SELECT COALESCE(SUM(best),0) FROM (
+          SELECT MAX(score) AS best FROM competition_attempts
+          WHERE event_id=e.id AND user_id=? AND duel_id='' GROUP BY game
+        )) - ${stampCountSql("?", seasonEndSql)}
+      FROM events e WHERE e.id=? AND e.status<>'archived'
+      ON CONFLICT(event_id,user_id) DO UPDATE SET adjustment=excluded.adjustment
     `,
-          event.id,
           userId,
-          event.id,
           userId,
+          userId,
+          ...collectibleStamps,
+          event.id,
         )
       : stmt(
           db,
-          "UPDATE competition_entries SET adjustment=adjustment+? WHERE event_id=? AND user_id=?",
+          `INSERT INTO competition_entries(event_id,user_id,adjustment)
+          SELECT id,?,? FROM events WHERE id=? AND status<>'archived'
+          ON CONFLICT(event_id,user_id) DO UPDATE SET adjustment=adjustment+excluded.adjustment`,
+          userId,
           delta,
           event.id,
-          userId,
         );
-  await db.batch([
+  const [saved] = await db.batch([
     update,
     stmt(
       db,
-      "INSERT INTO competition_adjustments(id,event_id,user_id,owner_id,action,points,reason,created_at) VALUES(?,?,?,?,?,?,?,?)",
+      `INSERT INTO competition_adjustments(id,event_id,user_id,owner_id,action,points,reason,created_at)
+      SELECT ?,id,?,?,?,?,?,? FROM events WHERE id=? AND status<>'archived'`,
       id(),
-      event.id,
       userId,
       ownerId,
       kind,
       points,
       reason,
       now,
+      event.id,
     ),
   ]);
+  if (!saved.meta.changes)
+    throw new HttpError("Questa edizione è conclusa.", 409);
   return json({ leaderboard: await getLeaderboard(db, event) });
 }
 
@@ -590,15 +666,14 @@ async function createDuel(db, context, body, senderId, now) {
   const receiver = await first(
     db,
     `
-    SELECT 1 FROM members m JOIN competition_entries c ON c.event_id=m.event_id AND c.user_id=m.user_id
-    WHERE m.event_id=? AND m.user_id=? AND m.status='approved'
+    SELECT 1 FROM members WHERE event_id=? AND user_id=? AND status='approved'
   `,
     event.id,
     receiverId,
   );
   if (!receiver)
     throw new HttpError(
-      "Puoi sfidare chi è iscritto alle sfide di questo evento.",
+      "Puoi sfidare chi ha un’iscrizione approvata a questo evento.",
       403,
     );
   const duelId = id();
@@ -606,7 +681,7 @@ async function createDuel(db, context, body, senderId, now) {
     db,
     `
     INSERT INTO competition_duels(id,event_id,sender_id,receiver_id,questions,expires)
-    SELECT ?,?,?,?,?,? WHERE NOT EXISTS (
+    SELECT ?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM events WHERE id=? AND status<>'archived') AND NOT EXISTS (
       SELECT 1 FROM competition_duels
       WHERE event_id=? AND expires>?
         AND ((sender_id=? AND receiver_id=?) OR (sender_id=? AND receiver_id=?))
@@ -617,8 +692,9 @@ async function createDuel(db, context, body, senderId, now) {
     event.id,
     senderId,
     receiverId,
-    JSON.stringify(questionSet("duel")),
+    JSON.stringify(questionSet()),
     Math.min(now + 2 * DAY, yearEnd(year)),
+    event.id,
     event.id,
     now,
     senderId,
@@ -632,12 +708,26 @@ async function createDuel(db, context, body, senderId, now) {
 }
 
 export async function competitionRoute(request, env, path, body, user) {
-  const parts = path.match(/^\/api\/competition\/([^/]+)(?:\/([^/]+))?$/);
+  const parts = path.match(
+    /^\/api\/competition\/([^/]+)(?:\/([^/]+))?(?:\/([^/]+))?$/,
+  );
   if (!parts) throw new HttpError("Questa pagina non esiste.", 404);
-  const [, eventId, action] = parts;
+  const [, eventId, action, duelId] = parts;
   const db = env.DB,
     now = Date.now();
   const context = await access(db, eventId, user.id);
+  if (action === "tris-duels")
+    return trisDuelsRoute(
+      request,
+      db,
+      context,
+      duelId,
+      body,
+      user.id,
+      now,
+      yearEnd(context.year),
+    );
+  if (duelId) throw new HttpError("Questa pagina non esiste.", 404);
   if (request.method === "GET" && !action)
     return board(db, context, user.id, now);
   if (request.method !== "POST")
@@ -647,14 +737,12 @@ export async function competitionRoute(request, env, path, body, user) {
   if (action === "join") {
     await run(
       db,
-      "INSERT INTO competition_entries(event_id,user_id) VALUES(?,?) ON CONFLICT DO NOTHING",
-      context.event.id,
+      "INSERT INTO competition_entries(event_id,user_id) SELECT id,? FROM events WHERE id=? AND status<>'archived' ON CONFLICT DO NOTHING",
       user.id,
+      context.event.id,
     );
     return json({ joined: true });
   }
-  if (!context.entry)
-    throw new HttpError("Iscriviti alle sfide del gruppo per giocare.", 403);
   if (action === "start") return startGame(db, context, body, user.id, now);
   if (action === "action") return gameAction(db, context, body, user.id, now);
   if (action === "duels") return createDuel(db, context, body, user.id, now);
