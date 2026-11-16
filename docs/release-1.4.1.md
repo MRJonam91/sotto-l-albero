@@ -12,10 +12,10 @@ Il rilascio comprende il catalogo completo e il tris della 1.4.0, i collegamenti
 - [x] Aggiungere la migrazione 0015, che attiva una volta l’email per tutti gli account esistenti, come richiesto. Le successive disattivazioni restano possibili; Telegram mantiene lo stato scelto dalla persona.
 - [x] Correggere la pulizia delle notifiche: conservare la traccia degli avvisi di estrazione per impedirne il reinvio dopo 32 giorni.
 - [x] Eseguire test unitari, test browser sull’istanza locale isolata, build e controllo del pacchetto Cloudflare.
-- [ ] Verificare account Cloudflare, Worker e database; registrare il bookmark Time Travel e conteggi aggregati prima delle migrazioni.
-- [ ] Applicare soltanto le migrazioni mancanti e verificare che iscrizioni, abbinamenti, allenamenti e punteggi siano conservati.
-- [ ] Pubblicare la versione e verificare manifest, pagine, cache, asset e traffico attivo.
-- [ ] Registrare commit, esiti e identificativo della versione effettivamente pubblicata.
+- [x] Verificare account Cloudflare, Worker e database; registrare il bookmark Time Travel e conteggi aggregati prima delle migrazioni.
+- [x] Applicare soltanto le migrazioni mancanti e verificare che iscrizioni, abbinamenti, allenamenti e punteggi siano conservati.
+- [x] Pubblicare la versione e verificare manifest, pagine, cache, asset e traffico attivo.
+- [x] Registrare commit, esiti e identificativo della versione effettivamente pubblicata.
 
 ## Database e notifiche
 
@@ -36,6 +36,19 @@ I test locali usano account fittizi e touch emulato. Non dimostrano un collaudo 
 - Build e pacchetto Cloudflare di prova riusciti; 54 asset, senza le altre sette demo. Nessuna vulnerabilità rilevata da `npm audit --audit-level=high`.
 - Revisione indipendente del controller e dei fix a inviti, ruoli, lettera e notifiche completata. Corretto il conflitto fra il messaggio del curling e lo stile globale dei badge.
 
+## Pubblicazione verificata
+
+- Sito: https://sottolalbero.gifts · attivazione: 16 novembre 2026, 20:38 UTC, al 100% del traffico.
+- Commit del codice: `81d5d2f16835fecc38e8ff1875fa6b7e805adcf3`; PR #1 integrata su `main` con merge `bf30b7d15b7335a1df6895bcdc6cb8e020691ed6`.
+- Manifest online: versione `1.4.1`, build `5ea85801-e0ec-48ad-a8dc-ed29fbaf12c5`.
+- Versione Worker: `997d2e57-6d7d-487a-ac27-f5d89f940ebe`; deployment `c02b86e4-9bdd-472c-96ff-11a9b99885da`.
+- Applicate soltanto le migrazioni 0013, 0014 e 0015; nessuna migrazione remota residua. Bookmark e confronti aggregati conservati nella cartella privata `.wrangler`, esclusa da Git.
+- Confronti prima/dopo migrazione e dopo deploy: conteggi di undici tabelle, stati dei membri, versioni degli abbinamenti, numero/completamento/dimensione degli allenamenti e totali dei punteggi invariati; stato di Telegram invariato ed email attive per tutti gli account presenti.
+- Dieci percorsi pubblici verificati con `Cache-Control: no-store`; JavaScript principale e asset del curling identici alla build locale tramite SHA-256, con cache immutabile sui nomi derivati dal contenuto. API anonima in modalità produzione, servizio email configurato, nessun codice di sviluppo esposto.
+- GitHub non ha restituito esecuzioni CI per il rilascio: le evidenze dei test sopra indicate sono locali, separate dalla pubblicazione e dalla verifica remota.
+
 ## English
 
 Release 1.4.1 promotes only the approved curling game alongside the ready catalog, tic-tac-toe and event fixes. Curling is a local friendly match or computer practice, loaded separately and excluded from event rankings. Migration 0015 enables email once for existing accounts while preserving Telegram and later opt-outs. Durable draw-notification records prevent duplicate messages after cleanup. Live deployment, migration preservation and cache verification must be recorded separately from local tests.
+
+Published and independently checked on 16 November 2026 at 20:38 UTC with 100% traffic. Remote build matches the exact local manifest and asset hashes. All three pending migrations were applied; before/after aggregate checks preserved membership, assignments, practice state and scores. All ten checked HTML/manifest routes return `no-store`. GitHub returned no CI runs; the 134 unit/integration and 33 browser checks were run locally.
