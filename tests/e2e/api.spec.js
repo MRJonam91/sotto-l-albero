@@ -451,7 +451,17 @@ test("Il cron estrae senza browser e un annullamento vecchio non cambia la nuova
       })
     ).ok(),
   ).toBeTruthy();
-  expect((await admin.get("/cdn-cgi/local/scheduled")).ok()).toBeTruthy();
+  // Invoke the simulator directly: asset SPA fallback can return HTML 200 at
+  // the old scheduled URL without invoking a single scheduled handler.
+  const scheduled = await admin.post(
+    "/cdn-cgi/local/explorer/api/local/scheduled?worker=sotto-l-albero",
+    { data: { cron: "* * * * *" } },
+  );
+  expect(scheduled.ok(), await scheduled.text()).toBeTruthy();
+  expect(await scheduled.json()).toMatchObject({
+    success: true,
+    result: { outcome: "ok" },
+  });
   await expect
     .poll(
       async () =>

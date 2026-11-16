@@ -34,6 +34,7 @@ import { stamps } from "../shared/stamps.js";
 import { version } from "../package.json";
 import AppUpdateNotice from "./AppUpdateNotice.jsx";
 import InviteNotificationHint from "./InviteNotificationHint.jsx";
+import EventShortcuts from "./EventShortcuts.jsx";
 const ProfileSettings = lazy(() => import("./ProfileSettings.jsx"));
 
 const sectionPaths = {
@@ -41,9 +42,20 @@ const sectionPaths = {
   wishes: "/desideri",
   archive: "/archivio",
   games: "/giochi",
+  challenges: "/sfide",
+  reveal: "/nome",
   profile: "/profilo",
   rules: "/regolamento",
 };
+const shortcutTabs = { challenges: "competition", reveal: "reveal" };
+function currentEventId() {
+  return (
+    location.pathname.match(/^\/events\/([^/]+)$/)?.[1] ||
+    (["/sfide", "/nome"].includes(location.pathname)
+      ? new URLSearchParams(location.search).get("event")
+      : null)
+  );
+}
 function currentSection() {
   return (
     Object.keys(sectionPaths).find(
@@ -75,8 +87,10 @@ export default function App() {
   const [session, setSession] = useState(null),
     [loading, setLoading] = useState(true),
     [events, setEvents] = useState([]),
-    [eventId, setEventId] = useState(
-      () => location.pathname.match(/^\/events\/([^/]+)$/)?.[1] || null,
+    [eventsReady, setEventsReady] = useState(false),
+    [eventId, setEventId] = useState(currentEventId),
+    [eventTab, setEventTab] = useState(
+      () => requestedEventTab() ?? history.state?.eventTab,
     ),
     [section, setSection] = useState(currentSection),
     [create, setCreate] = useState(false),
@@ -92,8 +106,12 @@ export default function App() {
   const token = location.pathname.match(/^\/invite\/([^/]+)$/)?.[1];
   const collection = useStampCollection(session?.user?.id);
   const loadEvents = useCallback(async () => {
-    const r = await api("/events");
-    setEvents(r.events);
+    try {
+      const r = await api("/events");
+      setEvents(r.events);
+    } finally {
+      setEventsReady(true);
+    }
   }, []);
   useEffect(() => {
     api("/me")
@@ -150,14 +168,30 @@ export default function App() {
     }
   }
   function openEvent(id, eventTab) {
+    const nextTab = eventTab ?? (section === "wishes" ? "wishlist" : undefined);
     setEventId(id);
-    history.pushState({ eventTab, section }, "", `/events/${id}`);
+    setEventTab(nextTab);
+    setSection("events");
+    const url = new URL(`/events/${id}`, location.origin);
+    if (nextTab) url.searchParams.set("tab", nextTab);
+    history.pushState({ eventTab: nextTab, section: "events" }, "", url);
     focusMain();
+  }
+  function selectShortcut(id, replace = false) {
+    setEventId(id);
+    const url = new URL(sectionPaths[section], location.origin);
+    if (id) url.searchParams.set("event", id);
+    history[replace ? "replaceState" : "pushState"]({}, "", url);
+    if (!replace) focusMain();
   }
   function navigate(next) {
     setSection(next);
-    setEventId(null);
-    history.pushState({}, "", sectionPaths[next]);
+    const id = shortcutTabs[next] ? eventId : null;
+    setEventId(id);
+    setEventTab(shortcutTabs[next]);
+    const url = new URL(sectionPaths[next], location.origin);
+    if (id) url.searchParams.set("event", id);
+    history.pushState({}, "", url);
     focusMain();
     if (session?.user && next !== "games" && next !== "profile")
       loadEvents().catch((e) => setError(e.message));
@@ -168,7 +202,8 @@ export default function App() {
   }
   useEffect(() => {
     const back = () => {
-      setEventId(location.pathname.match(/^\/events\/([^/]+)$/)?.[1] || null);
+      setEventId(currentEventId());
+      setEventTab(requestedEventTab() ?? history.state?.eventTab);
       setSection(currentSection());
     };
     addEventListener("popstate", back);
@@ -209,18 +244,32 @@ export default function App() {
                 I desideri
               </button>
               <button
-                className={section === "archive" ? "selected" : ""}
-                aria-current={section === "archive" ? "page" : undefined}
-                onClick={() => navigate("archive")}
-              >
-                Archivio
-              </button>
-              <button
                 className={section === "games" ? "selected" : ""}
                 aria-current={section === "games" ? "page" : undefined}
                 onClick={() => navigate("games")}
               >
                 Giochi
+              </button>
+              <button
+                className={section === "challenges" ? "selected" : ""}
+                aria-current={section === "challenges" ? "page" : undefined}
+                onClick={() => navigate("challenges")}
+              >
+                Sfide
+              </button>
+              <button
+                className={section === "reveal" ? "selected" : ""}
+                aria-current={section === "reveal" ? "page" : undefined}
+                onClick={() => navigate("reveal")}
+              >
+                Nome segreto
+              </button>
+              <button
+                className={section === "archive" ? "selected" : ""}
+                aria-current={section === "archive" ? "page" : undefined}
+                onClick={() => navigate("archive")}
+              >
+                Archivio
               </button>
             </nav>
           ) : (
@@ -378,6 +427,18 @@ export default function App() {
                     setSession((s) => ({ ...s, user }));
                   }}
                 />
+              ) : shortcutTabs[section] ? (
+                <EventShortcuts
+                  events={events}
+                  loading={!eventsReady}
+                  selectedId={eventId}
+                  target={shortcutTabs[section]}
+                  user={session.user}
+                  onSelect={selectShortcut}
+                  onOverview={openEvent}
+                  onChange={loadEvents}
+                  onStamp={collection.collect}
+                />
               ) : eventId ? (
                 <>
                   <button
@@ -389,11 +450,10 @@ export default function App() {
                     <ArrowLeft size={16} /> Tutti gli eventi
                   </button>
                   <Event
-                    key={eventId}
+                    key={`${eventId}:${eventTab || "overview"}`}
                     id={eventId}
                     initialTab={
-                      requestedEventTab() ??
-                      history.state?.eventTab ??
+                      eventTab ??
                       (section === "wishes" ? "wishlist" : "overview")
                     }
                     user={session.user}
@@ -434,6 +494,8 @@ export default function App() {
                 <HolidayGames
                   key={session.user.id}
                   collection={collection}
+                  events={events}
+                  onCompete={() => navigate("challenges")}
                   onAlbum={() => navigate("profile")}
                   onGroups={() => navigate("events")}
                   onDiscover={discover}

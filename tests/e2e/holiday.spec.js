@@ -262,7 +262,9 @@ test("Caccia, quiz e memory su telefono salvano i timbri nel profilo", async ({
   await expect(page.getByText("4 di 12 timbri", { exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "Giochi", exact: true }).click();
-  await page.getByRole("button", { name: "Quiz di Natale" }).click();
+  await page
+    .getByRole("button", { name: "Quiz di Natale", exact: true })
+    .click();
   await checkLayout();
   await checkAccessibility();
   const answers = [
@@ -285,7 +287,9 @@ test("Caccia, quiz e memory su telefono salvano i timbri nel profilo", async ({
   await page.getByRole("button", { name: "Raccogli il timbro" }).click();
   await expect(page.getByRole("status")).toContainText("Maestro del quiz");
 
-  await page.getByRole("button", { name: "Memory di Natale" }).click();
+  await page
+    .getByRole("button", { name: "Memory di Natale", exact: true })
+    .click();
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await checkLayout();
   const memory = page.locator(".memory-grid");
@@ -387,7 +391,7 @@ test("I giochi richiedono un posto confermato e chiudono l’accesso dopo la rim
 }) => {
   await page.goto("/giochi");
   await expect(
-    page.getByRole("button", { name: "Memory di Natale" }),
+    page.getByRole("button", { name: "Memory di Natale", exact: true }),
   ).toHaveCount(0);
   expect((await page.request.get("/api/practice/access")).status()).toBe(401);
   await signIn(page.request, `giochi-${Date.now()}@example.test`);
@@ -404,12 +408,12 @@ test("I giochi richiedono un posto confermato e chiudono l’accesso dopo la rim
     ).status(),
   ).toBe(403);
   await expect(
-    page.getByRole("button", { name: "Memory di Natale" }),
+    page.getByRole("button", { name: "Memory di Natale", exact: true }),
   ).toHaveCount(0);
   await change("approved");
   await page.reload();
   await expect(
-    page.getByRole("button", { name: "Memory di Natale" }),
+    page.getByRole("button", { name: "Memory di Natale", exact: true }),
   ).toBeVisible();
   await change("removed");
   expect(await access()).toEqual({ allowed: false });

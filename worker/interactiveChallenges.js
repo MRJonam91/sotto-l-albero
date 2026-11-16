@@ -1,4 +1,9 @@
 import { HttpError } from "./security.js";
+import {
+  evaluateBoard,
+  playMove,
+  chooseBotMove,
+} from "../shared/snowTicTacToe.js";
 
 const beltWaves = 8;
 const legacyBeltTime = 9_000;
@@ -77,6 +82,8 @@ const rooms = [
 ];
 
 export function newInteractiveChallenge(game) {
+  if (game === "tris")
+    return { interactive: "tris", board: Array(9).fill(null) };
   if (game === "cartolina")
     return {
       interactive: "escape",
@@ -113,6 +120,13 @@ function canUnlock(state, room) {
 }
 
 export function publicInteractiveChallenge(state, now) {
+  if (state.interactive === "tris")
+    return {
+      type: "tris",
+      board: state.board,
+      myMark: "X",
+      ...evaluateBoard(state.board),
+    };
   if (state.interactive === "escape") {
     const room = state.rooms[state.room];
     const notes = room.objects
@@ -268,6 +282,24 @@ function turnBelt(state, body, now, shuffle) {
 }
 
 export function turnInteractiveChallenge(state, body, now, shuffle) {
+  if (state.interactive === "tris") {
+    try {
+      let board = playMove(state.board, body.position, "X");
+      if (!evaluateBoard(board).done)
+        board = playMove(board, chooseBotMove(board, shuffle), "O");
+      state.board = board;
+      const result = evaluateBoard(board);
+      return !result.done
+        ? null
+        : result.winner === "X"
+          ? 100
+          : result.draw
+            ? 50
+            : 0;
+    } catch (error) {
+      throw new HttpError(error.message);
+    }
+  }
   return state.interactive === "escape"
     ? turnRoom(state, body)
     : turnBelt(state, body, now, shuffle);

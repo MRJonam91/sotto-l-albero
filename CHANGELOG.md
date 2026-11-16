@@ -1,5 +1,13 @@
 # Sotto l’Albero
 
+## 1.4.0
+
+- Sfide e Nome segreto sono raggiungibili dal menu principale, con selezione dello scambio e percorsi diretti che funzionano anche dopo un aggiornamento della pagina.
+- Giochi riunisce l’allenamento per tutti i sei giochi a punti, senza consumare tentativi o modificare la classifica.
+- Tris sulla neve: una griglia condivisa tra due partecipanti confermati, turni e mosse verificati dal server, partite amichevoli di due giorni. Allenamento separato contro il computer.
+- I sei menu restano utilizzabili anche a 320 pixel; le iscrizioni in attesa non aprono le sfide o il nome segreto.
+- Main-menu shortcuts, a unified practice catalog and shared-board snow tic-tac-toe with separate computer practice. Existing ranked scores and attempts are preserved.
+
 ## 1.3.3
 
 - Le email degli scambi sono attive per i nuovi account, anche quando preparati da chi organizza. Una successiva disattivazione viene conservata.

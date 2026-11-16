@@ -31,7 +31,7 @@ npm test
 npm run build
 npx playwright install chromium
 npx wrangler d1 migrations apply DB --local --persist-to .wrangler/e2e
-npx wrangler dev --ip 127.0.0.1 --port 8790 --persist-to .wrangler/e2e --env-file .dev.vars.example --var APP_URL:http://127.0.0.1:8790
+npx wrangler dev --test-scheduled --ip 127.0.0.1 --port 8790 --persist-to .wrangler/e2e --env-file .dev.vars.example --var APP_URL:http://127.0.0.1:8790
 # In un altro terminale, con il server attivo:
 npm run test:e2e
 ```
@@ -46,7 +46,7 @@ Le prove end-to-end creano gruppi fittizi nel database isolato `.wrangler/e2e`. 
 4. Salvare l’indirizzo del gestore con `npx wrangler secret put ADMIN_EMAILS` e configurare `APP_URL` con l’URL definitivo HTTPS. Per più organizzatori separare le email con una virgola.
 5. Configurare il mittente verificato secondo le indicazioni del servizio email. Salvare la chiave con `npx wrangler secret put RESEND_API_KEY`; configurare `MAIL_FROM` con il mittente autorizzato.
 6. Preparare e verificare il pacchetto con `npm run build` e `npx wrangler deploy --dry-run --outdir .wrangler/deploy-check`.
-7. Dopo aver verificato il database di destinazione, esportarne una copia e applicare lo schema con `npx wrangler d1 migrations apply DB --remote`.
+7. Dopo aver verificato il database di destinazione, conservare il punto di ripristino restituito da `npx wrangler d1 time-travel info DB --json`, oppure una copia privata autorizzata. Applicare lo schema con `npx wrangler d1 migrations apply DB --remote`.
 8. Pubblicare con `npm run deploy`.
 9. Verificare accesso via email, invito con un altro account, approvazione, accesso ai giochi e una prima estrazione.
 
@@ -64,11 +64,15 @@ Le pagine di riepilogo si ricaricano automaticamente con un URL che evita le vec
 
 Le idee non ancora implementate sono in [Desideri e sfide](docs/design/2026-11-12-desideri-e-sfide.md).
 
+Le [cinque avventure rielaborate](docs/prototypes/2026-11-avventure/README.md) hanno anteprime giocabili separate dal prodotto. La [verifica 1.4.0](docs/release-1.4.0.md) distingue controlli locali e pubblicazione. / The five revised playable adventures remain review prototypes; the release note separates local verification from deployment.
+
 ## Account, classifica e Telegram
 
 Ci si registra dalla home o da un invito con nome ed email. Chi organizza può aggiungere una persona usando gli stessi due dati. La persona entra con il codice ricevuto via email e il suo profilo resta invariato se ha già un account. Il telefono è facoltativo nel profilo. Gli avvisi Telegram usano la chat privata collegata dal profilo.
 
 La sezione **Giochi** è dedicata all’allenamento. Nel tuo Secret Santa, apri **Sfide e classifica** per fare punti con Quiz, Memory 4×4 e quattro prove ufficiali (Pacchi smarriti, Sacco della slitta, La cartolina scomparsa e Prendi i pacchi). Ogni prova ammette tre tentativi, con pesi del 100%, 95% e 90%. Conta il risultato pesato migliore. Puoi invitare a un duello amichevole chiunque abbia un posto confermato nel tuo scambio.
+
+In **Giochi** trovi tutti i sei giochi anche in allenamento: le partite libere non consumano tentativi e non cambiano i punti. Il **Tris sulla neve** aggiunge un allenamento contro il computer e partite amichevoli su una sola griglia condivisa tra due membri confermati dello stesso gruppo. Le mosse e i turni sono verificati dal server; una partita dura al massimo due giorni e non assegna punti. Le voci **Sfide** e **Nome segreto** nel menu aprono direttamente lo scambio, oppure chiedono quale scegliere se ne hai più di uno.
 
 La classifica mostra ogni partecipante confermato, anche a zero. I timbri personali della caccia valgono 5 punti ciascuno in ogni gruppo a cui partecipi, una sola volta per timbro. Quelli trovati dopo la chiusura non cambiano il risultato dell’edizione. I timbri di Quiz e Memory sono ricordi della partita. Chi organizza può correggere i punti, indicando il motivo. L’azzeramento mantiene i tentativi usati. Da telefono puoi scorrere le clessidre o scegliere la lista. L’album conserva le sorprese già scoperte.
 
@@ -89,6 +93,8 @@ La migrazione della classifica assegna i vecchi punteggi al primo scambio idoneo
 Register from the home page or an invitation with a name and email address. Event owners can add participants with the same two fields. The phone number is optional in the profile. Telegram notifications use the private chat linked from the profile.
 
 Confirmed members can play the quiz, 4×4 Memory and four official puzzles in their exchange. The group leaderboard lists every confirmed member, including zero scores. Ranked games count the best of three attempts weighted at 100%, 95% and 90%. Each distinct treasure-hunt stamp adds five points to the group leaderboard. The practice page, game stamps and friendly duels are separate from ranked scores. Owners can adjust scores with an audit reason. The mobile hourglass view scrolls horizontally and has a list option. Discovered stories can be reopened from the stamp album.
+
+The Games page now includes practice for all six ranked games without consuming attempts or changing scores. Snow tic-tac-toe offers computer practice and friendly games on one shared board between two confirmed group members. The server validates moves and turns; games expire after two days and award no points. Challenges and Secret Name are directly reachable from the main menu, with an exchange picker when needed.
 
 Create a bot with BotFather. Configure `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME` and `TELEGRAM_WEBHOOK_SECRET` as secrets. Set the HTTPS webhook to `/api/telegram/webhook` with the matching secret. Participants link their own private chat from the profile. The organizer gets batched join requests and setup reminders. Draw notices link to the event. WhatsApp sharing uses copied invitation links.
 

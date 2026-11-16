@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { Button, Field, Notice } from "./ui.jsx";
 import { EscapeRoom, ParcelBelt } from "./InteractiveChallenges.jsx";
+import SnowTicTacToe from "./SnowTicTacToe.jsx";
 import "./challenge-board.css";
 
 const art = {
@@ -453,6 +454,8 @@ function Ordering({ challenge, onMove, busy }) {
 const games = { match: Match, pack: Pack, cipher: Cipher, order: Ordering };
 
 export default function CompetitionChallenge({ challenge, onMove, busy }) {
+  if (challenge.type === "tris")
+    return <SnowTicTacToe challenge={challenge} onMove={onMove} busy={busy} />;
   if (challenge.type === "escape")
     return <EscapeRoom challenge={challenge} onMove={onMove} busy={busy} />;
   if (challenge.type === "catch")

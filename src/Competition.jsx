@@ -4,6 +4,7 @@ import { api } from "./api.js";
 import CompetitionChallenge from "./CompetitionChallenge.jsx";
 import FestivalLeaderboard from "./FestivalLeaderboard.jsx";
 import MemoryBoard from "./MemoryBoard.jsx";
+import SnowDuelPanel from "./SnowDuelPanel.jsx";
 import { Button, Field, Modal, Notice } from "./ui.jsx";
 import "./competition.css";
 
@@ -355,6 +356,15 @@ export default function Competition({ event, user, members = [], onStamp }) {
       )}
       {board && (
         <>
+          {board.canPlay && !attempt && (
+            <SnowDuelPanel
+              key={`${user.id}:${event.id}`}
+              eventId={event.id}
+              userId={user.id}
+              opponents={opponents}
+              closed={board.closed}
+            />
+          )}
           {!board.canPlay && !board.closed && (
             <p>
               Puoi consultare la classifica. Per giocare, devi avere

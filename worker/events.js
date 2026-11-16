@@ -38,6 +38,7 @@ function outputEvent(e, user, count) {
     version: e.version,
     historyDepth: e.history_depth,
     isAdmin: e.owner_id === user.id,
+    membership: e.membership ?? null,
     groupName: e.group_name,
     memberCount: count,
     error: e.error,
@@ -256,7 +257,7 @@ export async function eventRoute(request, env, path, body, user) {
     if (method === "GET") {
       const rows = await all(
         db,
-        "SELECT DISTINCT e.*,g.name AS group_name,(SELECT COUNT(*) FROM members x WHERE x.event_id=e.id AND x.status='approved') AS member_count FROM events e JOIN groups g ON g.id=e.group_id LEFT JOIN members m ON m.event_id=e.id AND m.user_id=? AND m.status!='removed' WHERE e.owner_id=? OR m.id IS NOT NULL ORDER BY e.created_at DESC",
+        "SELECT DISTINCT e.*,g.name AS group_name,m.status AS membership,(SELECT COUNT(*) FROM members x WHERE x.event_id=e.id AND x.status='approved') AS member_count FROM events e JOIN groups g ON g.id=e.group_id LEFT JOIN members m ON m.event_id=e.id AND m.user_id=? AND m.status!='removed' WHERE e.owner_id=? OR m.id IS NOT NULL ORDER BY e.created_at DESC",
         user.id,
         user.id,
       );

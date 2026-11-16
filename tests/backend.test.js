@@ -19,6 +19,8 @@ function database() {
     "0010_avatar_storage.sql",
     "0011_avatar_thumbnail.sql",
     "0012_stamp_ranking_cutoff.sql",
+    "0013_practice_catalog.sql",
+    "0014_tris_duels.sql",
   ])
     sql.exec(
       readFileSync(new URL(`../migrations/${file}`, import.meta.url), "utf8"),
@@ -123,6 +125,48 @@ beforeEach(() => {
 });
 
 describe("API privata", () => {
+  it("restituisce solo la propria iscrizione nell’elenco per i collegamenti diretti", async () => {
+    const owner = await login("owner-shortcuts@example.test");
+    const member = await login("member-shortcuts@example.test");
+    const e = await event(owner);
+    expect(
+      (
+        await api(
+          `/events/${e.id}/join`,
+          "POST",
+          { token: e.inviteToken },
+          member,
+        )
+      ).status,
+    ).toBe(200);
+    const pending = (
+      await api("/events", "GET", null, member)
+    ).data.events.find((row) => row.id === e.id);
+    expect(pending.membership).toBe("pending");
+    await env.DB.prepare(
+      "UPDATE members SET status='approved' WHERE event_id=?",
+    )
+      .bind(e.id)
+      .run();
+    expect(
+      (await api("/events", "GET", null, member)).data.events.find(
+        (row) => row.id === e.id,
+      ).membership,
+    ).toBe("approved");
+    const owned = (await api("/events", "GET", null, owner)).data.events.find(
+      (row) => row.id === e.id,
+    );
+    expect(owned.membership).toBe(null);
+    expect(owned.isAdmin).toBe(true);
+    await env.DB.prepare("UPDATE members SET status='removed' WHERE event_id=?")
+      .bind(e.id)
+      .run();
+    expect(
+      (await api("/events", "GET", null, member)).data.events.some(
+        (row) => row.id === e.id,
+      ),
+    ).toBe(false);
+  });
   it("riapre gli inviti dei membri dopo chiusura, estrazione e archivio senza riaprire le iscrizioni", async () => {
     const owner = await login("owner@example.test");
     const approved = await login("approved@example.test");

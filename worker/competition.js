@@ -7,6 +7,8 @@ import {
   scoreOfficialChallenge,
 } from "../shared/officialChallenges.js";
 import { stamps } from "../shared/stamps.js";
+import { trisDuelsRoute } from "./trisDuels.js";
+import { gameDefinitions } from "../shared/gameCatalog.js";
 import {
   newInteractiveChallenge,
   publicInteractiveChallenge,
@@ -19,19 +21,14 @@ const QUESTION_TIME = 20_000;
 const isTimed = (game) => game === "quiz" || game === "duel";
 const multipliers = [1, 0.95, 0.9];
 const games = {
-  quiz: { name: "Quiz di Natale", points: 300 },
-  memory: { name: "Memory di Natale", points: 300 },
-  pacchi: { name: "Pacchi smarriti", points: 100 },
-  slitta: { name: "Sacco della slitta", points: 100 },
+  ...gameDefinitions,
   cartolina: {
-    name: "La cartolina scomparsa",
-    points: 100,
+    ...gameDefinitions.cartolina,
     edition: interactiveEdition,
     type: "escape",
   },
   addobbi: {
-    name: "Prendi i pacchi",
-    points: 100,
+    ...gameDefinitions.addobbi,
     edition: interactiveEdition,
     type: "catch",
   },
@@ -711,12 +708,26 @@ async function createDuel(db, context, body, senderId, now) {
 }
 
 export async function competitionRoute(request, env, path, body, user) {
-  const parts = path.match(/^\/api\/competition\/([^/]+)(?:\/([^/]+))?$/);
+  const parts = path.match(
+    /^\/api\/competition\/([^/]+)(?:\/([^/]+))?(?:\/([^/]+))?$/,
+  );
   if (!parts) throw new HttpError("Questa pagina non esiste.", 404);
-  const [, eventId, action] = parts;
+  const [, eventId, action, duelId] = parts;
   const db = env.DB,
     now = Date.now();
   const context = await access(db, eventId, user.id);
+  if (action === "tris-duels")
+    return trisDuelsRoute(
+      request,
+      db,
+      context,
+      duelId,
+      body,
+      user.id,
+      now,
+      yearEnd(context.year),
+    );
+  if (duelId) throw new HttpError("Questa pagina non esiste.", 404);
   if (request.method === "GET" && !action)
     return board(db, context, user.id, now);
   if (request.method !== "POST")
