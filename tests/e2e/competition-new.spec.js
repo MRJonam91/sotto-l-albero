@@ -415,7 +415,7 @@ test("Sfide aperte agli iscritti, duelli e bicchieri anche a zero punti", async 
     await expect(detail.getByText("Timbri distinti (1 × 5)")).toBeVisible();
     await expect(detail.getByText("5 punti", { exact: true })).toBeVisible();
     await expect(detail.getByText("100 punti", { exact: true })).toHaveCount(4);
-    await expect(detail.getByText("0 punti", { exact: true })).toHaveCount(1);
+    await expect(detail.getByText("0 punti", { exact: true })).toHaveCount(2);
     await expect(detail.getByText("300 punti", { exact: true })).toBeVisible();
     await expect(detail.getByText("705 punti", { exact: true })).toBeVisible();
     await page.keyboard.press("Escape");

@@ -6,6 +6,10 @@ import { quizQuestions } from "../shared/quizQuestions.js";
 import { practiceRoute } from "../worker/practice.js";
 import { eventRoute } from "../worker/events.js";
 import { stampRoute } from "../worker/stamps.js";
+import {
+  christmasMovies,
+  createMovieQuestions,
+} from "../shared/christmasMovies.js";
 
 const eventMigration = "0009_event_competition.sql";
 const stampMigration = "0012_stamp_ranking_cutoff.sql";
@@ -383,6 +387,7 @@ describe("competition", () => {
       scores: {
         quiz: 300,
         memory: 0,
+        film: 0,
         pacchi: 0,
         slitta: 0,
         cartolina: 0,
@@ -1128,7 +1133,11 @@ it("shows Quiz Duello outcomes and enforces a strictly one-time head-to-head rev
     a = await action(anna, a, { choice: stored[i].answer });
   }
   expect(a.done).toBe(true);
-  expect(a.review).toMatchObject({ oneTime: true, correctCount: 10, total: 10 });
+  expect(a.review).toMatchObject({
+    oneTime: true,
+    correctCount: 10,
+    total: 10,
+  });
   expect(a.review.opponent).toBeUndefined();
 
   // While waiting for Bea, Anna sees her own scorecard dots only and cannot open head-to-head review
@@ -1139,9 +1148,9 @@ it("shows Quiz Duello outcomes and enforces a strictly one-time head-to-head rev
     me: "correct",
     opponent: null,
   });
-  await expect(
-    api(anna, `/duels/${duelId}/review`, {}),
-  ).rejects.toMatchObject({ status: 409 });
+  await expect(api(anna, `/duels/${duelId}/review`, {})).rejects.toMatchObject({
+    status: 409,
+  });
 
   // Bea finishes second and receives the head-to-head review immediately (consumed once)
   for (let i = 0; i < stored.length; i++) {
@@ -1167,9 +1176,9 @@ it("shows Quiz Duello outcomes and enforces a strictly one-time head-to-head rev
   const beaBoard = await api(bea);
   expect(beaBoard.duels[0].reviewAvailable).toBe(false);
   expect(beaBoard.duels[0].reviewSeen).toBe(true);
-  await expect(
-    api(bea, `/duels/${duelId}/review`, {}),
-  ).rejects.toMatchObject({ status: 409 });
+  await expect(api(bea, `/duels/${duelId}/review`, {})).rejects.toMatchObject({
+    status: 409,
+  });
 
   // Anna sees the scorecard and can open the head-to-head review strictly ONCE
   const annaBoardBefore = await api(anna);
@@ -1191,21 +1200,94 @@ it("shows Quiz Duello outcomes and enforces a strictly one-time head-to-head rev
   });
 
   // Second attempt for Anna must fail (409) and board hides the review button
-  await expect(
-    api(anna, `/duels/${duelId}/review`, {}),
-  ).rejects.toMatchObject({ status: 409 });
+  await expect(api(anna, `/duels/${duelId}/review`, {})).rejects.toMatchObject({
+    status: 409,
+  });
   const annaBoardAfter = await api(anna);
   expect(annaBoardAfter.duels[0].reviewAvailable).toBe(false);
   expect(annaBoardAfter.duels[0].reviewSeen).toBe(true);
 
   // Unplayed duel expired cannot expose questions via review
-  const { duelId: unplayedId } = await api(owner, "/duels", { userId: bea.id }).catch(
-    () => api(anna, "/duels", { userId: bea.id }),
-  );
+  const { duelId: unplayedId } = await api(owner, "/duels", {
+    userId: bea.id,
+  }).catch(() => api(anna, "/duels", { userId: bea.id }));
   env.DB.sql
     .prepare("UPDATE competition_duels SET expires=0 WHERE id=?")
     .run(unplayedId);
   await expect(
     api(anna, `/duels/${unplayedId}/review`, {}),
   ).rejects.toMatchObject({ status: 409 });
+});
+
+describe("Indovina il film (100 film natalizi a icone)", () => {
+  it("ha un catalogo di esattamente 100 film natalizi unici con 5 icone ciascuno", () => {
+    expect(christmasMovies).toHaveLength(100);
+    const ids = new Set();
+    const titles = new Set();
+    for (const movie of christmasMovies) {
+      expect(typeof movie.id).toBe("string");
+      expect(movie.id.length).toBeGreaterThan(1);
+      expect(typeof movie.title).toBe("string");
+      expect(movie.title.length).toBeGreaterThan(1);
+      expect(Number.isInteger(movie.year)).toBe(true);
+      expect(movie.year).toBeGreaterThanOrEqual(1930);
+      expect(movie.year).toBeLessThanOrEqual(2026);
+      expect(Array.isArray(movie.icons)).toBe(true);
+      expect(movie.icons).toHaveLength(5);
+      for (const icon of movie.icons) {
+        expect(typeof icon).toBe("string");
+        expect(icon.length).toBeGreaterThan(0);
+      }
+      expect(typeof movie.note).toBe("string");
+      expect(movie.note.length).toBeGreaterThan(10);
+      ids.add(movie.id);
+      titles.add(movie.title);
+    }
+    expect(ids.size).toBe(100);
+    expect(titles.size).toBe(100);
+
+    const sample = createMovieQuestions(10);
+    expect(sample).toHaveLength(10);
+    for (const q of sample) {
+      expect(q.icons).toHaveLength(5);
+      expect(q.options).toHaveLength(4);
+      expect(new Set(q.options).size).toBe(4);
+      expect(q.answer).toBeGreaterThanOrEqual(0);
+      expect(q.answer).toBeLessThan(4);
+    }
+  });
+
+  it("assegna fino a 200 punti nelle sfide ufficiali con moltiplicatori 100%, 95%, 90% e timer da 20s", async () => {
+    let attempt = await start(anna, "film");
+    expect(attempt.game).toBe("film");
+    expect(attempt.total).toBe(10);
+    expect(attempt.timeLimit).toBe(20);
+    expect(attempt.question.icons).toHaveLength(5);
+    expect(typeof attempt.question.prompt).toBe("string");
+    expect(attempt.question.prompt.length).toBeGreaterThan(5);
+    expect(attempt.question.options).toHaveLength(4);
+    expect(attempt.question).not.toHaveProperty("answer");
+
+    const done1 = await completeQuiz(anna, attempt, true);
+    expect(done1).toMatchObject({ done: true, rawScore: 200, score: 200 });
+    expect(done1.review.items[0]).toMatchObject({
+      icons: attempt.question.icons,
+      prompt: attempt.question.prompt,
+    });
+
+    const done2 = await completeQuiz(anna, await start(anna, "film"), true);
+    expect(done2).toMatchObject({ done: true, rawScore: 200, score: 190 });
+
+    const done3 = await completeQuiz(anna, await start(anna, "film"), true);
+    expect(done3).toMatchObject({ done: true, rawScore: 200, score: 180 });
+
+    await expect(start(anna, "film")).rejects.toMatchObject({ status: 409 });
+    const board = await api(owner);
+    expect(
+      board.leaderboard.find((row) => row.userId === anna.id),
+    ).toMatchObject({
+      score: 200,
+      scores: { film: 200 },
+    });
+  });
 });

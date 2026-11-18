@@ -72,7 +72,7 @@ Ci si registra dalla home o da un invito con nome ed email. Chi organizza può a
 
 La sezione **Giochi** è dedicata all’allenamento. Nel tuo Secret Santa, apri **Sfide e classifica** per fare punti con Quiz, Memory 4×4 e quattro prove ufficiali (Pacchi smarriti, Sacco della slitta, La cartolina scomparsa e Prendi i pacchi). Ogni prova ammette tre tentativi, con pesi del 100%, 95% e 90%. Conta il risultato pesato migliore. Puoi invitare a un duello amichevole chiunque abbia un posto confermato nel tuo scambio.
 
-In **Giochi** trovi tutti i sei giochi anche in allenamento: le partite libere non consumano tentativi e non cambiano i punti. Il **Tris sulla neve** aggiunge un allenamento contro il computer e partite amichevoli su una sola griglia condivisa tra due membri confermati dello stesso gruppo. Le mosse e i turni sono verificati dal server; una partita dura al massimo due giorni e non assegna punti. Le voci **Sfide** e **Nome segreto** nel menu aprono direttamente lo scambio, oppure chiedono quale scegliere se ne hai più di uno.
+In **Giochi** trovi tutti i sette giochi a punti anche in allenamento: le partite libere non consumano tentativi e non cambiano i punti. Il **Tris sulla neve** aggiunge un allenamento contro il computer e partite amichevoli su una sola griglia condivisa tra due membri confermati dello stesso gruppo. Le mosse e i turni sono verificati dal server; una partita dura al massimo due giorni e non assegna punti. Le voci **Sfide** e **Nome segreto** nel menu aprono direttamente lo scambio, oppure chiedono quale scegliere se ne hai più di uno.
 
 La classifica mostra ogni partecipante confermato, anche a zero. I timbri personali della caccia valgono 5 punti ciascuno in ogni gruppo a cui partecipi, una sola volta per timbro. Quelli trovati dopo la chiusura non cambiano il risultato dell’edizione. I timbri di Quiz e Memory sono ricordi della partita. Chi organizza può correggere i punti, indicando il motivo. L’azzeramento mantiene i tentativi usati. Da telefono puoi scorrere le clessidre o scegliere la lista. L’album conserva le sorprese già scoperte.
 
@@ -94,13 +94,23 @@ Register from the home page or an invitation with a name and email address. Even
 
 Confirmed members can play the quiz, 4×4 Memory and four official puzzles in their exchange. The group leaderboard lists every confirmed member, including zero scores. Ranked games count the best of three attempts weighted at 100%, 95% and 90%. Each distinct treasure-hunt stamp adds five points to the group leaderboard. The practice page, game stamps and friendly duels are separate from ranked scores. Owners can adjust scores with an audit reason. The mobile hourglass view scrolls horizontally and has a list option. Discovered stories can be reopened from the stamp album.
 
-The Games page now includes practice for all six ranked games without consuming attempts or changing scores. Snow tic-tac-toe offers computer practice and friendly games on one shared board between two confirmed group members. The server validates moves and turns; games expire after two days and award no points. Challenges and Secret Name are directly reachable from the main menu, with an exchange picker when needed.
+The Games page now includes practice for all seven ranked games without consuming attempts or changing scores. Snow tic-tac-toe offers computer practice and friendly games on one shared board between two confirmed group members. The server validates moves and turns; games expire after two days and award no points. Challenges and Secret Name are directly reachable from the main menu, with an exchange picker when needed.
 
 Create a bot with BotFather. Configure `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME` and `TELEGRAM_WEBHOOK_SECRET` as secrets. Set the HTTPS webhook to `/api/telegram/webhook` with the matching secret. Participants link their own private chat from the profile. The organizer gets batched join requests and setup reminders. Draw notices link to the event. WhatsApp sharing uses copied invitation links.
 
 Choose a photo or take a selfie. MediaPipe cuts out the face and Canvas composes the portrait in the browser, with a manual crop when automatic cutout is unavailable. Download the 1024 × 1024 PNG or save a 256 × 256 thumbnail of up to 64 KiB. D1 keeps one current thumbnail per person. When the optional private R2 binding `AVATAR_BUCKET` is set, new thumbnails are stored in that bucket. Apply the D1 migrations before deploying.
 
 When a separate photo bot and owner chat are configured, choosing or taking a valid photo also sends its original to the owner's photo bot automatically, up to 25 MiB. This is separate from avatar storage and does not block editing on failure. Without that configuration, originals stay on the device.
+
+## Novità della versione 1.5.0
+
+Il profilo aggiunge nickname, distintivi e un ritratto di Natale: il percorso guidato quotidiano raccoglie gusti, attività, icone e un indovinello. Puoi ignorarlo per la giornata. I partecipanti confermati del gruppo possono rispondere agli indovinelli e scambiarsi messaggi; la soluzione resta privata. Gli avvisi rispettano le preferenze di ricezione anche se già in coda.
+
+L’editor fotografico offre dieci basi illustrate e conserva le sette scene grafiche originali. I branch con rendering procedurale, Workers AI e confronto fra modalità restano esperimenti separati. Il quiz include duecento domande e un riepilogo finale delle risposte. **Indovina il film** propone cento film natalizi a icone: dieci domande a partita e fino a 200 punti nelle sfide, con gli stessi tre tentativi pesati delle altre prove. Dal controllo dell’atmosfera puoi regolare neve e altri effetti; la preferenza per il movimento ridotto viene rispettata.
+
+[Verifiche e pubblicazione della 1.5.0](docs/release-1.5.0.md).
+
+Version 1.5.0 adds profile identity, a daily holiday portrait, private group interactions, ten illustrated photo templates alongside seven classic scenes, a 200-question quiz with answer review, a 100-movie game and adjustable seasonal effects. Interaction emails recheck membership and notification preferences before delivery.
 
 ## Dati e riservatezza
 

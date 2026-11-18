@@ -14,6 +14,13 @@ export const gameCatalog = [
     kind: "memory",
   },
   {
+    id: "film",
+    name: "Indovina il film",
+    description: "Riconosci il film di Natale dalla sequenza di icone.",
+    points: 200,
+    kind: "film",
+  },
+  {
     id: "pacchi",
     name: "Pacchi smarriti",
     description: "Abbina i pacchi alle persone seguendo gli indizi.",

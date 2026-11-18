@@ -16,6 +16,7 @@ const views = {
 const scoreLabels = {
   quiz: "Quiz di Natale",
   memory: "Memory di Natale",
+  film: "Indovina il film",
   pacchi: "Pacchi smarriti",
   slitta: "Sacco della slitta",
   cartolina: "La cartolina scomparsa",

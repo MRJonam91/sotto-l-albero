@@ -1,6 +1,7 @@
 import { first, run } from "./auth.js";
 import { HttpError, json, token } from "./security.js";
 import { createMemoryDeck, memoryCardCount } from "../shared/memory.js";
+import { createMovieQuestions } from "../shared/christmasMovies.js";
 import { gameCatalog } from "../shared/gameCatalog.js";
 import {
   officialChallenge,
@@ -63,6 +64,13 @@ const questions = [
 function newState(game, now) {
   if (game === "quiz")
     return { index: 0, score: 0, questionDeadline: now + QUESTION_TIME };
+  if (game === "film")
+    return {
+      questions: createMovieQuestions(10, shuffled),
+      index: 0,
+      score: 0,
+      questionDeadline: now + QUESTION_TIME,
+    };
   if (game !== "memory") {
     const challenge = newInteractiveChallenge(game) ?? officialChallenge(game);
     if (!challenge)
@@ -78,7 +86,7 @@ function newState(game, now) {
 }
 
 function view(game, state, revision, now) {
-  if (game !== "quiz" && game !== "memory") {
+  if (game !== "quiz" && game !== "memory" && game !== "film") {
     const done = state.practiceScore !== undefined;
     return {
       revision,
@@ -105,6 +113,29 @@ function view(game, state, revision, now) {
         : null,
       ...(question
         ? { question: { title: question[0], options: question[1] } }
+        : { score: state.score }),
+    };
+  }
+  if (game === "film") {
+    const question = state.questions[state.index];
+    return {
+      revision,
+      done: !question,
+      index: state.index,
+      total: state.questions.length,
+      timeLimit: QUESTION_TIME / 1000,
+      timeRemaining: state.questionDeadline
+        ? Math.max(0, state.questionDeadline - now)
+        : null,
+      ...(question
+        ? {
+            question: {
+              title: question.text,
+              prompt: question.prompt,
+              icons: question.icons,
+              options: question.options,
+            },
+          }
         : { score: state.score }),
     };
   }
@@ -144,6 +175,47 @@ function advanceQuiz(state, choice, timeout, now) {
     choice,
     answer,
     text: `${choice === answer ? "Esatto!" : `La risposta è ${options[answer]}.`} ${note}`,
+  };
+}
+
+function advanceFilm(state, choice, timeout, now) {
+  const question = state.questions[state.index];
+  if (!state.questionDeadline)
+    throw new HttpError("Apri la domanda per continuare.", 409);
+  const expired = now >= state.questionDeadline;
+  state.questionDeadline = null;
+  const correctTitle = question.options[question.answer];
+  if (expired) {
+    state.index++;
+    return {
+      choice: -1,
+      answer: question.answer,
+      correct: false,
+      title: correctTitle,
+      year: question.year,
+      note: question.note,
+      text: `Tempo scaduto! Il film era ${correctTitle} (${question.year}). ${question.note}`,
+    };
+  }
+  if (timeout === true || choice === -1)
+    throw new HttpError("Hai ancora tempo per rispondere.", 409);
+  if (
+    !Number.isInteger(choice) ||
+    choice < 0 ||
+    choice >= question.options.length
+  )
+    throw new HttpError("Scegli una delle risposte.");
+  const correct = choice === question.answer;
+  state.index++;
+  if (correct) state.score++;
+  return {
+    choice,
+    answer: question.answer,
+    correct,
+    title: correctTitle,
+    year: question.year,
+    note: question.note,
+    text: `${correct ? "Esatto!" : `La risposta è ${correctTitle} (${question.year}).`} ${question.note}`,
   };
 }
 
@@ -204,7 +276,7 @@ export async function practiceRoute(request, env, path, body, user) {
     });
   }
   const match =
-    /^\/api\/practice\/(quiz|memory|pacchi|slitta|cartolina|addobbi|tris)\/(start|step)$/.exec(
+    /^\/api\/practice\/(quiz|memory|pacchi|slitta|cartolina|addobbi|tris|film)\/(start|step)$/.exec(
       path,
     );
   if (!match || request.method !== "POST")
@@ -262,7 +334,7 @@ export async function practiceRoute(request, env, path, body, user) {
       );
       current = await find();
     }
-    if (game === "quiz" && !current.done) {
+    if ((game === "quiz" || game === "film") && !current.done) {
       const state = JSON.parse(current.state);
       if (!state.questionDeadline) {
         state.questionDeadline = now + QUESTION_TIME;
@@ -292,6 +364,8 @@ export async function practiceRoute(request, env, path, body, user) {
   let feedback;
   if (game === "quiz")
     feedback = advanceQuiz(state, body.choice, body.timeout, now);
+  else if (game === "film")
+    feedback = advanceFilm(state, body.choice, body.timeout, now);
   else if (game === "memory") advanceMemory(state, body);
   else {
     const score = state.interactive

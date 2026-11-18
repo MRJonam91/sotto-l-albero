@@ -25,6 +25,7 @@ function database() {
     "0015_existing_email_notifications.sql",
     "0016_profile_identity_and_badges.sql",
     "0017_holiday_portrait_and_interactions.sql",
+    "0018_practice_film_catalog.sql",
   ])
     sql.exec(
       readFileSync(new URL(`../migrations/${file}`, import.meta.url), "utf8"),
@@ -1605,9 +1606,7 @@ describe("API privata", () => {
     expect(saved.status).toBe(200);
     expect(saved.data.portrait.tastes).toHaveLength(5);
     expect(saved.data.portrait.characterMatches).toHaveLength(6);
-    expect(
-      saved.data.portrait.characterMatches.map((c) => c.id),
-    ).toEqual(
+    expect(saved.data.portrait.characterMatches.map((c) => c.id)).toEqual(
       expect.arrayContaining([
         "grinch",
         "kevin",
@@ -1677,8 +1676,70 @@ describe("API privata", () => {
     const queuedMails = await env.DB.prepare(
       "SELECT COUNT(*) AS count FROM outbox WHERE email='kevin-ritratto@example.test'",
     ).first();
-    expect(queuedMails.count).toBeGreaterThanOrEqual(2);
+    expect(queuedMails.count).toBe(3);
   });
+
+  it.each(["optout", "membership"])(
+    "cancella la mail del ritratto se cambia %s prima dell’invio",
+    async (change) => {
+      const admin = await login("portrait-owner@example.test");
+      const member = await login("portrait-member@example.test");
+      const e = await event(admin);
+      await api(
+        `/events/${e.id}/join`,
+        "POST",
+        { token: e.inviteToken },
+        member,
+      );
+      await env.DB.prepare(
+        "UPDATE members SET status='approved' WHERE event_id=?",
+      )
+        .bind(e.id)
+        .run();
+      const target = await env.DB.prepare(
+        "SELECT id FROM users WHERE email='portrait-member@example.test'",
+      ).first();
+      const result = await api(
+        `/events/${e.id}/portrait-interact`,
+        "POST",
+        {
+          targetUserId: target.id,
+          kind: "icon_note",
+          message: "Auguri!",
+          icon: "tree",
+        },
+        admin,
+      );
+      expect(result.status).toBe(200);
+      if (change === "optout")
+        await env.DB.prepare("UPDATE users SET notify_email=0 WHERE id=?")
+          .bind(target.id)
+          .run();
+      else
+        await env.DB.prepare(
+          "UPDATE members SET status='pending' WHERE event_id=? AND user_id=?",
+        )
+          .bind(e.id, target.id)
+          .run();
+      const provider = vi.fn(async () => Response.json({ id: "fake-mail" }));
+      vi.stubGlobal("fetch", provider);
+      try {
+        await scheduled({
+          ...env,
+          RESEND_API_KEY: "fake",
+          MAIL_FROM: "qa@example.test",
+        });
+        expect(provider).not.toHaveBeenCalled();
+        expect(
+          await env.DB.prepare("SELECT state FROM outbox WHERE id=?")
+            .bind(result.data.interaction.id)
+            .first(),
+        ).toEqual({ state: "cancelled" });
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    },
+  );
 
   it("propone il check-in guidato al login una sola volta al giorno e l’opzione di ignorare impatta profilo e associazioni", async () => {
     const email = "checkin-giornaliero@example.test";
@@ -1730,7 +1791,8 @@ describe("API privata", () => {
         action: "complete",
         holidayProfile: {
           activity: "Cioccolata calda, coperta e maratona di film",
-          quote: "Il modo migliore per diffondere lo spirito natalizio è cantare a squarciagola.",
+          quote:
+            "Il modo migliore per diffondere lo spirito natalizio è cantare a squarciagola.",
           iconMessage: ["santa", "star", "cookie", "gift"],
           answers: {
             sweater: "reindeer_lights",

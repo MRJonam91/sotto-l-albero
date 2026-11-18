@@ -121,7 +121,7 @@ function getTemplateLayer(url, onReady) {
     };
     img.onerror = () => {
       entry.failed = true;
-      entry.callbacks.length = 0;
+      for (const cb of entry.callbacks.splice(0)) cb();
     };
     img.src = url;
     templateCache.set(url, entry);
@@ -146,7 +146,7 @@ export async function preloadAvatarTemplates() {
       (url) =>
         new Promise((resolve) => {
           const img = getTemplateLayer(url, () => resolve());
-          if (img) resolve();
+          if (img || templateCache.get(url)?.failed) resolve();
         }),
     ),
   );
@@ -283,7 +283,13 @@ function drawFaceInTemplate(
   // Keep portrait strictly inside the medallion (or glass sphere) & below hat crown where appropriate
   ctx.beginPath();
   if (scene.glassClip) {
-    ctx.arc(scene.glassClip[0], scene.glassClip[1], scene.glassClip[2], 0, Math.PI * 2);
+    ctx.arc(
+      scene.glassClip[0],
+      scene.glassClip[1],
+      scene.glassClip[2],
+      0,
+      Math.PI * 2,
+    );
   } else {
     ctx.arc(128, 128, 108, 0, Math.PI * 2);
   }
@@ -304,8 +310,7 @@ function drawFaceInTemplate(
     };
     // Scale strictly by the person's actual faceBox so short hair, long hair, or
     // wide hair halos all place the eyes/nose/smile at the exact same natural scale.
-    const scale =
-      Math.min((rx * 1.92) / fb.w, (ry * 1.92) / fb.h) * zoom;
+    const scale = Math.min((rx * 1.92) / fb.w, (ry * 1.92) / fb.h) * zoom;
     const w = graded.width * scale;
     const h = graded.height * scale;
     ctx.shadowColor = "#140c0788";
@@ -349,6 +354,7 @@ export function drawAvatar(
   size = 256,
 ) {
   if (style === "classic") {
+    pendingRedraws.delete(canvas);
     return drawAvatarClassic(
       canvas,
       portrait,
@@ -402,11 +408,12 @@ export function drawAvatar(
       );
     }
   } else {
-    drawAvatarClassic(
+    ctx.restore();
+    return drawAvatarClassic(
       canvas,
       portrait,
       { scene: chosen.id, zoom, offsetX, offsetY, beard },
-      256,
+      size,
     );
   }
 

@@ -1,5 +1,15 @@
 # Sotto l’Albero
 
+## 1.5.0
+
+- Dieci ritratti illustrati con foto, mantenendo le sette scene grafiche originali; salvataggio ed esportazione restano disponibili anche se un template non si carica.
+- Nickname, distintivi e ritratto di Natale con percorso guidato quotidiano, gusti, indovinelli e messaggi fra partecipanti del gruppo.
+- Quiz ampliato a 200 domande, riepilogo delle risposte e cronologia dei tentativi e dei duelli.
+- Indovina il film: 100 film natalizi a icone, allenamento e sfide a punti, opzioni A–D e curiosità dopo la risposta.
+- Controlli per neve e altri effetti natalizi, con rispetto della preferenza per il movimento ridotto.
+- Le email delle interazioni restano distinte e verificano nuovamente iscrizione e preferenze prima dell’invio.
+- Illustrated and classic portraits, profile identity, daily holiday portrait, group interactions, expanded quiz review, a 100-movie game and adjustable ambient effects. Existing scores, draws, practice progress and notification preferences are preserved by the release migrations.
+
 ## 1.4.1
 
 - Curling dei regali nella sezione Giochi: sei tiri, urti fra pacchi, partita sullo stesso dispositivo o allenamento contro il computer e rivincita con partenza alternata.

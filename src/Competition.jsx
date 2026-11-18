@@ -3,6 +3,7 @@ import {
   ArrowLeft,
   BookOpen,
   CheckCircle2,
+  Clapperboard,
   Gift,
   Medal,
   Puzzle,
@@ -16,9 +17,12 @@ import QuizReview, {
   DuelScorecard,
   QuizAttemptHistory,
 } from "./QuizReview.jsx";
+import MovieClueStage from "./MovieClueStage.jsx";
 import SnowDuelPanel from "./SnowDuelPanel.jsx";
 import { Button, Field, Modal, Notice } from "./ui.jsx";
 import "./competition.css";
+
+const optionLetters = ["A", "B", "C", "D"];
 
 function PlayCard({ attempt, title, onMove, onClose, busy, error }) {
   const heading = useRef(null);
@@ -186,7 +190,8 @@ function PlayCard({ attempt, title, onMove, onClose, busy, error }) {
           <div className="quiz-timer-wrap">
             <div className="quiz-timer-header">
               <span>
-                Domanda {attempt.progress + 1} di {attempt.total}
+                {attempt.question.icons ? "Film" : "Domanda"}{" "}
+                {attempt.progress + 1} di {attempt.total}
               </span>
               {timeLimit && (
                 <span
@@ -209,9 +214,16 @@ function PlayCard({ attempt, title, onMove, onClose, busy, error }) {
           <h3 ref={heading} tabIndex={-1} className="quiz-question-text">
             {attempt.question.text}
           </h3>
+          {attempt.question.icons && (
+            <MovieClueStage
+              index={attempt.progress}
+              prompt={attempt.question.prompt}
+              icons={attempt.question.icons}
+            />
+          )}
           <p className="quiz-options-label">Scegli una risposta:</p>
           <div
-            className="competition-options"
+            className={`competition-options ${attempt.question.icons ? "movie-options" : ""}`}
             role="group"
             aria-label="Opzioni di risposta"
           >
@@ -219,7 +231,10 @@ function PlayCard({ attempt, title, onMove, onClose, busy, error }) {
               <Button
                 type="button"
                 variant="outline"
-                className="competition-option"
+                className={`competition-option ${attempt.question.icons ? "movie-option" : ""}`}
+                data-letter={
+                  attempt.question.icons ? optionLetters[index] : undefined
+                }
                 key={option}
                 disabled={busy}
                 onClick={() => onMove({ choice: index })}
@@ -551,7 +566,9 @@ export default function Competition({ event, user, members = [], onStamp }) {
                         ? BookOpen
                         : game.id === "memory"
                           ? Puzzle
-                          : Gift;
+                          : game.id === "film"
+                            ? Clapperboard
+                            : Gift;
                     return (
                       <li key={game.id} className="competition-game paper">
                         <Icon size={22} aria-hidden="true" />

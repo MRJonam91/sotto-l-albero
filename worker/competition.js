@@ -1,6 +1,7 @@
 import { all, first, run } from "./auth.js";
 import { HttpError, id, json, safeText } from "./security.js";
 import { createMemoryDeck, memoryCardCount } from "../shared/memory.js";
+import { createMovieQuestions } from "../shared/christmasMovies.js";
 import { quizQuestions } from "../shared/quizQuestions.js";
 import {
   officialChallenge,
@@ -18,7 +19,7 @@ import {
 
 const DAY = 86_400_000;
 const QUESTION_TIME = 20_000;
-const isTimed = (game) => game === "quiz" || game === "duel";
+const isTimed = (game) => game === "quiz" || game === "duel" || game === "film";
 const multipliers = [1, 0.95, 0.9];
 const games = {
   ...gameDefinitions,
@@ -124,6 +125,9 @@ function buildQuizReview(state, opponent = null) {
     const theirs = oppAnswers?.[index] ?? null;
     return {
       text: question.text,
+      ...(question.icons
+        ? { icons: question.icons, prompt: question.prompt }
+        : {}),
       options: question.options,
       correctAnswer: question.answer,
       note: question.note ?? quizNotesByText.get(question.text) ?? "",
@@ -266,7 +270,14 @@ function publicAttempt(attempt, now) {
     ...result,
     progress: state.index,
     total: state.questions.length,
-    question: done ? null : { text: question.text, options: question.options },
+    question: done
+      ? null
+      : {
+          text: question.text,
+          ...(question.prompt ? { prompt: question.prompt } : {}),
+          options: question.options,
+          ...(question.icons ? { icons: question.icons } : {}),
+        },
     ...(!done && isTimed(attempt.game)
       ? {
           timeLimit: QUESTION_TIME / 1000,
@@ -332,9 +343,7 @@ async function duelList(db, eventId, userId, now) {
             }
           : null,
       roundOutcomes,
-      reviewAvailable: Boolean(
-        done && hasOutcomes && !myState?.duelReviewSeen,
-      ),
+      reviewAvailable: Boolean(done && hasOutcomes && !myState?.duelReviewSeen),
       reviewSeen: Boolean(myState?.duelReviewSeen),
     };
   });
@@ -516,7 +525,11 @@ async function startGame(db, context, body, userId, now) {
       ? newRankedMemory()
       : (newInteractiveChallenge(game) ??
         officialChallenge(game) ?? {
-          questions: duel ? JSON.parse(duel.questions) : questionSet(),
+          questions: duel
+            ? JSON.parse(duel.questions)
+            : game === "film"
+              ? createMovieQuestions(10, shuffled)
+              : questionSet(),
           index: 0,
           correct: 0,
           answers: [],

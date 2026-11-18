@@ -1,4 +1,5 @@
 import { Check, Clock, EyeOff, Sparkles, X } from "lucide-react";
+import MovieClueStage from "./MovieClueStage.jsx";
 
 const OUTCOMES = {
   correct: { label: "Esatta", short: "✓", tone: "correct", Icon: Check },
@@ -82,7 +83,10 @@ export function DuelScorecard({ outcomes, opponentName }) {
       role="group"
       aria-label={`Risultati domanda per domanda contro ${opponentName}`}
     >
-      <div className="duel-scorecard-row duel-scorecard-head" aria-hidden="true">
+      <div
+        className="duel-scorecard-row duel-scorecard-head"
+        aria-hidden="true"
+      >
         <span />
         {outcomes.map((_, index) => (
           <span key={index} className="duel-scorecard-num">
@@ -195,9 +199,7 @@ export default function QuizReview({ review, myScore }) {
       >
         {review.items.map((item, index) => {
           const mine = outcomeInfo(item.myOutcome);
-          const theirs = hasOpponent
-            ? outcomeInfo(item.opponentOutcome)
-            : null;
+          const theirs = hasOpponent ? outcomeInfo(item.opponentOutcome) : null;
           return (
             <li
               key={index}
@@ -226,8 +228,8 @@ export default function QuizReview({ review, myScore }) {
       <p className="quiz-review-lock-note">
         <EyeOff size={15} aria-hidden="true" />
         <span>
-          Riepilogo visibile solo ora al termine della partita: una volta
-          chiuso non potrà essere riaperto, per non memorizzare le domande.
+          Riepilogo visibile solo ora al termine della partita: una volta chiuso
+          non potrà essere riaperto, per non memorizzare le domande.
         </span>
       </p>
 
@@ -254,6 +256,13 @@ export default function QuizReview({ review, myScore }) {
               </div>
             </div>
             <p className="quiz-review-question">{item.text}</p>
+            {item.icons && (
+              <MovieClueStage
+                index={index}
+                prompt={item.prompt}
+                icons={item.icons}
+              />
+            )}
             <ul className="quiz-review-options" role="list">
               {item.options.map((option, optIndex) => {
                 const isCorrect = optIndex === item.correctAnswer;

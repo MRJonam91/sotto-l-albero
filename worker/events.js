@@ -560,8 +560,7 @@ export async function eventRoute(request, env, path, body, user) {
     const targetUserId = safeText(body?.targetUserId, 64, true);
     const kind = body?.kind === "riddle_guess" ? "riddle_guess" : "icon_note";
     const message = safeText(body?.message, 240, true);
-    const icon =
-      body?.icon && holidayIconMap.has(body.icon) ? body.icon : "🎄";
+    const icon = body?.icon && holidayIconMap.has(body.icon) ? body.icon : "🎄";
     const targetMember = await first(
       db,
       `SELECT u.id,u.name,u.nickname,u.email,u.notify_email,u.notify_telegram,u.telegram_chat_id,u.holiday_profile
@@ -612,7 +611,9 @@ export async function eventRoute(request, env, path, body, user) {
           "INSERT OR IGNORE INTO outbox(id,event_id,version,email,subject,html) VALUES(?,?,?,?,?,?)",
           interactionId,
           eid,
-          -999,
+          // A portrait mail is deduplicated by interaction ID, not draw/invite
+          // version. NULL avoids colliding with another message's subject.
+          null,
           targetMember.email,
           subject,
           html,
@@ -1264,15 +1265,31 @@ export async function scheduled(env) {
         mail.id,
       );
       if (claim.meta.changes !== 1) continue;
-      if (
-        mail.version >= 0 &&
-        !(await first(
+      const portraitEligible =
+        mail.version !== null ||
+        (await first(
           env.DB,
-          "SELECT 1 FROM events e JOIN members m ON m.event_id=e.id JOIN users u ON u.id=m.user_id WHERE e.id=? AND e.version=? AND e.status='drawn' AND m.status='approved' AND u.email=? AND u.notify_email=1 AND EXISTS(SELECT 1 FROM assignments a WHERE a.event_id=e.id AND a.version=e.version AND a.giver_id=m.id)",
+          `SELECT 1 FROM portrait_interactions p
+         JOIN events e ON e.id=p.event_id
+         JOIN members m ON m.event_id=p.event_id AND m.user_id=p.receiver_id
+         JOIN users u ON u.id=p.receiver_id
+         WHERE p.id=? AND p.event_id=? AND e.status!='archived'
+           AND m.status='approved' AND u.email=? AND u.notify_email=1`,
+          mail.id,
           mail.event_id,
-          mail.version,
           mail.email,
-        ))
+        ));
+      if (
+        !portraitEligible ||
+        (mail.version !== null &&
+          mail.version >= 0 &&
+          !(await first(
+            env.DB,
+            "SELECT 1 FROM events e JOIN members m ON m.event_id=e.id JOIN users u ON u.id=m.user_id WHERE e.id=? AND e.version=? AND e.status='drawn' AND m.status='approved' AND u.email=? AND u.notify_email=1 AND EXISTS(SELECT 1 FROM assignments a WHERE a.event_id=e.id AND a.version=e.version AND a.giver_id=m.id)",
+            mail.event_id,
+            mail.version,
+            mail.email,
+          )))
       ) {
         await run(
           env.DB,
