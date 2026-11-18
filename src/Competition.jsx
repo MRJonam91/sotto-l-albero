@@ -11,9 +11,12 @@ import { api } from "./api.js";
 import CompetitionChallenge from "./CompetitionChallenge.jsx";
 import FestivalLeaderboard from "./FestivalLeaderboard.jsx";
 import MemoryBoard from "./MemoryBoard.jsx";
+import MovieClueStage from "./MovieClueStage.jsx";
 import SnowDuelPanel from "./SnowDuelPanel.jsx";
 import { Button, Field, Modal, Notice } from "./ui.jsx";
 import "./competition.css";
+
+const optionLetters = ["A", "B", "C", "D"];
 
 function PlayCard({ attempt, title, onMove, onClose, busy, error }) {
   const heading = useRef(null);
@@ -129,23 +132,23 @@ function PlayCard({ attempt, title, onMove, onClose, busy, error }) {
             {attempt.question.text}
           </h3>
           {attempt.question.icons && (
-            <div
-              className="movie-icons-clue"
-              role="group"
-              aria-label={`Icone indizio del film ${attempt.progress + 1}`}
-            >
-              {attempt.question.icons.map((icon, i) => (
-                <span key={i} className="movie-icon-tile" aria-hidden="true">
-                  {icon}
-                </span>
-              ))}
-            </div>
+            <MovieClueStage
+              index={attempt.progress}
+              prompt={attempt.question.prompt}
+              icons={attempt.question.icons}
+            />
           )}
-          <div className="competition-options">
+          <div
+            className={`competition-options ${attempt.question.icons ? "movie-options" : ""}`}
+          >
             {attempt.question.options.map((option, index) => (
               <Button
                 type="button"
                 variant="outline"
+                className={attempt.question.icons ? "movie-option" : ""}
+                data-letter={
+                  attempt.question.icons ? optionLetters[index] : undefined
+                }
                 key={option}
                 disabled={busy}
                 onClick={() => onMove({ choice: index })}

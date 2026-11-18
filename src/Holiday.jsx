@@ -23,6 +23,7 @@ import {
 import { isStampAvailable, stamps } from "../shared/stamps.js";
 import HolidayFigure from "./HolidayFigure.jsx";
 import MemoryBoard from "./MemoryBoard.jsx";
+import MovieClueStage from "./MovieClueStage.jsx";
 import { Button, Notice } from "./ui.jsx";
 import { api } from "./api.js";
 import { treasureStories } from "./treasureStories.js";
@@ -399,6 +400,8 @@ function Quiz({ collection }) {
   );
 }
 
+const optionLetters = ["A", "B", "C", "D"];
+
 function FilmQuiz() {
   const game = usePractice("film");
   const [next, setNext] = useState(null);
@@ -462,36 +465,66 @@ function FilmQuiz() {
           <h2 ref={heading} tabIndex={-1}>
             {question.title}
           </h2>
-          <div
-            className="movie-icons-clue"
-            role="group"
-            aria-label={`Icone indizio del film ${state.index + 1}`}
-          >
-            {question.icons.map((icon, i) => (
-              <span key={i} className="movie-icon-tile" aria-hidden="true">
-                {icon}
-              </span>
-            ))}
+          <MovieClueStage
+            index={state.index}
+            prompt={question.prompt}
+            icons={question.icons}
+          />
+          <div className="quiz-options movie-options">
+            {question.options.map((label, i) => {
+              const optionState = answer
+                ? answer.answer === i
+                  ? "is-correct"
+                  : answer.choice === i
+                    ? "is-wrong"
+                    : ""
+                : "";
+              return (
+                <button
+                  key={label}
+                  type="button"
+                  className={`movie-option ${optionState}`}
+                  data-letter={optionLetters[i]}
+                  aria-pressed={answer?.choice === i}
+                  aria-disabled={!!next || game.busy}
+                  onClick={() => {
+                    if (!next && !game.busy) game.step({ choice: i }, setNext);
+                  }}
+                >
+                  {label}
+                  {answer?.answer === i && (
+                    <Check size={18} aria-hidden="true" />
+                  )}
+                </button>
+              );
+            })}
           </div>
-          <div className="quiz-options">
-            {question.options.map((label, i) => (
-              <button
-                key={label}
-                type="button"
-                aria-pressed={answer?.choice === i}
-                aria-disabled={!!next || game.busy}
-                onClick={() => {
-                  if (!next && !game.busy) game.step({ choice: i }, setNext);
-                }}
-              >
-                {label}
-                {answer?.answer === i && <Check size={18} aria-hidden="true" />}
-              </button>
-            ))}
-          </div>
-          <p className="game-feedback" role="status">
-            {answer?.text || "Osserva le icone e scegli uno dei quattro film."}
-          </p>
+          {answer ? (
+            <div
+              className="movie-trivia-box"
+              role="status"
+              data-result={
+                answer.correct
+                  ? "correct"
+                  : answer.choice === -1
+                    ? "timeout"
+                    : "wrong"
+              }
+            >
+              <strong className="movie-trivia-status">
+                {answer.correct
+                  ? `Esatto! È proprio ${answer.title} (${answer.year}).`
+                  : answer.choice === -1
+                    ? `Tempo scaduto! Il film era ${answer.title} (${answer.year}).`
+                    : `Risposta esatta: ${answer.title} (${answer.year}).`}
+              </strong>
+              <p>{answer.note}</p>
+            </div>
+          ) : (
+            <p className="game-feedback" role="status">
+              Osserva le icone e scegli uno dei quattro film.
+            </p>
+          )}
           {next && (
             <Button
               type="button"
@@ -514,10 +547,15 @@ function FilmQuiz() {
           <h2 ref={heading} tabIndex={-1}>
             Partita completata
           </h2>
-          <p>
-            Hai indovinato {state.score} film su {state.total} dal catalogo dei
-            100 film di Natale.
-          </p>
+          <div className="movie-score-card">
+            <span className="movie-score-badge">
+              {state.score} / {state.total}
+            </span>
+            <p>
+              Hai indovinato {state.score} film su {state.total} dal catalogo
+              dei 100 film di Natale.
+            </p>
+          </div>
           <Button
             type="button"
             variant="ghost"

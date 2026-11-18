@@ -108,6 +108,8 @@ describe("Catalogo allenamento", () => {
       timeLimit: 20,
       timeRemaining: 20_000,
     });
+    expect(typeof result.data.question.prompt).toBe("string");
+    expect(result.data.question.prompt.length).toBeGreaterThan(5);
     expect(result.data.question.icons).toHaveLength(5);
     expect(result.data.question.options).toHaveLength(4);
     expect(new Set(result.data.question.options).size).toBe(4);
@@ -129,7 +131,13 @@ describe("Catalogo allenamento", () => {
           timeout: true,
         });
         expect(result.status).toBe(200);
-        expect(result.data.feedback.choice).toBe(-1);
+        expect(result.data.feedback).toMatchObject({
+          choice: -1,
+          correct: false,
+          title: question.options[question.answer],
+          year: question.year,
+          note: question.note,
+        });
         expect(result.data.feedback.text).toContain("Tempo scaduto!");
       } else {
         result = await api("film", "step", {
@@ -140,6 +148,10 @@ describe("Catalogo allenamento", () => {
         expect(result.data.feedback).toMatchObject({
           choice: question.answer,
           answer: question.answer,
+          correct: true,
+          title: question.options[question.answer],
+          year: question.year,
+          note: question.note,
         });
         expect(result.data.feedback.text).toContain("Esatto!");
         expect(result.data.feedback.text).toContain(question.note);

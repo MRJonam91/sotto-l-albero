@@ -1053,6 +1053,8 @@ describe("Indovina il film (100 film natalizi a icone)", () => {
     expect(attempt.total).toBe(10);
     expect(attempt.timeLimit).toBe(20);
     expect(attempt.question.icons).toHaveLength(5);
+    expect(typeof attempt.question.prompt).toBe("string");
+    expect(attempt.question.prompt.length).toBeGreaterThan(5);
     expect(attempt.question.options).toHaveLength(4);
     expect(attempt.question).not.toHaveProperty("answer");
 

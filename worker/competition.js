@@ -210,6 +210,7 @@ function publicAttempt(attempt, now) {
       ? null
       : {
           text: question.text,
+          ...(question.prompt ? { prompt: question.prompt } : {}),
           options: question.options,
           ...(question.icons ? { icons: question.icons } : {}),
         },

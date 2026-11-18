@@ -3,8 +3,8 @@ export const christmasMovies = [
     id: "mamma-ho-perso-laereo",
     title: "Mamma, ho perso l’aereo",
     year: 1990,
-    icons: ["🏠", "😱", "👦", "🪤", "🦹‍♂️"],
-    note: "Kevin resta da solo a casa e la difende da due ladri con trappole ingegnose.",
+    icons: ["🏠", "👦", "🎄", "🪤", "😱"],
+    note: "Il film di gangster in bianco e nero che Kevin usa per spaventare i ladri («Angels with Filthy Souls») fu girato appositamente per questa pellicola.",
   },
   {
     id: "mamma-ho-riperso-laereo",
@@ -17,29 +17,29 @@ export const christmasMovies = [
     id: "il-grinch-2000",
     title: "Il Grinch",
     year: 2000,
-    icons: ["💚", "👹", "🏔️", "🐕", "🛷"],
-    note: "Dalla cima del Monte Briciolaio, il burbero verde e il cane Max cercano di rubare il Natale a Chinonsò.",
+    icons: ["💚", "🎅", "🎁", "🐶", "⛰️"],
+    note: "Il trucco prostetico verde di Jim Carrey richiedeva oltre due ore di applicazione ogni mattina sul set.",
   },
   {
     id: "elf",
     title: "Elf – Un elfo di nome Buddy",
     year: 2003,
-    icons: ["🧝", "🍝", "🍁", "🏙️", "🎅"],
-    note: "Cresciuto al Polo Nord, Buddy parte per New York alla ricerca del padre (con molto sciroppo d’acero).",
+    icons: ["🧝", "🎄", "🍝", "🍬", "🎅"],
+    note: "Per girare la scena degli spaghetti dolci, Will Ferrell dovette mangiare davvero litri di sciroppo d’acero e caramelle.",
   },
   {
     id: "nightmare-before-christmas",
     title: "The Nightmare Before Christmas",
     year: 1993,
-    icons: ["💀", "🎃", "🚪", "🎄", "👻"],
-    note: "Jack Skeletron apre la porta dell’Albero di Natale e porta le feste nella Città di Halloween.",
+    icons: ["🎃", "🎄", "👻", "🎅", "🕸️"],
+    note: "Il film in stop-motion ha richiesto 3 anni di riprese e oltre 400 teste diverse solo per le espressioni di Jack Skeletron.",
   },
   {
     id: "polar-express",
     title: "Polar Express",
     year: 2004,
-    icons: ["🚂", "🎫", "☕", "🔔", "❄️"],
-    note: "Un treno a vapore nella notte della Vigilia conduce i bambini al Polo Nord al suono di un campanellino.",
+    icons: ["👦", "🚂", "🎫", "🔔", "❄️"],
+    note: "Il treno a vapore della Vigilia porta i bambini al Polo Nord, dove solo chi crede ancora riesce a sentire il suono del campanellino d’argento.",
   },
   {
     id: "love-actually",
@@ -59,15 +59,15 @@ export const christmasMovies = [
     id: "la-vita-e-meravigliosa",
     title: "La vita è meravigliosa",
     year: 1946,
-    icons: ["👼", "🔔", "🌉", "❄️", "👨‍👩‍👧‍👦"],
-    note: "L’angelo Clarence mostra a George Bailey quanto valga la sua vita, fino al suono della campanella di Zuzu.",
+    icons: ["🏠", "🌉", "🎄", "❤️", "🛎️"],
+    note: "Tratto dal racconto «The Greatest Gift» di Philip Van Doren Stern, che lo inviò agli amici come biglietto d’auguri di Natale.",
   },
   {
     id: "miracolo-nella-34a-strada",
     title: "Miracolo nella 34ª strada",
     year: 1947,
-    icons: ["🎅", "🏬", "⚖️", "✉️", "🦯"],
-    note: "Kris Kringle viene assunto da Macy’s e dimostra in tribunale, grazie ai sacchi della posta, di essere Babbo Natale.",
+    icons: ["🛍️", "🎅", "3️⃣", "4️⃣", "🏛️"],
+    note: "Kris Kringle viene assunto dai grandi magazzini sulla 34ª strada e dimostra in tribunale, con i sacchi della posta, di essere il vero Babbo Natale.",
   },
   {
     id: "una-poltrona-per-due",
@@ -94,8 +94,8 @@ export const christmasMovies = [
     id: "festa-in-casa-muppet",
     title: "Festa in casa Muppet",
     year: 1992,
-    icons: ["🐸", "🐷", "🎩", "👻", "🎄"],
-    note: "Kermit e i Muppet raccontano il Canto di Natale di Dickens accanto a Ebenezer Scrooge.",
+    icons: ["🐸", "👻", "🎩", "🎄", "🎵"],
+    note: "Kermit la Rana interpreta Bob Cratchit accanto a Michael Caine nei panni di Ebenezer Scrooge.",
   },
   {
     id: "sos-fantasmi",
@@ -136,8 +136,8 @@ export const christmasMovies = [
     id: "una-promessa-e-una-promessa",
     title: "Una promessa è una promessa",
     year: 1996,
-    icons: ["💪", "🏃‍♂️", "🤖", "🎁", "🛍️"],
-    note: "Un padre attraversa tutta la città alla Vigilia alla disperata ricerca dell’introvabile pupazzo Turbo Man.",
+    icons: ["🤖", "🎄", "🏃", "🎁", "🛒"],
+    note: "La corsa disperata alla ricerca del pupazzo Turbo Man è ispirata alla vera febbre natalizia per le bambole Cabbage Patch negli anni Ottanta.",
   },
   {
     id: "jack-frost",
@@ -343,11 +343,11 @@ export const christmasMovies = [
     note: "Un falegname generoso e sua moglie vengono accolti dagli elfi del Polo Nord per dare inizio alla leggenda dei doni.",
   },
   {
-    id: "un-bambino-di-nome-gesu",
-    title: "Un bambino di nome Gesù",
-    year: 1987,
-    icons: ["⭐", "🏜️", "🐪", "👶", "👑"],
-    note: "Il viaggio e i primi anni del piccolo Gesù raccontati attraverso il deserto e la stella dei Magi.",
+    id: "lo-schiaccianoci-e-i-quattro-regni",
+    title: "Lo schiaccianoci e i quattro regni",
+    year: 2018,
+    icons: ["💂", "🩰", "🐭", "🗝️", "🎄"],
+    note: "Clara cerca una chiave magica tra il Regno dei Dolci, i soldatini e il Re dei Topi; la Fata Confetto ha i capelli fatti come zucchero filato.",
   },
   {
     id: "nativity",
@@ -511,11 +511,11 @@ export const christmasMovies = [
     note: "Dopo un atterraggio d’emergenza a Londra, Babbo Natale chiede aiuto a un padre e a suo figlio per ritrovare le renne.",
   },
   {
-    id: "prancer",
-    title: "Prancer – Una renna per amico",
-    year: 1989,
-    icons: ["👧", "🦌", "🌾", "🩹", "🎄"],
-    note: "Una bambina trova nel bosco una renna ferita e se ne prende cura di nascosto, convinta che tiri la slitta di Babbo Natale.",
+    id: "zampa-e-la-magia-del-natale",
+    title: "Zampa e la magia del Natale",
+    year: 2010,
+    icons: ["🎅", "🐾", "🐶", "✨", "🏠"],
+    note: "Quando Babbo Natale perde la memoria a New York, il suo fedele cucciolo bianco Zampa guida le ricerche per salvarlo.",
   },
   {
     id: "un-natale-per-due",
@@ -553,25 +553,25 @@ export const christmasMovies = [
     note: "Una ragazza vola dall’altra parte del paese per fare una sorpresa di Natale al ragazzo conosciuto in app, ma scopre un inganno.",
   },
   {
-    id: "single-per-sempre",
-    title: "Single per sempre?",
-    year: 2021,
-    icons: ["🏡", "📸", "👨‍👩‍👧‍👦", "🎭", "🎄"],
-    note: "Per evitare i tentativi della famiglia di accasarlo a Natale, Peter convince il migliore amico a fingersi il suo fidanzato.",
+    id: "una-storia-di-natale",
+    title: "Una storia di Natale (A Christmas Story)",
+    year: 1983,
+    icons: ["👦", "👓", "🎄", "✏️", "📕"],
+    note: "Il piccolo Ralphie sogna un solo regalo sotto l’albero e cerca di convincere genitori, maestra e Babbo Natale che non si farà male agli occhi.",
   },
   {
-    id: "falling-for-christmas",
-    title: "Falling for Christmas",
-    year: 2022,
-    icons: ["🎿", "🤕", "🏨", "🪵", "🎄"],
-    note: "Dopo un incidente sugli sci che le fa perdere la memoria, un’ereditiera viene ospitata nel caldo rifugio di un vedovo.",
+    id: "la-festa-prima-delle-feste",
+    title: "La festa prima delle feste",
+    year: 2016,
+    icons: ["🏢", "🎉", "🖨️", "❄️", "🎄"],
+    note: "Per salvare la propria filiale dalla chiusura, i dipendenti organizzano in ufficio la festa di Natale più sfrenata dell’anno.",
   },
   {
-    id: "let-it-snow",
-    title: "Let It Snow – Innamorarsi sotto la neve",
-    year: 2019,
-    icons: ["🌨️", "🚂", "🧇", "🎸", "🎄"],
-    note: "Una tormenta della Vigilia blocca un treno in una cittadina e intreccia le storie d’amore e amicizia di un gruppo di ragazzi.",
+    id: "almost-christmas",
+    title: "Almost Christmas – Vacanze in famiglia",
+    year: 2016,
+    icons: ["🏠", "🦃", "👨‍👩‍👧‍👦", "🎁", "🎄"],
+    note: "Una grande famiglia si ritrova sotto lo stesso tetto per cinque giorni di festa, cercando di andare d’accordo fino alla mattina di Natale.",
   },
   {
     id: "dash-and-lily",
@@ -701,6 +701,19 @@ export const christmasMovies = [
   },
 ];
 
+export const moviePrompts = [
+  "Aguzza la vista sotto l’albero…",
+  "Segui gli indizi fino ai titoli di coda…",
+  "Un classico delle feste: lo riconosci?",
+  "Profumo di popcorn e cannella: che film è?",
+  "Srotola la pellicola di Natale…",
+  "Luci in sala, inizia la proiezione natalizia…",
+  "Cinque icone per un film da vedere sul divano…",
+  "Metti insieme gli indizi prima che scada il tempo…",
+  "Dal grande schermo al salotto delle feste…",
+  "Ciak, si gira sotto la neve: indovina il titolo!",
+];
+
 function defaultShuffle(values) {
   const copy = [...values];
   const random = crypto.getRandomValues(new Uint32Array(copy.length));
@@ -713,7 +726,7 @@ function defaultShuffle(values) {
 
 export function createMovieQuestions(count = 10, shuffle = defaultShuffle) {
   const selected = shuffle(christmasMovies).slice(0, count);
-  return selected.map((movie) => {
+  return selected.map((movie, index) => {
     const distractors = shuffle(
       christmasMovies.filter((candidate) => candidate.id !== movie.id),
     ).slice(0, 3);
@@ -724,6 +737,7 @@ export function createMovieQuestions(count = 10, shuffle = defaultShuffle) {
     return {
       id: movie.id,
       text: "Quale film di Natale raccontano queste icone?",
+      prompt: moviePrompts[index % moviePrompts.length],
       icons: [...movie.icons],
       options,
       answer: options.indexOf(movie.title),

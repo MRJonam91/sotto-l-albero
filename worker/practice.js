@@ -131,6 +131,7 @@ function view(game, state, revision, now) {
         ? {
             question: {
               title: question.text,
+              prompt: question.prompt,
               icons: question.icons,
               options: question.options,
             },
@@ -183,12 +184,17 @@ function advanceFilm(state, choice, timeout, now) {
     throw new HttpError("Apri la domanda per continuare.", 409);
   const expired = now >= state.questionDeadline;
   state.questionDeadline = null;
+  const correctTitle = question.options[question.answer];
   if (expired) {
     state.index++;
     return {
       choice: -1,
       answer: question.answer,
-      text: `Tempo scaduto! Il film era ${question.options[question.answer]} (${question.year}). ${question.note}`,
+      correct: false,
+      title: correctTitle,
+      year: question.year,
+      note: question.note,
+      text: `Tempo scaduto! Il film era ${correctTitle} (${question.year}). ${question.note}`,
     };
   }
   if (timeout === true || choice === -1)
@@ -199,12 +205,17 @@ function advanceFilm(state, choice, timeout, now) {
     choice >= question.options.length
   )
     throw new HttpError("Scegli una delle risposte.");
+  const correct = choice === question.answer;
   state.index++;
-  if (choice === question.answer) state.score++;
+  if (correct) state.score++;
   return {
     choice,
     answer: question.answer,
-    text: `${choice === question.answer ? "Esatto!" : `La risposta è ${question.options[question.answer]} (${question.year}).`} ${question.note}`,
+    correct,
+    title: correctTitle,
+    year: question.year,
+    note: question.note,
+    text: `${correct ? "Esatto!" : `La risposta è ${correctTitle} (${question.year}).`} ${question.note}`,
   };
 }
 
