@@ -10,9 +10,11 @@ import {
 import { badgeTextModes, holidayBadgeIds } from "../shared/badges.js";
 import {
   computeHolidayPortrait,
+  holidayMoods,
   parseHolidayProfile,
   romeToday,
 } from "../shared/holidayPortrait.js";
+import { loadHolidayActivities } from "./holidayActivity.js";
 import {
   createTelegramLink,
   disconnectTelegram,
@@ -246,6 +248,7 @@ async function profile(request, env, userId) {
   if (!row) throw new HttpError("Accedi per continuare.", 401);
   const holidayProfile = parseHolidayProfile(row.holiday_profile);
   const today = romeToday();
+  const activity = (await loadHolidayActivities(env.DB, [userId])).get(userId);
   const portrait = computeHolidayPortrait(holidayProfile, {
     name: row.name,
     nickname: row.nickname,
@@ -253,6 +256,7 @@ async function profile(request, env, userId) {
     stampsCount: row.stamps_count || 0,
     gamesPlayed: row.games_played || 0,
     today,
+    activity,
   });
   return json({
     name: row.name || "",
@@ -270,6 +274,7 @@ async function profile(request, env, userId) {
     },
     stampsCount: row.stamps_count || 0,
     gamesPlayed: row.games_played || 0,
+    context: { activity },
     portrait: {
       completeness: portrait.completeness,
       answeredCount: portrait.answeredCount,
@@ -285,6 +290,7 @@ async function profile(request, env, userId) {
       generatedDescription: portrait.generatedDescription,
       finalDescription: portrait.finalDescription,
       spiritScene: portrait.spiritScene,
+      matchingExplanation: portrait.matchingExplanation,
     },
     phone: row.phone || "",
     notifyEmail: !!row.notify_email,
@@ -304,10 +310,15 @@ async function profile(request, env, userId) {
   });
 }
 
-function sanitizeHolidayProfile(input, existingRaw = null, action = null) {
+function sanitizeHolidayProfile(
+  input,
+  existingRaw = null,
+  action = null,
+  moodId = null,
+) {
   const existing = parseHolidayProfile(existingRaw);
   const parsed = parseHolidayProfile(
-    input && typeof input === "object" ? input : existing,
+    input && typeof input === "object" ? { ...existing, ...input } : existing,
   );
   const today = romeToday();
   let lastPromptDate = existing.lastPromptDate;
@@ -339,6 +350,11 @@ function sanitizeHolidayProfile(input, existingRaw = null, action = null) {
     answers: parsed.answers,
     customDescription: safeText(parsed.customDescription, 1200, false),
     portraitApproved: parsed.portraitApproved,
+    // Dates on a newly chosen daily state are always owned by the server.
+    dailyMood:
+      action === "complete" && moodId
+        ? { id: moodId, date: today }
+        : existing.dailyMood,
     lastPromptDate,
     lastPromptStatus,
     skippedDates: [...skipped].sort().slice(-60),
@@ -358,14 +374,29 @@ async function saveDailyCheckin(env, userId, body) {
     userId,
   );
   if (!existing) throw new HttpError("Accedi per continuare.", 401);
-  const source =
+  const previous = parseHolidayProfile(existing.holiday_profile);
+  let source =
     action === "complete" &&
     body?.holidayProfile &&
     typeof body.holidayProfile === "object"
-      ? body.holidayProfile
-      : existing.holiday_profile;
+      ? {
+          ...previous,
+          ...body.holidayProfile,
+          answers: { ...previous.answers, ...body.holidayProfile.answers },
+        }
+      : previous;
+  if (action === "complete" && Object.hasOwn(body, "moodId")) {
+    if (!holidayMoods.some((mood) => mood.id === body.moodId))
+      throw new HttpError("Scegli uno degli stati proposti.");
+    source = { ...source, dailyMood: { id: body.moodId, date: romeToday() } };
+  }
   const nextHolidayProfile = JSON.stringify(
-    sanitizeHolidayProfile(source, existing.holiday_profile, action),
+    sanitizeHolidayProfile(
+      source,
+      existing.holiday_profile,
+      action,
+      body.moodId,
+    ),
   );
   await run(
     env.DB,

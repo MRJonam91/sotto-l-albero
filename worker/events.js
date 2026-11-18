@@ -20,6 +20,7 @@ import {
   parseHolidayProfile,
 } from "../shared/holidayPortrait.js";
 import { telegramAvailable, telegramMessage } from "./telegram.js";
+import { loadHolidayActivities } from "./holidayActivity.js";
 const nowIso = () => new Date().toISOString();
 const stmt = (db, sql, ...args) => db.prepare(sql).bind(...args);
 const audit = (db, eventId, userId, action) =>
@@ -462,6 +463,10 @@ export async function eventRoute(request, env, path, body, user) {
             eid,
           )
         : [];
+    const holidayActivities = await loadHolidayActivities(
+      db,
+      visibleMembers.map((m) => m.userId),
+    );
     return json({
       event: outputEvent(
         e,
@@ -491,6 +496,7 @@ export async function eventRoute(request, env, path, body, user) {
                 badge,
                 stampsCount: stampsCount || 0,
                 gamesPlayed: gamesPlayed || 0,
+                activity: holidayActivities.get(m.userId),
               })
             : null;
           return {
@@ -507,6 +513,7 @@ export async function eventRoute(request, env, path, body, user) {
                   holidayStatus: {
                     quote: hp.quote,
                     activity: hp.activity,
+                    dailyMood: hp.dailyMood,
                     iconMessage: hp.iconMessage,
                     iconCaption: hp.iconCaption,
                     riddle: hp.riddle,
@@ -527,6 +534,10 @@ export async function eventRoute(request, env, path, body, user) {
                         characterMatches: computed.characterMatches,
                         topCharacter: computed.topCharacter,
                         spiritScene: computed.spiritScene,
+                        matchingExplanation: {
+                          ...computed.matchingExplanation,
+                          signals: [],
+                        },
                       }
                     : null,
                 }

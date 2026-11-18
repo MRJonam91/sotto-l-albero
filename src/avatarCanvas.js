@@ -6,10 +6,11 @@ import {
   avatarScenes as classicAvatarScenes,
   drawAvatar as drawAvatarClassic,
 } from "./avatarCanvasClassic.js";
+import { portraitPlacement } from "./avatarGeometry.js";
 
 export const avatarStyles = [
-  { id: "illustrated", name: "Ritratti Illustrati AI-Style (10 basi)" },
-  { id: "classic", name: "Effetti Grafici Originali (7 scene)" },
+  { id: "illustrated", name: "Ritratti illustrati" },
+  { id: "classic", name: "Scene classiche" },
 ];
 
 export { classicAvatarScenes };
@@ -51,7 +52,7 @@ export const avatarScenes = [
   {
     id: "nutcracker",
     name: "Guardia Schiaccianoci",
-    face: [128, 148, 39, 41],
+    face: [128, 146, 33, 34],
     hatShadow: 0.32,
     hasHat: true,
     topClipY: 102,
@@ -59,7 +60,7 @@ export const avatarScenes = [
   {
     id: "victorian",
     name: "Canto di Natale",
-    face: [129, 146, 41, 44],
+    face: [129, 143, 37, 38],
     hatShadow: 0.3,
     hasHat: true,
     topClipY: 100,
@@ -67,7 +68,7 @@ export const avatarScenes = [
   {
     id: "reindeer",
     name: "Renna del Bosco",
-    face: [130, 142, 39, 48],
+    face: [129, 134, 36, 44],
     hatShadow: 0.2,
     hasHat: true,
     topClipY: 96,
@@ -92,7 +93,7 @@ export const avatarScenes = [
   {
     id: "snowglobe",
     name: "Sfera di neve",
-    face: [128, 126, 45, 48],
+    face: [128, 106, 43, 43],
     glassClip: [128, 128, 72],
     hatShadow: 0.14,
     hasHat: false,
@@ -227,8 +228,18 @@ function drawAdaptiveSantaBeard(ctx, x, y, rx, ry) {
   ctx.restore();
 }
 
+// Weak photo keys release old selfies; each entry holds at most the ten scene grades.
+const gradedPortraits = new WeakMap();
+
 function makeGradedPortraitCanvas(image, isIsolated, hatShadow, sceneId) {
   if (typeof document === "undefined") return image;
+  let versions = gradedPortraits.get(image);
+  if (!versions) {
+    versions = new Map();
+    gradedPortraits.set(image, versions);
+  }
+  const key = `${sceneId}:${isIsolated ? 1 : 0}:${hatShadow}`;
+  if (versions.has(key)) return versions.get(key);
   const maxDim = 320;
   const scale = Math.min(
     1,
@@ -262,6 +273,7 @@ function makeGradedPortraitCanvas(image, isIsolated, hatShadow, sceneId) {
       cy: image.faceBox.cy * scale,
     };
   }
+  versions.set(key, off);
   return off;
 }
 
@@ -278,6 +290,12 @@ function drawFaceInTemplate(
     scene.id,
   );
   const [x, y, rx, ry] = scene.face;
+  const placement = portraitPlacement(
+    graded,
+    scene.face,
+    { zoom, offsetX, offsetY },
+    isolated,
+  );
   ctx.save();
 
   // Keep portrait strictly inside the medallion (or glass sphere) & below hat crown where appropriate
@@ -302,41 +320,30 @@ function drawFaceInTemplate(
   }
 
   if (isolated) {
-    const fb = graded.faceBox || {
-      w: graded.width,
-      h: graded.height,
-      cx: graded.width * 0.5,
-      cy: graded.height * 0.5,
-    };
-    // Scale strictly by the person's actual faceBox so short hair, long hair, or
-    // wide hair halos all place the eyes/nose/smile at the exact same natural scale.
-    const scale = Math.min((rx * 1.92) / fb.w, (ry * 1.92) / fb.h) * zoom;
-    const w = graded.width * scale;
-    const h = graded.height * scale;
     ctx.shadowColor = "#140c0788";
     ctx.shadowBlur = 6;
     ctx.shadowOffsetY = 2;
     ctx.drawImage(
       graded,
-      x - fb.cx * scale + offsetX * 0.27,
-      y - fb.cy * scale + offsetY * 0.27,
-      w,
-      h,
+      placement.x,
+      placement.y,
+      placement.width,
+      placement.height,
     );
     ctx.restore();
     return;
   }
 
   // Non-isolated fallback photo: proportional aspect-preserving cover inside opening
-  ellipse(ctx, x, y, rx * 1.32, ry * 1.32);
+  ellipse(ctx, x, y, rx, ry);
   ctx.clip();
-  const baseScale =
-    Math.max((rx * 2.55) / graded.width, (ry * 2.55) / graded.height) * zoom;
-  const w = graded.width * baseScale;
-  const h = graded.height * baseScale;
-  const dx = ((w / 2 - rx) * offsetX) / 100;
-  const dy = ((h / 2 - ry) * offsetY) / 100;
-  ctx.drawImage(graded, x - w / 2 + dx, y - h / 2 + dy, w, h);
+  ctx.drawImage(
+    graded,
+    placement.x,
+    placement.y,
+    placement.width,
+    placement.height,
+  );
   ctx.restore();
 }
 

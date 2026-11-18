@@ -43,6 +43,8 @@
   },
 ];
 
+import { portraitPlacement } from "./avatarGeometry.js";
+
 const cream = "#fff1d1";
 const gold = "#edba64";
 const red = "#b53c40";
@@ -320,33 +322,35 @@ function drawFace(
   { zoom, offsetX, offsetY },
 ) {
   ctx.save();
+  const placement = portraitPlacement(
+    image,
+    [x, y, rx, ry],
+    { zoom, offsetX, offsetY },
+    isolated,
+  );
   if (isolated) {
-    const scale =
-      Math.min((rx * 2.15) / image.width, (ry * 2) / image.height) * zoom;
-    const w = image.width * scale;
-    const h = image.height * scale;
     ctx.shadowColor = "#271a167c";
     ctx.shadowBlur = 4;
     ctx.shadowOffsetY = 2;
     ctx.drawImage(
       image,
-      x - w / 2 + offsetX * 0.27,
-      y - h / 2 + offsetY * 0.27,
-      w,
-      h,
+      placement.x,
+      placement.y,
+      placement.width,
+      placement.height,
     );
     ctx.restore();
     return;
   }
   ellipse(ctx, x, y, rx, ry);
   ctx.clip();
-  const scale =
-    Math.max((rx * 2) / image.width, (ry * 2) / image.height) * zoom;
-  const w = image.width * scale;
-  const h = image.height * scale;
-  const dx = ((w / 2 - rx) * offsetX) / 100;
-  const dy = ((h / 2 - ry) * offsetY) / 100;
-  ctx.drawImage(image, x - w / 2 + dx, y - h / 2 + dy, w, h);
+  ctx.drawImage(
+    image,
+    placement.x,
+    placement.y,
+    placement.width,
+    placement.height,
+  );
   ctx.restore();
   stroke(ctx, "#fff1d17c", 2, () =>
     ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2),

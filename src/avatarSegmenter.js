@@ -103,8 +103,8 @@ export async function isolateAvatarFace(image, options = {}) {
     ctx.globalCompositeOperation = "destination-in";
     ctx.filter = "blur(1.1px)";
     ctx.drawImage(mask, 0, 0, result.width, result.height);
-    result.landmarks = face.landmarks;
-    result.faceBounds = face.faceBounds;
+    // The category mask provides a facial bounding box, not detected eyes or lips.
+    // Publish only geometry converted from mask pixels into this cutout's pixels.
     result.traits = face.traits;
     const fb = face.faceBounds || face.bounds;
     result.faceBox = {

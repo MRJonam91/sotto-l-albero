@@ -14,6 +14,7 @@ import {
   getDailyQuestion,
   holidayActivities,
   holidayIconMap,
+  holidayMoods,
   holidayIcons,
   holidayPhrases,
   holidayQuestions,
@@ -226,13 +227,7 @@ export function HolidaySpiritImage({
         >
           {label} · {palette.label}
         </text>
-        <text
-          x="210"
-          y="205"
-          textAnchor="middle"
-          fill="#d6ba7b"
-          fontSize="11"
-        >
+        <text x="210" y="205" textAnchor="middle" fill="#d6ba7b" fontSize="11">
           “{shortQuote}”
         </text>
       </svg>
@@ -328,69 +323,103 @@ export function TasteRadarChart({ tastes = [] }) {
 
 export function MovieCharacterComparison({
   characterMatches = [],
-  confidenceLevel = "alta",
+  matchingExplanation,
 }) {
-  if (!characterMatches.length) return null;
-  const top = characterMatches[0];
+  const visible = characterMatches.slice(0, 3);
+  if (!visible.length) return null;
   return (
     <div className="portrait-characters">
-      <div className="portrait-top-character">
-        <img
-          src={top.image}
-          alt={top.name}
-          width={84}
-          height={84}
-          loading="lazy"
-          className="character-portrait-img featured"
-        />
-        <div className="portrait-top-copy">
-          <span className="eyebrow">
-            Personaggio natalizio affine · {top.affinity}%
-            {confidenceLevel === "bassa" ? " (stima indicativa)" : ""}
-          </span>
-          <h4>
-            {top.name} <small>({top.movie})</small>
-          </h4>
-          <p className="character-tagline">{top.tagline}</p>
-          <p>{top.description}</p>
-        </div>
-      </div>
-
       <div
-        className="character-comparison-grid"
+        className="character-comparison-grid compact-characters"
         role="list"
-        aria-label="Confronto con i personaggi dei film di Natale"
+        aria-label="I tuoi tre personaggi natalizi"
       >
-        {characterMatches.map((char) => (
+        {visible.map((character, index) => (
           <div
-            key={char.id}
-            className="character-comparison-item"
+            key={character.id}
+            className={`character-comparison-item ${index === 0 ? "closest-character" : ""}`}
             role="listitem"
           >
-            <img
-              src={char.image}
-              alt={char.name}
-              width={46}
-              height={46}
-              loading="lazy"
-              className="character-portrait-img"
-            />
+            {character.image ? (
+              <img
+                src={character.image}
+                alt=""
+                width={46}
+                height={46}
+                loading="lazy"
+                className="character-portrait-img"
+              />
+            ) : (
+              <span className="character-symbol" aria-hidden="true">
+                {character.symbol || "🎄"}
+              </span>
+            )}
             <div className="character-comparison-body">
               <div className="character-comparison-head">
-                <strong>{char.name}</strong>
-                <span>{char.affinity}%</span>
+                <strong>{character.name}</strong>
+                <span>
+                  {matchingExplanation?.provisional
+                    ? "Provvisorio"
+                    : `${character.affinity}%`}
+                </span>
               </div>
-              <small>{char.movie}</small>
-              <div className="portrait-taste-track" aria-hidden="true">
-                <div
-                  className="portrait-taste-fill"
-                  style={{ width: `${char.affinity}%` }}
-                />
-              </div>
+              <small>{character.movie}</small>
+              {index === 0 && (
+                <p className="character-match-note">{character.tagline}</p>
+              )}
             </div>
           </div>
         ))}
       </div>
+      <p className="profile-footnote affinity-note">
+        Sono affinità indipendenti, non quote di un totale: le percentuali non
+        devono sommare 100%.
+      </p>
+      {matchingExplanation && (
+        <details className="portrait-matching-explanation">
+          <summary>Come nasce l’associazione?</summary>
+          <p>
+            È un gioco di somiglianze, non un test della personalità. L’attività
+            nel tool forma il ritratto; stato e domande facoltative lo affinano.
+          </p>
+          {matchingExplanation.provisional && (
+            <p>
+              È un punto di partenza: si aggiornerà con le attività e le scelte
+              che vorrai fare.
+            </p>
+          )}
+          <ul className="matching-weights">
+            {matchingExplanation.weights?.map((source) => (
+              <li key={source.id}>
+                <span>{source.label}</span>
+                <strong>
+                  {source.available
+                    ? `${source.effectiveWeight}%`
+                    : "Non usata"}
+                </strong>
+              </li>
+            ))}
+          </ul>
+          <p>
+            Questi sono i pesi usati ora. Se una fonte manca, il suo peso viene
+            distribuito fra quelle disponibili. Saltare una domanda o lo stato
+            del giorno non dà penalità.
+          </p>
+          <p>
+            Confrontiamo i cinque tratti con quelli di ogni personaggio.
+            L’affinità parte da 100 e diminuisce con la distanza tra i tratti,
+            poi viene arrotondata. Non è una probabilità né una misura
+            psicologica.
+          </p>
+          {matchingExplanation.signals?.length > 0 && (
+            <ul>
+              {matchingExplanation.signals.map((signal) => (
+                <li key={signal}>{signal}</li>
+              ))}
+            </ul>
+          )}
+        </details>
+      )}
     </div>
   );
 }
@@ -399,7 +428,7 @@ const wizardSteps = [
   { id: "oggi", short: "Oggi", title: "Attività e frase" },
   { id: "icone", short: "Icone", title: "Messaggio a icone" },
   { id: "indovinello", short: "Indovinello", title: "Indovinello del giorno" },
-  { id: "domande", short: "Domande", title: "Domanda del giorno" },
+  { id: "domande", short: "Domande", title: "Preferenze facoltative" },
   { id: "ritratto", short: "Ritratto", title: "Ritratto e personaggi" },
 ];
 
@@ -414,6 +443,7 @@ export function HolidayGuidedWizard({
   mode = "profile",
   today = romeToday(),
   dailyCheckin = null,
+  initialStep,
 }) {
   const titleId = useId();
   const computed = computeHolidayPortrait(value, {
@@ -422,10 +452,13 @@ export function HolidayGuidedWizard({
     badge: profile.badge || user?.badge,
     stampsCount: profile.stampsCount || 0,
     gamesPlayed: profile.gamesPlayed || 0,
+    activity: profile.context?.activity || profile.activity,
     today,
   });
 
   const [step, setStep] = useState(() => {
+    if (Number.isInteger(initialStep))
+      return Math.max(0, Math.min(wizardSteps.length - 1, initialStep));
     if (mode === "daily") return 0;
     return computed.completeness >= 35 ? 4 : 0;
   });
@@ -489,7 +522,7 @@ export function HolidayGuidedWizard({
               <Sparkles size={14} aria-hidden="true" />{" "}
               {isDaily
                 ? "Momento di Natale · Una volta al giorno"
-                : "Percorso guidato di Natale"}
+                : "Domande e dettagli facoltativi"}
             </span>
             <span className="guided-step-badge">
               Passaggio {step + 1} di {wizardSteps.length}
@@ -498,13 +531,13 @@ export function HolidayGuidedWizard({
           <h2 id={titleId}>
             {isDaily
               ? `Bentornato ${profile.nickname || profile.name || user?.name || ""}! Racconta il tuo Natale di oggi`
-              : "Spirito di Natale, domanda del giorno e ritratto"}
+              : "Personalizza il tuo Natale"}
           </h2>
           <p className="guided-subtitle">
-            Ogni passaggio è <strong>facoltativo</strong>: se salti o ignori, il
-            tuo profilo natalizio resterà più riservato e le associazioni con i
-            personaggi dei film saranno meno precise (completezza attuale:{" "}
-            <strong>{computed.completeness}%</strong>).
+            Scegli cosa raccontare: ogni passaggio è{" "}
+            <strong>facoltativo</strong>. Le risposte aiutano a comporre il
+            ritratto e i personaggi per gioco. Puoi aggiungerne altre quando
+            vuoi.
           </p>
         </div>
         {isDaily && onSkip ? (
@@ -519,14 +552,6 @@ export function HolidayGuidedWizard({
           </Button>
         ) : null}
       </div>
-
-      {!isDaily && dailyCheckin?.lastPromptStatus === "skipped" ? (
-        <div className="guided-impact-notice">
-          Oggi hai ignorato il check-in rapido al login: completando qualche
-          passaggio qui sotto migliorerai subito precisione del profilo e
-          associazione ai personaggi.
-        </div>
-      ) : null}
 
       <nav className="guided-stepper" aria-label="Passaggi guidati">
         {wizardSteps.map((item, idx) => {
@@ -868,21 +893,10 @@ export function HolidayGuidedWizard({
 
             <div className="guided-confidence-bar">
               <div>
-                <strong>Completezza ritratto: {computed.completeness}%</strong>
-                <span>
-                  {" "}
-                  · Affidabilità associazione:{" "}
-                  <strong>{computed.confidenceLevel}</strong> (
-                  {computed.confidencePct}%)
-                </span>
+                <strong>
+                  Le tue scelte aiutano a personalizzare il ritratto
+                </strong>
               </div>
-              {computed.completeness < 30 ? (
-                <small>
-                  Hai saltato diversi passaggi: l’associazione ai personaggi
-                  resta indicativa finché non aggiungi qualche preferenza o
-                  giochi nel gruppo.
-                </small>
-              ) : null}
             </div>
 
             <Field
@@ -933,7 +947,7 @@ export function HolidayGuidedWizard({
             <h4>A quale personaggio dei film di Natale ti avvicini?</h4>
             <MovieCharacterComparison
               characterMatches={computed.characterMatches}
-              confidenceLevel={computed.confidenceLevel}
+              matchingExplanation={computed.matchingExplanation}
             />
           </div>
         ) : null}
@@ -1011,6 +1025,7 @@ export function GroupMemberPortraitCard({
   const [error, setError] = useState("");
 
   const status = member.holidayStatus || {};
+  const mood = holidayMoods.find((item) => item.id === status.dailyMood?.id);
   const portrait = member.portrait;
   const isMe = member.userId === currentUserId;
   const memberInteractions = interactions.filter(
@@ -1049,6 +1064,15 @@ export function GroupMemberPortraitCard({
 
   return (
     <div className="member-portrait-modal-content">
+      {mood && (
+        <p className="member-status-pill">
+          <span aria-hidden="true">{mood.emoji} </span>
+          {status.dailyMood.date === romeToday()
+            ? "Oggi mi sento come"
+            : "Ultimo stato"}{" "}
+          {mood.label}
+        </p>
+      )}
       <div className="member-portrait-header">
         <Avatar
           userId={member.userId}
@@ -1167,12 +1191,11 @@ export function GroupMemberPortraitCard({
           <div className="member-portrait-description">
             <div className="profile-badge-header">
               <span className="eyebrow">Ritratto di Natale</span>
-              {Number.isFinite(portrait.completeness) ? (
+              {portrait.matchingExplanation?.provisional && (
                 <span className="quiet">
-                  Completezza {portrait.completeness}% · Associazione{" "}
-                  {portrait.confidenceLevel || "indicativa"}
+                  Un primo ritratto, ancora in aggiornamento
                 </span>
-              ) : null}
+              )}
             </div>
             <p>{portrait.finalDescription}</p>
           </div>
@@ -1192,7 +1215,7 @@ export function GroupMemberPortraitCard({
           <h4>Somiglianza con i personaggi dei film di Natale</h4>
           <MovieCharacterComparison
             characterMatches={portrait.characterMatches}
-            confidenceLevel={portrait.confidenceLevel}
+            matchingExplanation={portrait.matchingExplanation}
           />
         </>
       ) : (

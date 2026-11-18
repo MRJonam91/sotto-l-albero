@@ -96,6 +96,9 @@ test.describe("Profilo e caccia su schermo tattile", () => {
       page.getByRole("dialog").getByRole("link", { name: /Warner Bros/ }),
     ).toHaveAttribute("href", "https://www.youtube.com/watch?v=HebbNljYRzE");
     await page.keyboard.press("Escape");
+    await page
+      .getByRole("button", { name: "Scegli un personaggio", exact: true })
+      .click();
     const presets = page.locator(".profile-preset-grid button");
     await presets.first().click();
     await page.getByRole("button", { name: "Salva avatar" }).click();

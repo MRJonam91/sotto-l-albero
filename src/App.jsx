@@ -44,7 +44,7 @@ import {
   loadAmbientEffects,
   saveAmbientEffects,
 } from "./ambientEffects.js";
-import { HolidayGuidedWizard } from "./HolidayPortrait.jsx";
+import DailyMoodPicker from "./DailyMoodPicker.jsx";
 const ProfileSettings = lazy(() => import("./ProfileSettings.jsx"));
 
 const sectionPaths = {
@@ -179,11 +179,7 @@ export default function App() {
     try {
       const payload =
         action === "complete"
-          ? {
-              action,
-              holidayProfile:
-                checkinDraft ?? session?.user?.holidayProfile ?? {},
-            }
+          ? { action, moodId: checkinDraft }
           : { action: "skip" };
       const updated = await api("/profile/daily-checkin", "POST", payload);
       setSession((prev) =>
@@ -202,8 +198,8 @@ export default function App() {
       setCheckinOpen(false);
       setCheckinFeedback(
         action === "complete"
-          ? "Ritratto di Natale salvato per oggi! Puoi rivederlo in qualsiasi momento nel Profilo."
-          : "Hai ignorato il check-in di oggi: il profilo resta più riservato e le associazioni restano indicative. Puoi completarlo dal Profilo.",
+          ? "Stato di oggi salvato. Lo ritrovi nel tuo profilo."
+          : "Va bene, ci ripensiamo domani. Il tuo ritratto non cambia.",
       );
     } catch (failure) {
       setCheckinError(failure.message);
@@ -274,22 +270,9 @@ export default function App() {
   );
   const showDailyCheckin = Boolean(
     session?.user?.dailyCheckin?.pendingToday &&
-      !token &&
-      !["profile", "rules", "games"].includes(section),
+    !token &&
+    !["profile", "rules", "games"].includes(section),
   );
-  const activeCheckinDraft = checkinDraft ??
-    session?.user?.holidayProfile ?? {
-      quote: "",
-      activity: "",
-      iconMessage: [],
-      iconCaption: "",
-      riddle: "",
-      riddleHint: "",
-      riddleAnswer: "",
-      answers: {},
-      customDescription: "",
-      portraitApproved: true,
-    };
   return (
     <>
       <a className="skip-link" href="#main">
@@ -432,12 +415,8 @@ export default function App() {
               aria-label="Check-in natalizio di oggi"
             >
               <div className="daily-checkin-strip-copy">
-                <strong>✨ Momento di Natale di oggi</strong>
-                <span>
-                  {" "}
-                  · Racconta il tuo Natale in 5 passi guidati (facoltativo:
-                  ignorare riduce i dettagli di profilo e personaggi).
-                </span>
+                <strong>Come ti senti oggi?</strong>
+                <span>Una sola scelta natalizia, se ti va.</span>
               </div>
               <div className="button-row">
                 <Button
@@ -448,7 +427,7 @@ export default function App() {
                     setCheckinOpen(true);
                   }}
                 >
-                  Inizia percorso guidato →
+                  Scegli lo stato
                 </Button>
                 <Button
                   type="button"
@@ -456,7 +435,7 @@ export default function App() {
                   disabled={checkinBusy}
                   onClick={() => submitDailyCheckin("skip")}
                 >
-                  Ignora per oggi
+                  Non ora
                 </Button>
               </div>
               <Notice error>{checkinError}</Notice>
@@ -464,27 +443,15 @@ export default function App() {
           ) : null}
           {showDailyCheckin && checkinOpen ? (
             <Modal
-              title="Il tuo momento di Natale di oggi"
+              title="Oggi mi sento come…"
               onClose={() => setCheckinOpen(false)}
-              wide
             >
               <Notice error>{checkinError}</Notice>
-              <HolidayGuidedWizard
-                mode="daily"
-                user={session.user}
-                today={session.user.dailyCheckin?.today}
-                dailyCheckin={session.user.dailyCheckin}
-                profile={{
-                  name: session.user.name,
-                  nickname: session.user.nickname,
-                  badge: session.user.badge,
-                  stampsCount: collection.ids.length,
-                }}
-                value={activeCheckinDraft}
-                busy={checkinBusy}
+              <DailyMoodPicker
+                value={checkinDraft}
                 onChange={setCheckinDraft}
+                busy={checkinBusy}
                 onSave={() => submitDailyCheckin("complete")}
-                onSkip={() => submitDailyCheckin("skip")}
               />
             </Modal>
           ) : null}
@@ -677,9 +644,7 @@ export default function App() {
                                       : previous.user.badge,
                                   badgeText:
                                     badgeText || previous.user.badgeText,
-                                  ...(holidayProfile
-                                    ? { holidayProfile }
-                                    : {}),
+                                  ...(holidayProfile ? { holidayProfile } : {}),
                                   ...(dailyCheckin ? { dailyCheckin } : {}),
                                   phone,
                                   avatar,

@@ -173,7 +173,7 @@ small {
   border: none;
   background: none;
 }
-.profile > span {
+.profile > span:not(.member-avatar) {
   display: grid;
   place-items: center;
   border: 1px solid var(--gold);

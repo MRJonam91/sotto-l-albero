@@ -1605,19 +1605,15 @@ describe("API privata", () => {
     );
     expect(saved.status).toBe(200);
     expect(saved.data.portrait.tastes).toHaveLength(5);
-    expect(saved.data.portrait.characterMatches).toHaveLength(6);
-    expect(saved.data.portrait.characterMatches.map((c) => c.id)).toEqual(
-      expect.arrayContaining([
-        "grinch",
-        "kevin",
-        "scrooge",
-        "buddy",
-        "jack",
-        "clark",
-      ]),
+    expect(saved.data.portrait.characterMatches).toHaveLength(3);
+    expect(
+      saved.data.portrait.matchingExplanation.weights.map(
+        (weight) => weight.effectiveWeight,
+      ),
+    ).toEqual([0, 63, 37]);
+    expect(saved.data.portrait.finalDescription).toContain(
+      saved.data.portrait.topCharacter.name,
     );
-    expect(saved.data.portrait.topCharacter.id).toBe("kevin");
-    expect(saved.data.portrait.finalDescription).toContain("Kevin McCallister");
 
     // Verifica che nel gruppo il ritratto sia visibile ma la soluzione segreta dell'indovinello resti nascosta
     const groupView = (await api(`/events/${e.id}`, "GET", null, admin)).data;
@@ -1630,7 +1626,13 @@ describe("API privata", () => {
       hasRiddleAnswer: true,
     });
     expect(kevinInGroup.holidayStatus.riddleAnswer).toBeUndefined();
-    expect(kevinInGroup.portrait.topCharacter.name).toBe("Kevin McCallister");
+    expect(kevinInGroup.portrait.characterMatches).toEqual(
+      saved.data.portrait.characterMatches,
+    );
+    expect(kevinInGroup.portrait.matchingExplanation.weights).toEqual(
+      saved.data.portrait.matchingExplanation.weights,
+    );
+    expect(kevinInGroup.portrait.matchingExplanation.signals).toEqual([]);
 
     // L'organizzatrice prova a indovinare l'indovinello del giorno e invia un messaggio con icona
     const wrongGuess = await api(
@@ -1741,7 +1743,7 @@ describe("API privata", () => {
     },
   );
 
-  it("propone il check-in guidato al login una sola volta al giorno e l’opzione di ignorare impatta profilo e associazioni", async () => {
+  it("propone lo stato una sola volta al giorno senza conseguenze sulle affinità quando viene ignorato", async () => {
     const email = "checkin-giornaliero@example.test";
     const firstReq = await api("/auth/request", "POST", {
       email,
@@ -1754,7 +1756,9 @@ describe("API privata", () => {
     expect(firstLogin.status).toBe(200);
     expect(firstLogin.data.user.dailyCheckin.pendingToday).toBe(true);
 
-    // Se l'utente ignora il check-in di oggi, il profilo resta indicativo e non viene più richiesto oggi
+    const beforeSkip = (await api("/profile", "GET", null, firstLogin.cookie))
+      .data;
+    // Ignorare modifica soltanto lo stato del promemoria.
     const skipped = await api(
       "/profile/daily-checkin",
       "POST",
@@ -1770,8 +1774,13 @@ describe("API privata", () => {
     expect(skipped.data.portrait.completeness).toBe(0);
     expect(skipped.data.portrait.confidenceLevel).toBe("bassa");
     expect(skipped.data.portrait.ignoredToday).toBe(true);
-    expect(skipped.data.portrait.topCharacter.affinity).toBeLessThanOrEqual(58);
-    expect(skipped.data.portrait.finalDescription).toContain("mistero");
+    expect(skipped.data.portrait.characterMatches).toEqual(
+      beforeSkip.portrait.characterMatches,
+    );
+    expect(skipped.data.portrait.matchingExplanation).toEqual(
+      beforeSkip.portrait.matchingExplanation,
+    );
+    expect(skipped.data.portrait.finalDescription).toContain("provvisorio");
 
     // Anche effettuando un nuovo login lo stesso giorno, non deve riproporre il check-in
     const secondReq = await api("/auth/request", "POST", { email });
@@ -1817,7 +1826,149 @@ describe("API privata", () => {
     });
     expect(completed.data.portrait.completeness).toBeGreaterThanOrEqual(80);
     expect(completed.data.portrait.confidenceLevel).toBe("alta");
-    expect(completed.data.portrait.topCharacter.id).toBe("clark");
     expect(completed.data.portrait.topCharacter.affinity).toBeGreaterThan(75);
+  });
+
+  it("salva una sola scelta del giorno, conserva i dati precedenti e usa la data del server", async () => {
+    const cookie = await login("mood-preservation@example.test");
+    await api(
+      "/profile",
+      "PUT",
+      {
+        holidayProfile: {
+          quote: "La mia frase",
+          customDescription: "Descrizione personale",
+          portraitApproved: false,
+          answers: { sweater: "kevin_red" },
+          iconMessage: ["puzzle"],
+        },
+      },
+      cookie,
+    );
+    const complete = await api(
+      "/profile/daily-checkin",
+      "POST",
+      { action: "complete", moodId: "cocoa", date: "2099-01-01" },
+      cookie,
+    );
+    expect(complete.status).toBe(200);
+    expect(complete.data.holidayProfile).toMatchObject({
+      quote: "La mia frase",
+      customDescription: "Descrizione personale",
+      portraitApproved: false,
+      answers: { sweater: "kevin_red" },
+      iconMessage: ["puzzle"],
+      dailyMood: { id: "cocoa", date: complete.data.dailyCheckin.today },
+    });
+    expect(complete.data.holidayProfile.dailyMood.date).not.toBe("2099-01-01");
+    const skip = await api(
+      "/profile/daily-checkin",
+      "POST",
+      { action: "skip", moodId: "buddy" },
+      cookie,
+    );
+    expect(skip.data.holidayProfile.dailyMood).toEqual(
+      complete.data.holidayProfile.dailyMood,
+    );
+    expect(skip.data.portrait.characterMatches).toEqual(
+      complete.data.portrait.characterMatches,
+    );
+    const invalid = await api(
+      "/profile/daily-checkin",
+      "POST",
+      { action: "complete", moodId: "invented" },
+      cookie,
+    );
+    expect(invalid.status).toBe(400);
+    const after = await api("/profile", "GET", null, cookie);
+    expect(after.data.holidayProfile.dailyMood.id).toBe("cocoa");
+  });
+
+  it.each([
+    [
+      "/profile",
+      "PUT",
+      {
+        holidayProfile: {
+          quote: "Nuova frase",
+          answers: { wrapping: "puzzle_box" },
+        },
+      },
+    ],
+    [
+      "/profile",
+      "PUT",
+      {
+        dailyCheckinAction: "complete",
+        holidayProfile: { quote: "Nuova frase" },
+      },
+    ],
+    [
+      "/profile/daily-checkin",
+      "POST",
+      {
+        action: "complete",
+        holidayProfile: { answers: { wrapping: "puzzle_box" } },
+      },
+    ],
+    [
+      "/profile",
+      "PUT",
+      { holidayProfile: { dailyMood: { id: "buddy", date: "2099-01-01" } } },
+    ],
+    [
+      "/profile/daily-checkin",
+      "POST",
+      {
+        action: "complete",
+        holidayProfile: { dailyMood: { id: "buddy", date: "2099-01-01" } },
+      },
+    ],
+  ])(
+    "conserva il giorno dello stato precedente senza una scelta moodId esplicita: %s %s %j",
+    async (path, method, payload) => {
+      const cookie = await login("mood-date-preservation@example.test");
+      const previous = {
+        dailyMood: { id: "cocoa", date: "2026-11-17" },
+        answers: { sweater: "kevin_red" },
+      };
+      await env.DB.prepare("UPDATE users SET holiday_profile=? WHERE email=?")
+        .bind(JSON.stringify(previous), "mood-date-preservation@example.test")
+        .run();
+      const result = await api(path, method, payload, cookie);
+      expect(result.status).toBe(200);
+      expect(result.data.holidayProfile.dailyMood).toEqual({
+        id: "cocoa",
+        date: "2026-11-17",
+      });
+    },
+  );
+
+  it("costruisce lo stesso ritratto automatico dal server nel profilo e nel gruppo senza domande", async () => {
+    const cookie = await login("automatic-matching@example.test");
+    const e = await event(cookie);
+    await api(`/events/${e.id}/join`, "POST", { token: e.inviteToken }, cookie);
+    await env.DB.prepare(
+      "INSERT INTO practice_games(user_id,game,revision,state,done) SELECT id,'quiz','saved','{\"score\":4}',1 FROM users WHERE email=?",
+    )
+      .bind("automatic-matching@example.test")
+      .run();
+    const own = (await api("/profile", "GET", null, cookie)).data;
+    expect(own.portrait.answeredCount).toBe(0);
+    expect(
+      own.portrait.matchingExplanation.weights.map(
+        (weight) => weight.effectiveWeight,
+      ),
+    ).toEqual([100, 0, 0]);
+    expect(own.portrait.matchingExplanation.signals.join(" ")).toContain("80%");
+    expect(own.context.activity.games).toEqual([
+      { game: "quiz", count: 1, averageResult: 0.8 },
+    ]);
+    const group = (await api(`/events/${e.id}`, "GET", null, cookie)).data;
+    expect(group.members[0].portrait.characterMatches).toEqual(
+      own.portrait.characterMatches,
+    );
+    expect(group.members[0].portrait.matchingExplanation.signals).toEqual([]);
+    expect(group.members[0].context).toBeUndefined();
   });
 });

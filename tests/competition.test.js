@@ -1,3 +1,6 @@
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import QuizReview, { QuizAttemptHistory } from "../src/QuizReview.jsx";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DatabaseSync } from "node:sqlite";
 import { readFileSync, readdirSync } from "node:fs";
@@ -1035,7 +1038,7 @@ it("contains 200 unique Christmas quiz questions with balanced options and revie
   expect(sword?.[3]).toMatch(/natal|Capodanno|feste/i);
 });
 
-it("returns a one-time quiz review on completion without exposing questions or answers afterwards", async () => {
+it("returns quiz completion details and lists saved results without leaking questions in the board", async () => {
   const now = Date.now();
   const clock = vi.spyOn(Date, "now").mockReturnValue(now);
   try {
@@ -1066,7 +1069,6 @@ it("returns a one-time quiz review on completion without exposing questions or a
     expect(attempt.done).toBe(true);
     expect(attempt.score).toBe(150);
     expect(attempt.review).toMatchObject({
-      oneTime: true,
       correctCount: 5,
       total: 10,
     });
@@ -1091,6 +1093,8 @@ it("returns a one-time quiz review on completion without exposing questions or a
     const quizCard = board.games.find((game) => game.id === "quiz");
     expect(quizCard.history).toEqual([
       {
+        id: attempt.id,
+        reviewAvailable: true,
         ordinal: 1,
         score: 150,
         correct: 5,
@@ -1119,7 +1123,7 @@ it("returns a one-time quiz review on completion without exposing questions or a
   }
 });
 
-it("shows Quiz Duello outcomes and enforces a strictly one-time head-to-head review in duels", async () => {
+it("shows Quiz Duello outcomes and allows repeatable private head-to-head review", async () => {
   const { duelId } = await api(anna, "/duels", { userId: bea.id });
   let a = await start(anna, "duel", duelId);
   let b = await start(bea, "duel", duelId);
@@ -1134,7 +1138,6 @@ it("shows Quiz Duello outcomes and enforces a strictly one-time head-to-head rev
   }
   expect(a.done).toBe(true);
   expect(a.review).toMatchObject({
-    oneTime: true,
     correctCount: 10,
     total: 10,
   });
@@ -1161,7 +1164,6 @@ it("shows Quiz Duello outcomes and enforces a strictly one-time head-to-head rev
   }
   expect(b.done).toBe(true);
   expect(b.review).toMatchObject({
-    oneTime: true,
     correctCount: 4,
     total: 10,
     opponent: { name: "Anna", correctCount: 10, score: 100 },
@@ -1172,13 +1174,12 @@ it("shows Quiz Duello outcomes and enforces a strictly one-time head-to-head rev
     opponentOutcome: "correct",
   });
 
-  // Bea cannot reopen the duel review later
+  // Both participants can reopen their completed review without consuming it.
   const beaBoard = await api(bea);
-  expect(beaBoard.duels[0].reviewAvailable).toBe(false);
-  expect(beaBoard.duels[0].reviewSeen).toBe(true);
-  await expect(api(bea, `/duels/${duelId}/review`, {})).rejects.toMatchObject({
-    status: 409,
-  });
+  expect(beaBoard.duels[0].reviewAvailable).toBe(true);
+  expect((await api(bea, `/duels/${duelId}/review`, {})).review).toEqual(
+    b.review,
+  );
 
   // Anna sees the scorecard and can open the head-to-head review strictly ONCE
   const annaBoardBefore = await api(anna);
@@ -1190,7 +1191,6 @@ it("shows Quiz Duello outcomes and enforces a strictly one-time head-to-head rev
 
   const headToHead = await api(anna, `/duels/${duelId}/review`, {});
   expect(headToHead.review).toMatchObject({
-    oneTime: true,
     correctCount: 10,
     opponent: { name: "Bea", correctCount: 4, score: 40 },
   });
@@ -1199,13 +1199,25 @@ it("shows Quiz Duello outcomes and enforces a strictly one-time head-to-head rev
     opponentOutcome: "wrong",
   });
 
-  // Second attempt for Anna must fail (409) and board hides the review button
-  await expect(api(anna, `/duels/${duelId}/review`, {})).rejects.toMatchObject({
-    status: 409,
-  });
+  const beforeRead = env.DB.sql
+    .prepare("SELECT * FROM competition_attempts WHERE id=?")
+    .get(a.id);
+  expect(await api(anna, `/duels/${duelId}/review`, {})).toEqual(headToHead);
   const annaBoardAfter = await api(anna);
-  expect(annaBoardAfter.duels[0].reviewAvailable).toBe(false);
-  expect(annaBoardAfter.duels[0].reviewSeen).toBe(true);
+  expect(annaBoardAfter.duels[0].reviewAvailable).toBe(true);
+  expect(
+    env.DB.sql
+      .prepare("SELECT * FROM competition_attempts WHERE id=?")
+      .get(a.id),
+  ).toEqual(beforeRead);
+  // Previously consumed reviews from earlier releases remain readable.
+  const previousState = JSON.parse(beforeRead.state);
+  previousState.duelReviewSeen = true;
+  env.DB.sql
+    .prepare("UPDATE competition_attempts SET state=? WHERE id=?")
+    .run(JSON.stringify(previousState), a.id);
+  expect((await api(anna)).duels[0].reviewAvailable).toBe(true);
+  expect(await api(anna, `/duels/${duelId}/review`, {})).toEqual(headToHead);
 
   // Unplayed duel expired cannot expose questions via review
   const { duelId: unplayedId } = await api(owner, "/duels", {
@@ -1290,4 +1302,204 @@ describe("Indovina il film (100 film natalizi a icone)", () => {
       scores: { film: 200 },
     });
   });
+});
+
+describe("saved challenge reviews", () => {
+  it.each(["quiz", "film"])(
+    "reopens a completed %s repeatedly and from the archived board without changing saved data",
+    async (game) => {
+      const attempt = await completeQuiz(anna, await start(anna, game), true);
+      const snapshot = env.DB.sql
+        .prepare("SELECT * FROM competition_attempts")
+        .all();
+      const stampsBefore = env.DB.sql
+        .prepare("SELECT * FROM user_stamps")
+        .all();
+      const initialBoard = await api(anna);
+      const history = initialBoard.games.find(
+        (entry) => entry.id === game,
+      ).history;
+      expect(history[0]).toMatchObject({
+        id: attempt.id,
+        reviewAvailable: true,
+        ordinal: 1,
+        score: attempt.score,
+      });
+      const endpoint = `/attempts/${attempt.id}/review`;
+      const saved = await api(anna, endpoint);
+      expect(saved.attempt).toMatchObject({
+        id: attempt.id,
+        game,
+        ordinal: 1,
+        done: true,
+        score: attempt.score,
+        name: initialBoard.games.find((entry) => entry.id === game).name,
+      });
+      expect(saved.attempt.review).toEqual(attempt.review);
+      expect(await api(anna, endpoint)).toEqual(saved);
+      expect(
+        (await api(anna)).games.find((entry) => entry.id === game).history,
+      ).toEqual(history);
+      expect(
+        env.DB.sql.prepare("SELECT * FROM competition_attempts").all(),
+      ).toEqual(snapshot);
+      expect(env.DB.sql.prepare("SELECT * FROM user_stamps").all()).toEqual(
+        stampsBefore,
+      );
+      expect((await api(anna)).leaderboard).toEqual(initialBoard.leaderboard);
+      env.DB.sql.exec("UPDATE events SET status='archived' WHERE id='event'");
+      expect((await api(anna)).closed).toBe(true);
+      expect(
+        (await api(anna)).games.find((entry) => entry.id === game).history,
+      ).toEqual(history);
+      expect(await api(anna, endpoint)).toEqual(saved);
+      await expect(start(anna, game)).rejects.toMatchObject({ status: 409 });
+    },
+  );
+
+  it("rejects other people, editions, unapproved memberships and unfinished attempts including expired ones", async () => {
+    const complete = await completeQuiz(anna, await start(anna, "quiz"), true);
+    const endpoint = `/attempts/${complete.id}/review`;
+    await expect(api(bea, endpoint)).rejects.toMatchObject({ status: 404 });
+    await expect(api(anna, endpoint, undefined, "copy")).rejects.toMatchObject({
+      status: 404,
+    });
+    await expect(api(owner, endpoint)).rejects.toMatchObject({ status: 403 });
+    await expect(api(guest, endpoint)).rejects.toMatchObject({ status: 403 });
+    const unfinished = await start(anna, "film");
+    await expect(
+      api(anna, `/attempts/${unfinished.id}/review`),
+    ).rejects.toMatchObject({ status: 409 });
+    env.DB.sql
+      .prepare("UPDATE competition_attempts SET expires=0 WHERE id=?")
+      .run(unfinished.id);
+    await expect(
+      api(anna, `/attempts/${unfinished.id}/review`),
+    ).rejects.toMatchObject({ status: 409 });
+    env.DB.sql.exec("UPDATE members SET status='removed' WHERE user_id='anna'");
+    await expect(api(anna, endpoint)).rejects.toMatchObject({ status: 403 });
+  });
+
+  it("keeps legacy aggregate results and solutions while marking missing answers explicitly", async () => {
+    const complete = await completeQuiz(anna, await start(anna, "quiz"), true);
+    const state = JSON.parse(
+      env.DB.sql
+        .prepare("SELECT state FROM competition_attempts WHERE id=?")
+        .get(complete.id).state,
+    );
+    delete state.answers;
+    env.DB.sql
+      .prepare("UPDATE competition_attempts SET state=? WHERE id=?")
+      .run(JSON.stringify(state), complete.id);
+    const { attempt } = await api(anna, `/attempts/${complete.id}/review`);
+    expect(attempt.review).toMatchObject({
+      correctCount: 10,
+      total: 10,
+      answersRecorded: false,
+    });
+    expect(attempt.review.items[0]).toMatchObject({
+      text: state.questions[0].text,
+      correctAnswer: state.questions[0].answer,
+      myChoice: null,
+      myOutcome: "unrecorded",
+    });
+    expect(
+      attempt.review.items.every((item) => item.myOutcome === "unrecorded"),
+    ).toBe(true);
+    expect(
+      (await api(anna)).games.find((entry) => entry.id === "quiz").history[0],
+    ).toMatchObject({ reviewAvailable: true, outcomes: null });
+  });
+
+  it("marks missing rounds in partially recorded completed history as unrecorded", async () => {
+    const complete = await completeQuiz(anna, await start(anna, "film"), true);
+    const state = JSON.parse(
+      env.DB.sql
+        .prepare("SELECT state FROM competition_attempts WHERE id=?")
+        .get(complete.id).state,
+    );
+    state.answers = state.answers.slice(0, 1);
+    env.DB.sql
+      .prepare("UPDATE competition_attempts SET state=? WHERE id=?")
+      .run(JSON.stringify(state), complete.id);
+    const history = (await api(anna)).games.find((entry) => entry.id === "film")
+      .history[0];
+    expect(history.outcomes).toEqual([
+      "correct",
+      ...Array(9).fill("unrecorded"),
+    ]);
+    const { attempt } = await api(anna, `/attempts/${complete.id}/review`);
+    expect(attempt.review.answersRecorded).toBe(false);
+    expect(attempt.review.items[1].myOutcome).toBe("unrecorded");
+  });
+
+  it("never exposes unfinished duel opponents through the standalone review endpoint", async () => {
+    const { duelId } = await api(anna, "/duels", { userId: bea.id });
+    const complete = await completeQuiz(
+      anna,
+      await start(anna, "duel", duelId),
+      true,
+    );
+    await expect(
+      api(anna, `/attempts/${complete.id}/review`),
+    ).rejects.toMatchObject({ status: 404 });
+    await expect(
+      api(anna, `/duels/${duelId}/review`, {}),
+    ).rejects.toMatchObject({ status: 409 });
+    env.DB.sql
+      .prepare("UPDATE competition_duels SET expires=0 WHERE id=?")
+      .run(duelId);
+    await expect(
+      api(anna, `/duels/${duelId}/review`, {}),
+    ).rejects.toMatchObject({ status: 409 });
+  });
+});
+
+it("presents legacy missing answers transparently without claiming zero wrong answers or pending rounds", () => {
+  const markup = renderToStaticMarkup(
+    createElement(QuizReview, {
+      review: {
+        correctCount: 7,
+        total: 10,
+        answersRecorded: false,
+        items: [
+          {
+            text: "Domanda precedente",
+            options: ["A", "B"],
+            correctAnswer: 0,
+            myChoice: null,
+            myOutcome: "unrecorded",
+          },
+        ],
+      },
+    }),
+  );
+  expect(markup).toContain("7 su 10 esatte");
+  expect(markup).toContain(
+    "Risposta non registrata per questa partita precedente",
+  );
+  expect(markup).not.toContain("0 sbagliate");
+  expect(markup).not.toContain("In attesa");
+  expect(markup).not.toContain("non potrà essere riaperto");
+});
+
+it("offers a named review action for each available saved film or quiz attempt", () => {
+  const markup = renderToStaticMarkup(
+    createElement(QuizAttemptHistory, {
+      history: [
+        {
+          id: "saved",
+          ordinal: 2,
+          score: 95,
+          correct: 5,
+          total: 10,
+          reviewAvailable: true,
+        },
+      ],
+      gameName: "Indovina il film",
+      onReview() {},
+    }),
+  );
+  expect(markup).toContain("Vedi risposte: tentativo 2 di Indovina il film");
+  expect(markup).toContain("Vedi risposte</button>");
 });

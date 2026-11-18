@@ -1,6 +1,9 @@
 .member-avatar {
   width: var(--avatar-size);
   height: var(--avatar-size);
+  min-width: var(--avatar-size);
+  min-height: var(--avatar-size);
+  aspect-ratio: 1;
   flex: 0 0 var(--avatar-size);
   display: inline-grid;
   place-items: center;
@@ -21,9 +24,8 @@
   display: block;
 }
 
-.profile .member-avatar {
-  width: 28px;
-  height: 28px;
+.site-header .member-avatar {
+  border: 1px solid var(--gold);
 }
 
 .profile-settings,
@@ -48,6 +50,106 @@
 
 .profile-intro {
   overflow-wrap: anywhere;
+}
+.profile-shortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin: 0;
+}
+.profile-shortcuts a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--gold);
+  font-size: 0.85rem;
+}
+.holiday-profile-summary {
+  gap: 16px;
+  scroll-margin-top: 16px;
+}
+.holiday-profile-summary h2,
+.holiday-profile-summary h3,
+.holiday-profile-summary p {
+  margin: 0;
+}
+.holiday-summary-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.holiday-summary-visibility {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.holiday-summary-status {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--pine);
+}
+.holiday-summary-status blockquote {
+  margin: 0;
+  font-family: "Cormorant Garamond", serif;
+  font-size: clamp(23px, 4vw, 30px);
+  line-height: 1.2;
+  color: var(--gold);
+}
+.holiday-summary-description,
+.holiday-summary-status p {
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+  line-height: 1.7;
+}
+.holiday-profile-summary > .text-button {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  min-height: 44px;
+}
+.holiday-summary-icons {
+  font-size: 1.4rem;
+  letter-spacing: 0.15em;
+}
+.holiday-summary-details {
+  min-width: 0;
+}
+.holiday-summary-details > summary,
+.profile-identity-panel > summary {
+  cursor: pointer;
+  min-height: 44px;
+  color: var(--gold);
+}
+.holiday-summary-details[open] > summary {
+  margin-bottom: 16px;
+}
+.holiday-summary-details > div {
+  display: grid;
+  min-width: 0;
+  gap: 20px;
+}
+.holiday-summary-details .spirit-generated-card {
+  max-width: 520px;
+}
+.profile-identity-panel > summary h2 {
+  display: inline;
+  font-size: clamp(23px, 4vw, 30px);
+}
+.profile-identity-panel[open] > summary {
+  margin-bottom: 20px;
+}
+.profile-identity-panel .profile-identity-form {
+  margin-top: 0;
+}
+#profile-holiday-editor,
+#profile-avatar,
+#profile-identity,
+#profile-notifications {
+  scroll-margin-top: 16px;
 }
 .profile-intro p,
 .profile-heading p,
@@ -297,7 +399,9 @@
   color: var(--paper);
   font-size: 0.78rem;
   font-weight: 600;
-  transition: border-color 0.15s, background 0.15s;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
 }
 .photo-scene-pill[aria-pressed="true"] {
   border-color: var(--gold);
@@ -1005,8 +1109,146 @@
 }
 
 .daily-checkin-strip .button {
-  min-height: 40px;
+  min-height: 44px;
   padding: 8px 14px;
+}
+
+.daily-mood-picker {
+  display: grid;
+  min-width: 0;
+  gap: 14px;
+}
+.daily-mood-picker > p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.daily-mood-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  gap: 8px;
+}
+.daily-mood-options legend {
+  padding: 0 0 10px;
+  font-size: 0.85rem;
+  color: var(--gold);
+}
+.daily-mood-option {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: start;
+  gap: 7px;
+  min-width: 0;
+  min-height: 78px;
+  border: 1px solid var(--line);
+  background: var(--pine);
+  border-radius: 10px;
+  padding: 10px 8px;
+  cursor: pointer;
+}
+.daily-mood-option[data-selected] {
+  border-color: var(--gold);
+  background: #23382d;
+}
+.daily-mood-option input {
+  width: 18px;
+  height: 18px;
+  margin: 2px 0 0;
+  accent-color: var(--gold);
+}
+.daily-mood-option strong {
+  display: block;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.daily-mood-option small {
+  display: block;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  margin-top: 3px;
+  color: var(--muted);
+}
+.profile-optional-editor {
+  min-width: 0;
+  scroll-margin-top: 16px;
+}
+.profile-optional-editor > summary {
+  min-height: 48px;
+  padding: 12px 0;
+  color: var(--gold);
+  cursor: pointer;
+}
+.profile-optional-editor[open] > summary {
+  margin-bottom: 14px;
+}
+.compact-characters {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.compact-characters .character-comparison-item {
+  min-width: 0;
+  align-items: flex-start;
+}
+.compact-characters .closest-character {
+  border-color: var(--gold);
+}
+.character-symbol {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  flex: 0 0 46px;
+  border-radius: 10px;
+  background: var(--pine);
+  font-size: 1.6rem;
+}
+.character-comparison-head strong {
+  overflow-wrap: anywhere;
+}
+.character-comparison-head > span {
+  flex: 0 0 auto;
+  font-size: 0.78rem;
+}
+.character-match-note {
+  margin: 6px 0 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.portrait-matching-explanation > summary {
+  min-height: 44px;
+  padding: 10px 0;
+  cursor: pointer;
+  color: var(--gold);
+}
+.portrait-matching-explanation p,
+.portrait-matching-explanation li {
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+.matching-weights {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  padding: 0;
+}
+.matching-weights li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.matching-weights strong {
+  flex: 0 0 auto;
+  color: var(--gold);
+}
+@media (max-width: 760px) {
+  .compact-characters {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .daily-checkin-banner {

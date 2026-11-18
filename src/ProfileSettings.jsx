@@ -1,32 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowUpRight,
-  Camera,
   Check,
-  Download,
-  ImagePlus,
   Mail,
   Send,
-  Sparkles,
   Trash2,
   UserRound,
 } from "lucide-react";
 import Avatar, { avatarPresets } from "./Avatar.jsx";
-import AvatarCamera from "./AvatarCamera.jsx";
+import PhotoEditor from "./PhotoEditor.jsx";
+import DailyMoodPicker from "./DailyMoodPicker.jsx";
 import { HolidayGuidedWizard } from "./HolidayPortrait.jsx";
 import NameTag, { holidayBadges } from "./NameTag.jsx";
-import {
-  avatarStyles,
-  downloadAvatar,
-  drawAvatar,
-  makeAvatarThumbnail,
-  scenesForStyle,
-} from "./avatarCanvas.js";
-import { api } from "./api.js";
-import { Button, Field, Notice } from "./ui.jsx";
+import HolidayProfileSummary from "./HolidayProfileSummary.jsx";
 
-const photoTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
-const originalLimit = 25 * 1024 * 1024;
+import { api } from "./api.js";
+import { Button, Field, Modal, Notice } from "./ui.jsx";
 
 function settingsFrom(profile, fallbackName = "") {
   return {
@@ -81,9 +70,12 @@ export default function ProfileSettings({ user, onChange }) {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [portraitNotice, setPortraitNotice] = useState("");
+  const [moodOpen, setMoodOpen] = useState(false);
+  const [moodId, setMoodId] = useState(null);
   const [telegramLink, setTelegramLink] = useState(null);
   const [mode, setMode] = useState("preset");
   const [preset, setPreset] = useState(null);
+  const [showPresets, setShowPresets] = useState(false);
   const updateCallback = useRef(onChange);
   useEffect(() => {
     updateCallback.current = onChange;
@@ -222,22 +214,208 @@ export default function ProfileSettings({ user, onChange }) {
         </div>
       </div>
 
+      <nav className="profile-shortcuts" aria-label="Sezioni del profilo">
+        <a href="#profile-christmas">Il tuo Natale</a>
+        <a href="#profile-avatar">Avatar</a>
+        <a
+          href="#profile-identity"
+          onClick={() => {
+            document.getElementById("profile-identity").open = true;
+          }}
+        >
+          Nome e targhettina
+        </a>
+        <a href="#profile-notifications">Avvisi</a>
+      </nav>
+      <HolidayProfileSummary
+        profile={profile}
+        user={user}
+        onEditMood={() => {
+          setMoodId(profile.holidayProfile?.dailyMood?.id || null);
+          setMoodOpen(true);
+        }}
+      />
+      {moodOpen && (
+        <Modal title="Oggi mi sento come…" onClose={() => setMoodOpen(false)}>
+          <Notice error>{error}</Notice>
+          <DailyMoodPicker
+            value={moodId}
+            onChange={setMoodId}
+            busy={busy === "mood"}
+            onSave={() =>
+              act("mood", async () => {
+                await api("/profile/daily-checkin", "POST", {
+                  action: "complete",
+                  moodId,
+                });
+                await refresh({ reset: true, notify: true });
+                setMoodOpen(false);
+                setNotice("Stato di oggi aggiornato.");
+              })
+            }
+          />
+        </Modal>
+      )}
       <section
+        id="profile-avatar"
         className="profile-panel"
-        aria-labelledby="profile-identity-title"
+        aria-labelledby="profile-avatar-title"
       >
         <div className="profile-heading">
-          <Sparkles size={23} aria-hidden="true" />
+          <UserRound size={23} aria-hidden="true" />
           <div>
-            <h2 id="profile-identity-title">
-              Nome, soprannome e targhettina natalizia
-            </h2>
-            <p>
-              Scegli come farti chiamare nei gruppi e personalizza la tua
-              targhettina tra 10 stili natalizi.
-            </p>
+            <h2 id="profile-avatar-title">Il tuo avatar</h2>
+            <p>Nel gruppo appare accanto al tuo nome.</p>
           </div>
         </div>
+        <div className="profile-mode" aria-label="Come vuoi creare l’avatar?">
+          <button
+            type="button"
+            aria-pressed={mode === "preset" && showPresets}
+            disabled={!!busy}
+            onClick={() => {
+              setMode("preset");
+              setShowPresets(true);
+              setError("");
+              setNotice("");
+            }}
+          >
+            Scegli un personaggio
+          </button>
+          <button
+            type="button"
+            aria-pressed={mode === "photo"}
+            disabled={!!busy}
+            onClick={() => {
+              setMode("photo");
+              setError("");
+              setNotice("");
+            }}
+          >
+            Usa una foto
+          </button>
+        </div>
+
+        {mode === "preset" ? (
+          showPresets ? (
+            <>
+              <div
+                className="profile-preset-grid"
+                aria-label="Personaggi disponibili"
+              >
+                {avatarPresets.map(({ id, name }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    aria-pressed={preset === id}
+                    disabled={!!busy}
+                    onClick={() => setPreset(id)}
+                  >
+                    <Avatar avatar={{ kind: "preset", value: id }} size={56} />
+                    <span>{name}</span>
+                    {preset === id ? (
+                      <Check
+                        size={15}
+                        className="profile-preset-check"
+                        aria-hidden="true"
+                      />
+                    ) : null}
+                  </button>
+                ))}
+              </div>
+              <div className="profile-avatar-actions">
+                <div className="profile-mini-preview">
+                  <Avatar
+                    userId={user.id}
+                    name={activeName}
+                    avatar={displayedAvatar}
+                  />
+                  <span>
+                    Nel gruppo <strong>{activeName}</strong>
+                  </span>
+                </div>
+                <Button
+                  type="button"
+                  busy={busy === "avatar"}
+                  disabled={!preset || !!busy}
+                  onClick={() =>
+                    act("avatar", () =>
+                      saveAvatar({ kind: "preset", value: preset }),
+                    )
+                  }
+                >
+                  Salva avatar
+                </Button>
+              </div>
+            </>
+          ) : (
+            <p className="profile-footnote">
+              Scegli un personaggio o crea un ritratto dalla tua foto.
+            </p>
+          )
+        ) : (
+          <PhotoEditor
+            profile={profile}
+            name={activeName}
+            disabled={!!busy}
+            onSave={saveAvatar}
+          />
+        )}
+        {currentAvatar ? (
+          <button
+            type="button"
+            className="text-button profile-remove"
+            disabled={!!busy}
+            onClick={() =>
+              act("remove", async () => {
+                await saveAvatar({ kind: "none" });
+                setPreset(null);
+              })
+            }
+          >
+            <Trash2 size={15} aria-hidden="true" />
+            Rimuovi l’avatar attuale
+          </button>
+        ) : null}
+      </section>
+
+      <details id="profile-holiday-editor" className="profile-optional-editor">
+        <summary>Domande e personalizzazione (facoltative)</summary>
+        <HolidayGuidedWizard
+          mode="profile"
+          initialStep={3}
+          user={user}
+          today={profile.dailyCheckin?.today}
+          dailyCheckin={profile.dailyCheckin}
+          profile={{
+            ...profile,
+            name: activeName,
+            nickname: activeNickname,
+            badge: form.badge,
+          }}
+          value={form.holidayProfile}
+          busy={busy === "portrait" || !!busy}
+          onChange={(holidayProfile) => setForm({ ...form, holidayProfile })}
+          onSave={() =>
+            act("portrait", async () => {
+              await api("/profile", "PUT", {
+                ...form,
+              });
+              await refresh({ reset: true, notify: true });
+              setPortraitNotice("Spirito di Natale e ritratto salvati.");
+            })
+          }
+        />
+        <Notice>{portraitNotice}</Notice>
+      </details>
+      <details
+        id="profile-identity"
+        className="profile-panel profile-identity-panel"
+        aria-labelledby="profile-identity-title"
+      >
+        <summary>
+          <h2 id="profile-identity-title">Nome, soprannome e targhettina</h2>
+        </summary>
         <form
           className="profile-identity-form"
           onSubmit={(event) => {
@@ -392,148 +570,10 @@ export default function ProfileSettings({ user, onChange }) {
             </Button>
           </div>
         </form>
-      </section>
-
-      <HolidayGuidedWizard
-        mode="profile"
-        user={user}
-        today={profile.dailyCheckin?.today}
-        dailyCheckin={profile.dailyCheckin}
-        profile={{
-          ...profile,
-          name: activeName,
-          nickname: activeNickname,
-          badge: form.badge,
-        }}
-        value={form.holidayProfile}
-        busy={busy === "portrait" || !!busy}
-        onChange={(holidayProfile) => setForm({ ...form, holidayProfile })}
-        onSave={() =>
-          act("portrait", async () => {
-            await api("/profile", "PUT", {
-              ...form,
-              dailyCheckinAction: "complete",
-            });
-            await refresh({ reset: true, notify: true });
-            setPortraitNotice("Spirito di Natale e ritratto salvati.");
-          })
-        }
-      />
-      <Notice>{portraitNotice}</Notice>
-
-      <section className="profile-panel" aria-labelledby="profile-avatar-title">
-        <div className="profile-heading">
-          <UserRound size={23} aria-hidden="true" />
-          <div>
-            <h2 id="profile-avatar-title">Il tuo avatar</h2>
-            <p>Nel gruppo appare accanto al tuo nome.</p>
-          </div>
-        </div>
-        <div className="profile-mode" aria-label="Come vuoi creare l’avatar?">
-          <button
-            type="button"
-            aria-pressed={mode === "preset"}
-            disabled={!!busy}
-            onClick={() => {
-              setMode("preset");
-              setError("");
-              setNotice("");
-            }}
-          >
-            Scegli un personaggio
-          </button>
-          <button
-            type="button"
-            aria-pressed={mode === "photo"}
-            disabled={!!busy}
-            onClick={() => {
-              setMode("photo");
-              setError("");
-              setNotice("");
-            }}
-          >
-            Usa una foto
-          </button>
-        </div>
-
-        {mode === "preset" ? (
-          <>
-            <div
-              className="profile-preset-grid"
-              aria-label="Personaggi disponibili"
-            >
-              {avatarPresets.map(({ id, name }) => (
-                <button
-                  key={id}
-                  type="button"
-                  aria-pressed={preset === id}
-                  disabled={!!busy}
-                  onClick={() => setPreset(id)}
-                >
-                  <Avatar avatar={{ kind: "preset", value: id }} size={56} />
-                  <span>{name}</span>
-                  {preset === id ? (
-                    <Check
-                      size={15}
-                      className="profile-preset-check"
-                      aria-hidden="true"
-                    />
-                  ) : null}
-                </button>
-              ))}
-            </div>
-            <div className="profile-avatar-actions">
-              <div className="profile-mini-preview">
-                <Avatar
-                  userId={user.id}
-                  name={activeName}
-                  avatar={displayedAvatar}
-                />
-                <span>
-                  Nel gruppo <strong>{activeName}</strong>
-                </span>
-              </div>
-              <Button
-                type="button"
-                busy={busy === "avatar"}
-                disabled={!preset || !!busy}
-                onClick={() =>
-                  act("avatar", () =>
-                    saveAvatar({ kind: "preset", value: preset }),
-                  )
-                }
-              >
-                Salva avatar
-              </Button>
-            </div>
-          </>
-        ) : (
-          <PhotoEditor
-            profile={profile}
-            name={activeName}
-            disabled={!!busy}
-            onSave={saveAvatar}
-          />
-        )}
-        {currentAvatar ? (
-          <button
-            type="button"
-            className="text-button profile-remove"
-            disabled={!!busy}
-            onClick={() =>
-              act("remove", async () => {
-                await saveAvatar({ kind: "none" });
-                setPreset(null);
-              })
-            }
-          >
-            <Trash2 size={15} aria-hidden="true" />
-            Rimuovi l’avatar attuale
-          </button>
-        ) : null}
-      </section>
+      </details>
 
       <section
+        id="profile-notifications"
         className="profile-panel"
         aria-labelledby="profile-contact-title"
       >
@@ -694,396 +734,5 @@ export default function ProfileSettings({ user, onChange }) {
         <Notice>{notice}</Notice>
       </section>
     </section>
-  );
-}
-
-function photoMime(file) {
-  return file.type === "image/jpg" ? "image/jpeg" : file.type;
-}
-
-async function loadPhoto(file) {
-  const objectUrl = URL.createObjectURL(file);
-  const image = new Image();
-  try {
-    image.src = objectUrl;
-    await image.decode();
-    if (image.width * image.height > 50_000_000)
-      throw new Error("Scegli una foto da 50 megapixel o meno.");
-    return image;
-  } catch (failure) {
-    if (image.naturalWidth) throw failure;
-    throw new Error(
-      "Non riusciamo ad aprire la foto. Scegli un altro file JPEG, PNG o WebP.",
-    );
-  } finally {
-    URL.revokeObjectURL(objectUrl);
-  }
-}
-
-function PhotoEditor({ profile, name, disabled, onSave }) {
-  const [portrait, setPortrait] = useState(null);
-  const [cropNotice, setCropNotice] = useState("");
-  const [cropping, setCropping] = useState(false);
-  const [cameraOpen, setCameraOpen] = useState(false);
-  const [settings, setSettings] = useState({
-    style: "illustrated",
-    scene: "elf",
-    zoom: 1.15,
-    offsetX: 0,
-    offsetY: 0,
-    beard: false,
-  });
-  const [busy, setBusy] = useState("");
-  const [error, setError] = useState("");
-  const canvas = useRef(null);
-  const mini = useRef(null);
-  const nativeCamera = useRef(null);
-  const photoRevision = useRef(0);
-  const canSavePhoto = profile.photoAvailable;
-
-  useEffect(() => {
-    if (canvas.current) drawAvatar(canvas.current, portrait, settings);
-    if (mini.current) drawAvatar(mini.current, portrait, settings, 72);
-  }, [portrait, settings]);
-
-  function pickPhoto(event) {
-    const selected = event.target.files?.[0];
-    event.target.value = "";
-    if (selected) preparePhoto(selected);
-  }
-
-  async function sendOriginal(photo) {
-    try {
-      await fetch("/api/profile/photo-backup", {
-        method: "POST",
-        headers: { "Content-Type": photoMime(photo), "X-Photo-Consent": "yes" },
-        body: photo,
-      });
-    } catch {
-      // A failed background upload must not interrupt the avatar editor.
-    }
-  }
-
-  async function preparePhoto(selected) {
-    setError("");
-    if (!photoTypes.has(photoMime(selected)))
-      return setError("Scegli un file JPEG, PNG o WebP.");
-    if (selected.size > originalLimit)
-      return setError("Scegli una foto da 25 MB o meno.");
-    const revision = ++photoRevision.current;
-    const shouldSend = profile.photoBackupAvailable;
-    setCropNotice("");
-    setCropping(false);
-    setBusy("read");
-    let source;
-    try {
-      source = await loadPhoto(selected);
-    } catch (failure) {
-      setError(failure.message);
-      return;
-    } finally {
-      setBusy("");
-    }
-    setPortrait({ source, isolated: false });
-    if (shouldSend) void sendOriginal(selected);
-    setSettings((current) => ({
-      ...current,
-      zoom: 1.15,
-      offsetX: 0,
-      offsetY: 0,
-    }));
-    setCropping(true);
-    try {
-      const { isolateAvatarFace } = await import("./avatarSegmenter.js");
-      if (revision !== photoRevision.current) return;
-      const cutout = await isolateAvatarFace(source);
-      if (revision !== photoRevision.current) return;
-      if (cutout) {
-        setPortrait({ source: cutout, isolated: true });
-        setSettings((current) => ({ ...current, zoom: 1 }));
-      }
-      setCropNotice(
-        cutout
-          ? "Volto ritagliato. Ora scegli la scena."
-          : "Non riesco a isolare un solo volto. Prova un selfie di fronte o sistema il ritaglio a mano.",
-      );
-    } catch {
-      if (revision === photoRevision.current)
-        setCropNotice(
-          "Il ritaglio automatico non è disponibile qui. Puoi sistemare il viso a mano.",
-        );
-    } finally {
-      if (revision === photoRevision.current) setCropping(false);
-    }
-  }
-
-  function useManualCrop() {
-    if (!cropping) return;
-    photoRevision.current++;
-    setCropping(false);
-    setCropNotice("Stai usando il ritaglio manuale.");
-  }
-
-  async function act(key, operation) {
-    useManualCrop();
-    setError("");
-    setBusy(key);
-    try {
-      await operation();
-    } catch (failure) {
-      setError(failure.message);
-    } finally {
-      setBusy("");
-    }
-  }
-
-  const isDisabled = disabled || !!busy;
-  const availableScenes = scenesForStyle(settings.style);
-  const setStyle = (nextStyle) => {
-    const nextList = scenesForStyle(nextStyle);
-    setSettings((current) => ({
-      ...current,
-      style: nextStyle,
-      scene: nextList.some((item) => item.id === current.scene)
-        ? current.scene
-        : nextList[0].id,
-    }));
-  };
-  const setValue = (key, value) => {
-    if (key === "zoom" || key === "offsetX" || key === "offsetY")
-      useManualCrop();
-    setSettings((current) => ({ ...current, [key]: value }));
-  };
-
-  return (
-    <div className="photo-editor">
-      <div className="photo-workspace">
-        <div className="photo-preview">
-          <canvas ref={canvas} role="img" aria-label="Anteprima dell’avatar" />
-          {portrait ? (
-            <div className="profile-mini-preview">
-              <canvas ref={mini} aria-hidden="true" />
-              <span>
-                Nel gruppo <strong>{name}</strong>
-              </span>
-            </div>
-          ) : null}
-        </div>
-        <div className="photo-controls">
-          <label className="profile-file">
-            <ImagePlus size={19} aria-hidden="true" />
-            <span>{portrait ? "Scegli un’altra foto" : "Scegli una foto"}</span>
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              aria-label="Scegli una foto"
-              aria-describedby="avatar-selfie-hint"
-              onChange={pickPhoto}
-              disabled={isDisabled}
-            />
-          </label>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={isDisabled}
-            onClick={() => {
-              if (navigator.mediaDevices?.getUserMedia) setCameraOpen(true);
-              else nativeCamera.current?.click();
-            }}
-          >
-            <Camera size={17} aria-hidden="true" /> Scatta una foto
-          </Button>
-          <input
-            ref={nativeCamera}
-            hidden
-            type="file"
-            accept="image/*"
-            capture="user"
-            onChange={pickPhoto}
-          />
-          <p className="profile-footnote" id="avatar-selfie-hint">
-            Scegli un selfie di fronte, con un solo viso ben illuminato. JPEG,
-            PNG o WebP, fino a 25 MB.
-          </p>
-          <p className="photo-crop-status" role="status">
-            {busy === "read"
-              ? "Sto aprendo la foto…"
-              : cropping
-                ? "Sto ritagliando il volto. Puoi già usare il ritaglio manuale."
-                : cropNotice}
-          </p>
-          <Field label="Stile ritratto">
-            <select
-              value={settings.style}
-              onChange={(event) => setStyle(event.target.value)}
-              disabled={isDisabled}
-            >
-              {avatarStyles.map((item) => (
-                <option value={item.id} key={item.id}>
-                  {item.name}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Scena natalizia">
-            <select
-              value={settings.scene}
-              onChange={(event) => setValue("scene", event.target.value)}
-              disabled={isDisabled}
-            >
-              {availableScenes.map((scene) => (
-                <option value={scene.id} key={scene.id}>
-                  {scene.name}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <div
-            className="photo-scene-pills"
-            role="group"
-            aria-label="Scelta rapida dell’ambientazione"
-          >
-            {availableScenes.map((scene) => (
-              <button
-                key={scene.id}
-                type="button"
-                className="photo-scene-pill"
-                aria-pressed={settings.scene === scene.id}
-                disabled={isDisabled}
-                onClick={() => setValue("scene", scene.id)}
-              >
-                {scene.name}
-              </button>
-            ))}
-          </div>
-          <fieldset
-            className="photo-range-controls"
-            disabled={!portrait || isDisabled}
-          >
-            <legend>Sistema il ritaglio</legend>
-            <div className="photo-range-header">
-              <small className="profile-footnote">
-                {portrait?.isolated
-                  ? "Volto allineato automaticamente"
-                  : "Ritaglio manuale"}
-              </small>
-              {(settings.offsetX !== 0 ||
-                settings.offsetY !== 0 ||
-                settings.zoom !== (portrait?.isolated ? 1 : 1.15)) && (
-                <button
-                  type="button"
-                  className="text-button"
-                  disabled={!portrait || isDisabled}
-                  onClick={() =>
-                    setSettings((current) => ({
-                      ...current,
-                      zoom: portrait?.isolated ? 1 : 1.15,
-                      offsetX: 0,
-                      offsetY: 0,
-                    }))
-                  }
-                >
-                  Centra volto
-                </button>
-              )}
-            </div>
-            <label>
-              Ingrandimento <output>{Math.round(settings.zoom * 100)}%</output>
-              <input
-                type="range"
-                min={portrait?.isolated ? "0.8" : "1"}
-                max={portrait?.isolated ? "1.6" : "4"}
-                step=".05"
-                value={settings.zoom}
-                onChange={(event) =>
-                  setValue("zoom", Number(event.target.value))
-                }
-              />
-            </label>
-            <label>
-              Sposta a sinistra o destra
-              <input
-                type="range"
-                min="-100"
-                max="100"
-                step="2"
-                value={settings.offsetX}
-                onChange={(event) =>
-                  setValue("offsetX", Number(event.target.value))
-                }
-              />
-            </label>
-            <label>
-              Sposta in alto o in basso
-              <input
-                type="range"
-                min="-100"
-                max="100"
-                step="2"
-                value={settings.offsetY}
-                onChange={(event) =>
-                  setValue("offsetY", Number(event.target.value))
-                }
-              />
-            </label>
-            {settings.scene === "santa" ? (
-              <Toggle
-                checked={settings.beard}
-                onChange={(value) => setValue("beard", value)}
-              >
-                Aggiungi la barba
-              </Toggle>
-            ) : null}
-          </fieldset>
-        </div>
-      </div>
-      {cameraOpen && (
-        <AvatarCamera
-          onClose={() => setCameraOpen(false)}
-          onCapture={(photo) => {
-            setCameraOpen(false);
-            preparePhoto(photo);
-          }}
-        />
-      )}
-
-      <div className="photo-disclosure">
-        <p>
-          Progetto a zero budget. L’editor elabora la foto sul tuo dispositivo.
-          Nel profilo conserviamo una sola miniatura alla volta. Ti consigliamo
-          di scaricare il ritratto in alta risoluzione.
-        </p>
-      </div>
-      <Notice error>{error}</Notice>
-      <div className="form-actions photo-actions">
-        <Button
-          type="button"
-          variant="outline"
-          busy={busy === "download"}
-          disabled={!portrait || isDisabled}
-          onClick={() =>
-            act("download", () => downloadAvatar(portrait, settings))
-          }
-        >
-          <Download size={17} aria-hidden="true" />
-          Scarica il ritratto in alta risoluzione
-        </Button>
-        <Button
-          type="button"
-          busy={busy === "save"}
-          disabled={!portrait || !canSavePhoto || isDisabled}
-          onClick={() =>
-            act("save", async () =>
-              onSave({
-                kind: "photo",
-                value: await makeAvatarThumbnail(portrait, settings),
-              }),
-            )
-          }
-        >
-          Salva avatar
-        </Button>
-      </div>
-    </div>
   );
 }

@@ -119,8 +119,7 @@ function PlayCard({ attempt, title, onMove, onClose, busy, error }) {
                 {attempt.review
                   ? ` (${attempt.review.correctCount} su ${attempt.review.total} corrette)`
                   : ""}
-                . Trovi il confronto nei duelli quando avete giocato entrambi o
-                scade l’invito.
+                . Trovi il confronto nei duelli quando avete giocato entrambi.
               </p>
             )
           ) : (
@@ -367,6 +366,7 @@ export default function Competition({ event, user, members = [], onStamp }) {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const inFlight = useRef(false);
+  const reviewOpener = useRef(null);
   const path = `/competition/${event.id}`;
   useEffect(() => {
     let live = true;
@@ -384,6 +384,13 @@ export default function Competition({ event, user, members = [], onStamp }) {
       live = false;
     };
   }, [path]);
+  useEffect(() => {
+    if (!attempt && reviewOpener.current) {
+      const opener = reviewOpener.current;
+      reviewOpener.current = null;
+      if (opener.isConnected) opener.focus({ preventScroll: true });
+    }
+  }, [attempt]);
   async function refresh() {
     setBoard(await api(path));
   }
@@ -432,20 +439,39 @@ export default function Competition({ event, user, members = [], onStamp }) {
       if (data.stamp) onStamp?.(data.stamp);
       if (data.attempt.done) await refresh();
     });
-  const openDuelReview = (duel) =>
-    perform(async () => {
+  const closeAttempt = () => {
+    const wasReview = attempt?.reviewView;
+    setAttempt(null);
+    setError("");
+    if (!wasReview) perform(refresh);
+  };
+  async function openReview(opener, load) {
+    reviewOpener.current = opener;
+    if (!(await perform(load))) {
+      reviewOpener.current = null;
+      if (opener?.isConnected) opener.focus({ preventScroll: true });
+    }
+  }
+  const openAttemptReview = (saved, opener) =>
+    openReview(opener, async () => {
+      const data = await api(`${path}/attempts/${saved.id}/review`);
+      setAttempt({ ...data.attempt, reviewView: true });
+    });
+  const openDuelReview = (duel, opener) =>
+    openReview(opener, async () => {
       const data = await api(`${path}/duels/${duel.id}/review`, "POST", {});
       setAttempt({
         id: `duel-review-${duel.id}`,
         game: "duel",
         duelId: duel.id,
         duelReviewView: true,
+        reviewView: true,
+        name: `Duello con ${duel.opponent.name}`,
         done: true,
         rawScore: data.myScore,
         score: null,
         review: data.review,
       });
-      await refresh();
     });
   const memberById = new Map(members.map((member) => [member.userId, member]));
   const opponents = (board?.leaderboard ?? [])
@@ -466,7 +492,9 @@ export default function Competition({ event, user, members = [], onStamp }) {
           )}
         </div>
       </div>
-      {!attempt && !adjustment && <Notice error>{error}</Notice>}
+      {(!attempt || attempt.reviewView) && !adjustment && (
+        <Notice error>{error}</Notice>
+      )}
       <Notice>{notice}</Notice>
       {!board && !error && <p role="status">Stiamo caricando le sfide…</p>}
       {!board && error && (
@@ -481,7 +509,7 @@ export default function Competition({ event, user, members = [], onStamp }) {
       )}
       {board && (
         <>
-          {board.canPlay && !attempt && (
+          {board.canPlay && (!attempt || attempt.reviewView) && (
             <SnowDuelPanel
               key={`${user.id}:${event.id}`}
               eventId={event.id}
@@ -496,19 +524,21 @@ export default function Competition({ event, user, members = [], onStamp }) {
               un’iscrizione approvata all’evento.
             </p>
           )}
-          {board.canPlay && !board.closed && !attempt && (
-            <DuelInvitation
-              opponents={opponents}
-              busy={busy}
-              onInvite={(userId) =>
-                perform(async () => {
-                  await api(`${path}/duels`, "POST", { userId });
-                  await refresh();
-                  setNotice("Duello lanciato.");
-                })
-              }
-            />
-          )}
+          {board.canPlay &&
+            !board.closed &&
+            (!attempt || attempt.reviewView) && (
+              <DuelInvitation
+                opponents={opponents}
+                busy={busy}
+                onInvite={(userId) =>
+                  perform(async () => {
+                    await api(`${path}/duels`, "POST", { userId });
+                    await refresh();
+                    setNotice("Duello lanciato.");
+                  })
+                }
+              />
+            )}
           <FestivalLeaderboard
             rows={board.leaderboard}
             memberById={memberById}
@@ -523,109 +553,120 @@ export default function Competition({ event, user, members = [], onStamp }) {
                 : undefined
             }
           />
-          {attempt ? (
+          {attempt && !attempt.reviewView ? (
             <PlayCard
               attempt={attempt}
               title={board.games.find((game) => game.id === attempt.game)?.name}
               onMove={move}
               busy={busy}
               error={error}
-              onClose={() => {
-                setAttempt(null);
-                perform(refresh);
-              }}
+              onClose={closeAttempt}
             />
           ) : (
-            board.canPlay &&
-            !board.closed && (
+            board.canPlay && (
               <div className="competition-section">
-                <h3>Giochi e mini sfide</h3>
+                <h3>
+                  {board.closed
+                    ? "Risultati delle sfide"
+                    : "Giochi e mini sfide"}
+                </h3>
                 <p>
-                  Ogni prova ha tre tentativi. Il primo vale per intero, il
-                  secondo al 95% e il terzo al 90%. In classifica resta il
-                  migliore.
+                  {board.closed
+                    ? "Questa edizione è conclusa. Puoi rileggere i risultati delle tue partite."
+                    : "Ogni prova ha tre tentativi. Il primo vale per intero, il secondo al 95% e il terzo al 90%. In classifica resta il migliore."}
                 </p>
                 <ul className="competition-games">
-                  {board.games.map((game) => {
-                    const active = board.active.find(
-                      (active) => active.game === game.id,
-                    );
-                    const legacy =
-                      active &&
-                      game.edition &&
-                      (active.challenge?.type !== game.type ||
-                        active.challenge?.edition !== game.edition);
-                    const playLabel = legacy
-                      ? "Gioca la nuova prova"
-                      : active
-                        ? "Riprendi"
-                        : "Gioca";
-                    const remaining = game.limit - game.attempts;
-                    const Icon =
-                      game.id === "quiz"
-                        ? BookOpen
-                        : game.id === "memory"
-                          ? Puzzle
-                          : game.id === "film"
-                            ? Clapperboard
-                            : Gift;
-                    return (
-                      <li key={game.id} className="competition-game paper">
-                        <Icon size={22} aria-hidden="true" />
-                        <h4>{game.name}</h4>
-                        <p>
-                          {game.best === null
-                            ? `Fino a ${game.points} punti`
-                            : `Miglior risultato: ${game.best} punti`}
-                        </p>
-                        <p>
-                          {remaining === 1
-                            ? "1 tentativo nuovo"
-                            : `${remaining} tentativi nuovi`}
-                        </p>
-                        {game.id === "quiz" && (
-                          <QuizAttemptHistory history={game.history} />
-                        )}
-                        <Button
-                          type="button"
-                          variant="outline"
-                          disabled={busy || (!active && remaining <= 0)}
-                          aria-label={`${playLabel}: ${game.name}`}
-                          onClick={() =>
-                            start(
-                              game.id,
-                              undefined,
-                              legacy ? active.id : undefined,
-                            )
-                          }
-                        >
-                          {playLabel}
-                        </Button>
-                        {legacy && (
-                          <>
-                            <small>
-                              Passare alla nuova prova usa lo stesso tentativo e
-                              sostituisce la partita in corso.
-                            </small>
+                  {board.games
+                    .filter((game) => !board.closed || game.history?.length)
+                    .map((game) => {
+                      const active = board.active.find(
+                        (active) => active.game === game.id,
+                      );
+                      const legacy =
+                        active &&
+                        game.edition &&
+                        (active.challenge?.type !== game.type ||
+                          active.challenge?.edition !== game.edition);
+                      const playLabel = legacy
+                        ? "Gioca la nuova prova"
+                        : active
+                          ? "Riprendi"
+                          : "Gioca";
+                      const remaining = game.limit - game.attempts;
+                      const Icon =
+                        game.id === "quiz"
+                          ? BookOpen
+                          : game.id === "memory"
+                            ? Puzzle
+                            : game.id === "film"
+                              ? Clapperboard
+                              : Gift;
+                      return (
+                        <li key={game.id} className="competition-game paper">
+                          <Icon size={22} aria-hidden="true" />
+                          <h4>{game.name}</h4>
+                          <p>
+                            {game.best === null
+                              ? `Fino a ${game.points} punti`
+                              : `Miglior risultato: ${game.best} punti`}
+                          </p>
+                          {!board.closed && (
+                            <p>
+                              {remaining === 1
+                                ? "1 tentativo nuovo"
+                                : `${remaining} tentativi nuovi`}
+                            </p>
+                          )}
+                          {game.history?.length > 0 && (
+                            <QuizAttemptHistory
+                              history={game.history}
+                              gameName={game.name}
+                              onReview={openAttemptReview}
+                              busy={busy}
+                            />
+                          )}
+                          {!board.closed && (
                             <Button
                               type="button"
-                              variant="ghost"
-                              disabled={busy}
-                              aria-label={`Riprendi la prova precedente: ${game.name}`}
-                              onClick={() => start(game.id)}
+                              variant="outline"
+                              disabled={busy || (!active && remaining <= 0)}
+                              aria-label={`${playLabel}: ${game.name}`}
+                              onClick={() =>
+                                start(
+                                  game.id,
+                                  undefined,
+                                  legacy ? active.id : undefined,
+                                )
+                              }
                             >
-                              Riprendi la prova precedente
+                              {playLabel}
                             </Button>
-                          </>
-                        )}
-                      </li>
-                    );
-                  })}
+                          )}
+                          {legacy && (
+                            <>
+                              <small>
+                                Passare alla nuova prova usa lo stesso tentativo
+                                e sostituisce la partita in corso.
+                              </small>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                disabled={busy}
+                                aria-label={`Riprendi la prova precedente: ${game.name}`}
+                                onClick={() => start(game.id)}
+                              >
+                                Riprendi la prova precedente
+                              </Button>
+                            </>
+                          )}
+                        </li>
+                      );
+                    })}
                 </ul>
               </div>
             )
           )}
-          {!attempt && !!board.duels.length && (
+          {(!attempt || attempt.reviewView) && !!board.duels.length && (
             <section className="competition-section">
               <h3>I tuoi duelli</h3>
               <ul className="competition-duels" role="list">
@@ -677,20 +718,14 @@ export default function Competition({ event, user, members = [], onStamp }) {
                             type="button"
                             variant="outline"
                             disabled={busy}
-                            onClick={() => openDuelReview(duel)}
+                            onClick={(event) =>
+                              openDuelReview(duel, event.currentTarget)
+                            }
                           >
                             Vedi risposte del duello
                           </Button>
-                          <small>Consultabile una sola volta</small>
                         </div>
                       )}
-                      {!duel.reviewAvailable &&
-                        duel.reviewSeen &&
-                        duel.scores && (
-                          <small className="duel-review-seen">
-                            Confronto risposte già consultato
-                          </small>
-                        )}
                     </div>
                   </li>
                 ))}
@@ -698,6 +733,18 @@ export default function Competition({ event, user, members = [], onStamp }) {
             </section>
           )}
         </>
+      )}
+      {attempt?.reviewView && (
+        <Modal title={`Risultato: ${attempt.name}`} onClose={closeAttempt} wide>
+          <PlayCard
+            attempt={attempt}
+            title={attempt.name}
+            onMove={move}
+            onClose={closeAttempt}
+            busy={busy}
+            error={error}
+          />
+        </Modal>
       )}
       {adjustment && (
         <Adjustment

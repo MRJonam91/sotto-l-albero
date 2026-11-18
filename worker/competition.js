@@ -131,18 +131,20 @@ function buildQuizReview(state, opponent = null) {
       options: question.options,
       correctAnswer: question.answer,
       note: question.note ?? quizNotesByText.get(question.text) ?? "",
-      myChoice: mine ? mine.choice : -1,
-      myOutcome: answerOutcome(mine),
+      myChoice: mine ? mine.choice : null,
+      myOutcome: answerOutcome(mine) ?? "unrecorded",
       ...(opponent
         ? {
-            opponentChoice: theirs ? theirs.choice : -1,
-            opponentOutcome: answerOutcome(theirs),
+            opponentChoice: theirs ? theirs.choice : null,
+            opponentOutcome: answerOutcome(theirs) ?? "unrecorded",
           }
         : {}),
     };
   });
   return {
-    oneTime: true,
+    answersRecorded: state.questions.every((_, index) =>
+      Boolean(myAnswers[index]),
+    ),
     correctCount: state.correct,
     total: state.questions.length,
     ...(opponent
@@ -322,8 +324,10 @@ async function duelList(db, eventId, userId, now) {
       Array.isArray(myState?.answers);
     const roundOutcomes = hasOutcomes
       ? myState.questions.map((_, index) => ({
-          me: answerOutcome(myState.answers[index]),
-          opponent: done ? answerOutcome(theirState?.answers?.[index]) : null,
+          me: answerOutcome(myState.answers[index]) ?? "unrecorded",
+          opponent: done
+            ? (answerOutcome(theirState?.answers?.[index]) ?? "unrecorded")
+            : null,
         }))
       : null;
     return {
@@ -343,8 +347,7 @@ async function duelList(db, eventId, userId, now) {
             }
           : null,
       roundOutcomes,
-      reviewAvailable: Boolean(done && hasOutcomes && !myState?.duelReviewSeen),
-      reviewSeen: Boolean(myState?.duelReviewSeen),
+      reviewAvailable: Boolean(done && myState?.questions?.length),
     };
   });
 }
@@ -361,31 +364,41 @@ async function board(db, context, userId, now) {
     event.id,
     userId,
   );
-  const quizAttempts = event.approved
+  const reviewAttempts = event.approved
     ? await all(
         db,
         `
-        SELECT ordinal,score,state FROM competition_attempts
-        WHERE event_id=? AND user_id=? AND game='quiz' AND duel_id='' AND raw_score IS NOT NULL
+        SELECT id,game,ordinal,score,state FROM competition_attempts
+        WHERE event_id=? AND user_id=? AND game IN ('quiz','film') AND duel_id='' AND raw_score IS NOT NULL
         ORDER BY ordinal
       `,
         event.id,
         userId,
       )
     : [];
-  const quizHistory = quizAttempts.map((row) => {
-    const state = parseState(row.state);
-    const questions = Array.isArray(state?.questions) ? state.questions : [];
-    return {
-      ordinal: row.ordinal,
-      score: row.score,
-      correct: state?.correct ?? 0,
-      total: questions.length,
-      outcomes: Array.isArray(state?.answers)
-        ? questions.map((_, index) => answerOutcome(state.answers[index]))
-        : null,
-    };
-  });
+  const historyFor = (game) =>
+    reviewAttempts
+      .filter((row) => row.game === game)
+      .map((row) => {
+        const state = parseState(row.state);
+        const questions = Array.isArray(state?.questions)
+          ? state.questions
+          : [];
+        return {
+          id: row.id,
+          reviewAvailable: questions.length > 0,
+          ordinal: row.ordinal,
+          score: row.score,
+          correct: state?.correct ?? 0,
+          total: questions.length,
+          outcomes: Array.isArray(state?.answers)
+            ? questions.map(
+                (_, index) =>
+                  answerOutcome(state.answers[index]) ?? "unrecorded",
+              )
+            : null,
+        };
+      });
   const active =
     event.approved && !closed
       ? await all(
@@ -413,8 +426,8 @@ async function board(db, context, userId, now) {
         limit: multipliers.length,
         attempts: total?.attempts ?? 0,
         best: total?.best ?? null,
-        ...(key === "quiz" && quizHistory.length
-          ? { history: quizHistory }
+        ...(["quiz", "film"].includes(key) && historyFor(key).length
+          ? { history: historyFor(key) }
           : {}),
       };
     }),
@@ -681,7 +694,6 @@ async function gameAction(db, context, body, userId, now) {
           rawScore: oppRow.raw_score,
           state: parseState(oppRow.state),
         };
-        state.duelReviewSeen = true;
       }
     }
     review = buildQuizReview(state, opponent);
@@ -867,6 +879,39 @@ async function createDuel(db, context, body, senderId, now) {
   return json({ duelId }, 201);
 }
 
+async function openAttemptReview(db, context, attemptId, userId, now) {
+  const { event } = context;
+  if (!event.approved)
+    throw new HttpError("Serve un’iscrizione approvata all’evento.", 403);
+  const attempt = await first(
+    db,
+    `SELECT * FROM competition_attempts
+     WHERE id=? AND event_id=? AND user_id=? AND duel_id='' AND game IN ('quiz','film')`,
+    attemptId,
+    event.id,
+    userId,
+  );
+  if (!attempt) throw new HttpError("Questo risultato non è disponibile.", 404);
+  if (attempt.raw_score === null)
+    throw new HttpError(
+      "Il riepilogo sarà disponibile al termine della partita.",
+      409,
+    );
+  const state = parseState(attempt.state);
+  if (!Array.isArray(state?.questions) || !state.questions.length)
+    throw new HttpError(
+      "Le risposte di questa partita precedente non sono disponibili.",
+      409,
+    );
+  return json({
+    attempt: {
+      ...publicAttempt(attempt, now),
+      name: games[attempt.game].name,
+      review: buildQuizReview(state),
+    },
+  });
+}
+
 async function openDuelReview(db, context, duelId, userId) {
   const { event } = context;
   if (!event.approved)
@@ -896,37 +941,14 @@ async function openDuelReview(db, context, duelId, userId) {
     );
   }
   const fromMe = duel.sender_id === userId;
-  const myAttemptId = fromMe ? duel.senderAttemptId : duel.receiverAttemptId;
-  const myRevision = fromMe ? duel.senderRevision : duel.receiverRevision;
   const myScore = fromMe ? duel.senderScore : duel.receiverScore;
   const myState = parseState(fromMe ? duel.senderState : duel.receiverState);
   const theirScore = fromMe ? duel.receiverScore : duel.senderScore;
   const theirState = parseState(fromMe ? duel.receiverState : duel.senderState);
   const opponentName = fromMe ? duel.receiverName : duel.senderName;
-  if (!myState?.questions || !Array.isArray(myState.answers)) {
+  if (!Array.isArray(myState?.questions) || !myState.questions.length) {
     throw new HttpError(
       "Il confronto domanda per domanda non è disponibile per questo duello.",
-      409,
-    );
-  }
-  if (myState.duelReviewSeen) {
-    throw new HttpError(
-      "Hai già consultato il confronto di questo duello.",
-      409,
-    );
-  }
-  const nextState = { ...myState, duelReviewSeen: true };
-  const updated = await run(
-    db,
-    `UPDATE competition_attempts SET state=?,revision=revision+1
-     WHERE id=? AND revision=? AND raw_score IS NOT NULL`,
-    JSON.stringify(nextState),
-    myAttemptId,
-    myRevision,
-  );
-  if (!updated.meta.changes) {
-    throw new HttpError(
-      "Hai già consultato il confronto di questo duello.",
       409,
     );
   }
@@ -962,6 +984,11 @@ export async function competitionRoute(request, env, path, body, user) {
       now,
       yearEnd(context.year),
     );
+  }
+  if (action === "attempts" && duelId && subAction === "review") {
+    if (request.method !== "GET")
+      throw new HttpError("Metodo non disponibile.", 405);
+    return openAttemptReview(db, context, duelId, user.id, now);
   }
   if (action === "duels" && duelId && subAction === "review") {
     if (request.method !== "POST")

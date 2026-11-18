@@ -1,8 +1,14 @@
-import { Check, Clock, EyeOff, Sparkles, X } from "lucide-react";
+import { Check, Clock, Sparkles, X } from "lucide-react";
 import MovieClueStage from "./MovieClueStage.jsx";
 
 const OUTCOMES = {
   correct: { label: "Esatta", short: "✓", tone: "correct", Icon: Check },
+  unrecorded: {
+    label: "Non registrata",
+    short: "?",
+    tone: "unrecorded",
+    Icon: null,
+  },
   wrong: { label: "Sbagliata", short: "✗", tone: "wrong", Icon: X },
   timeout: {
     label: "Tempo scaduto",
@@ -34,12 +40,20 @@ function OutcomeBadge({ outcome, prefix }) {
   );
 }
 
-export function QuizAttemptHistory({ history }) {
+export function QuizAttemptHistory({
+  history,
+  gameName = "Quiz di Natale",
+  onReview,
+  busy,
+}) {
   if (!history?.length) return null;
   return (
-    <ul className="quiz-attempt-history" aria-label="Esiti dei tentativi quiz">
+    <ul
+      className="quiz-attempt-history"
+      aria-label={`Esiti dei tentativi: ${gameName}`}
+    >
       {history.map((item) => (
-        <li key={item.ordinal} className="quiz-history-row">
+        <li key={item.id ?? item.ordinal} className="quiz-history-row">
           <span>
             Tentativo {item.ordinal}:{" "}
             <strong>
@@ -67,6 +81,17 @@ export function QuizAttemptHistory({ history }) {
                 );
               })}
             </span>
+          )}
+          {item.reviewAvailable && onReview && (
+            <button
+              type="button"
+              className="text-button quiz-history-review"
+              disabled={busy}
+              aria-label={`Vedi risposte: tentativo ${item.ordinal} di ${gameName}`}
+              onClick={(event) => onReview(item, event.currentTarget)}
+            >
+              Vedi risposte
+            </button>
           )}
         </li>
       ))}
@@ -144,6 +169,9 @@ export default function QuizReview({ review, myScore }) {
   const timeoutCount = review.items.filter(
     (item) => item.myOutcome === "timeout",
   ).length;
+  const hasMissingAnswers = review.items.some(
+    (item) => item.myOutcome === "unrecorded",
+  );
   const hasOpponent = Boolean(review.opponent);
   const verdict = !hasOpponent
     ? null
@@ -180,9 +208,11 @@ export default function QuizReview({ review, myScore }) {
           <span className="quiz-stat-pill" data-tone="correct">
             {review.correctCount} su {review.total} esatte
           </span>
-          <span className="quiz-stat-pill" data-tone="wrong">
-            {wrongCount === 1 ? "1 sbagliata" : `${wrongCount} sbagliate`}
-          </span>
+          {(!hasMissingAnswers || wrongCount > 0) && (
+            <span className="quiz-stat-pill" data-tone="wrong">
+              {wrongCount === 1 ? "1 sbagliata" : `${wrongCount} sbagliate`}
+            </span>
+          )}
           {timeoutCount > 0 && (
             <span className="quiz-stat-pill" data-tone="timeout">
               {timeoutCount === 1
@@ -225,13 +255,13 @@ export default function QuizReview({ review, myScore }) {
         })}
       </ol>
 
-      <p className="quiz-review-lock-note">
-        <EyeOff size={15} aria-hidden="true" />
-        <span>
-          Riepilogo visibile solo ora al termine della partita: una volta chiuso
-          non potrà essere riaperto, per non memorizzare le domande.
-        </span>
-      </p>
+      {hasMissingAnswers && (
+        <p className="quiz-review-note">
+          Per questa partita precedente sono disponibili il risultato e le
+          soluzioni. Il dettaglio delle tue risposte non è stato registrato
+          completamente.
+        </p>
+      )}
 
       <ol className="quiz-review-list">
         {review.items.map((item, index) => (
@@ -320,6 +350,17 @@ export default function QuizReview({ review, myScore }) {
                 );
               })}
             </ul>
+            {item.myOutcome === "unrecorded" && (
+              <p className="quiz-review-missing">
+                Risposta non registrata per questa partita precedente.
+              </p>
+            )}
+            {hasOpponent && item.opponentOutcome === "unrecorded" && (
+              <p className="quiz-review-missing">
+                {review.opponent.name}: risposta non registrata per questa
+                partita precedente.
+              </p>
+            )}
             {item.myOutcome === "timeout" && (
               <p className="quiz-review-timeout">
                 Tempo scaduto: nessuna risposta inviata da te.

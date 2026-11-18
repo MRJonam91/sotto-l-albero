@@ -1098,3 +1098,37 @@
     text-align: center;
   }
 }
+
+/* Saved results keep the underlying board in place while their dialog is open. */
+.quiz-history-review {
+  justify-self: start;
+  min-height: 44px;
+  padding: 0.45rem 0;
+  text-align: left;
+}
+
+.competition-play,
+.competition-play > *,
+.quiz-history-row,
+.quiz-review,
+.quiz-review-card,
+.quiz-review-options {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.quiz-review-question,
+.quiz-review-note,
+.quiz-review-missing {
+  overflow-wrap: anywhere;
+}
+
+.quiz-review-missing {
+  font-size: 0.82rem;
+  color: #51432c;
+}
+
+.quiz-outcome-pill[data-tone="unrecorded"] {
+  color: #51432c;
+  background: #e9dcc0;
+}

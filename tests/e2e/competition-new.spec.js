@@ -352,11 +352,9 @@ test("Sfide aperte agli iscritti, duelli e bicchieri anche a zero punti", async 
       .getByRole("button", { name: "Torna alle sfide" })
       .click();
     await expect(page.locator(".quiz-review")).toHaveCount(0);
-    await expect(
-      page.getByText("Tentativo 1: 10/10 (300 pt)"),
-    ).toBeVisible();
+    await expect(page.getByText("Tentativo 1: 10/10 (300 pt)")).toBeVisible();
 
-    // Verifica duello Quiz Duello (andamento + review una tantum anti-memorizzazione)
+    // Verifica duello Quiz Duello (andamento e risultati consultabili)
     await page.getByRole("button", { name: "Gioca il duello" }).click();
     const annaDuelPlay = await playQuizMatch(page, 8);
     await expect(annaDuelPlay).toContainText("Duello completato");
@@ -381,13 +379,15 @@ test("Sfide aperte agli iscritti, duelli e bicchieri anche a zero punti", async 
       .click();
     await expect(
       receiver.getByRole("button", { name: "Vedi risposte del duello" }),
-    ).toHaveCount(0);
+    ).toBeVisible();
     await expect(receiver.locator(".duel-scorecard")).toBeVisible();
 
     await openCompetition(page, event.id);
     await expect(page.locator(".duel-scorecard")).toBeVisible();
     await checkA11y();
-    await page.getByRole("button", { name: "Vedi risposte del duello" }).click();
+    await page
+      .getByRole("button", { name: "Vedi risposte del duello" })
+      .click();
     await expect(play).toContainText("Confronto del duello");
     await expect(play).toContainText("Hai vinto il duello!");
     await expect(play.locator(".quiz-review-card")).toHaveCount(10);
@@ -397,12 +397,16 @@ test("Sfide aperte agli iscritti, duelli e bicchieri anche a zero punti", async 
       .locator(".competition-done-actions")
       .getByRole("button", { name: "Torna alle sfide" })
       .click();
-    await expect(
-      page.getByRole("button", { name: "Vedi risposte del duello" }),
-    ).toHaveCount(0);
-    await expect(
-      page.getByText("Confronto risposte già consultato"),
-    ).toBeVisible();
+    const reopenDuel = page.getByRole("button", {
+      name: "Vedi risposte del duello",
+    });
+    await expect(reopenDuel).toBeVisible();
+    await reopenDuel.click();
+    await expect(play.locator(".quiz-review-card")).toHaveCount(10);
+    await play
+      .locator(".competition-done-actions")
+      .getByRole("button", { name: "Torna alle sfide" })
+      .click();
     await expect(page.locator(".duel-scorecard")).toBeVisible();
 
     await expect(standings.getByText("705 pt", { exact: true })).toBeVisible();

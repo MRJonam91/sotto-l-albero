@@ -102,6 +102,10 @@ Choose a photo or take a selfie. MediaPipe cuts out the face and Canvas composes
 
 When a separate photo bot and owner chat are configured, choosing or taking a valid photo also sends its original to the owner's photo bot automatically, up to 25 MiB. This is separate from avatar storage and does not block editing on failure. Without that configuration, originals stay on the device.
 
+## Anteprima mobile in revisione
+
+La revisione locale semplifica il profilo: tre personaggi da un catalogo di dieci, ritratto alimentato dall’attività e domande facoltative. Il giornaliero è una sola scelta di stato. L’editor fotografico raggruppa anteprima e cursori; i risultati di quiz, film e duelli sono riapribili. Questa revisione non è ancora pubblicata: [comportamento, pesi e verifiche](docs/preview-mobile-ux.md).
+
 ## Novità della versione 1.5.0
 
 Il profilo aggiunge nickname, distintivi e un ritratto di Natale: il percorso guidato quotidiano raccoglie gusti, attività, icone e un indovinello. Puoi ignorarlo per la giornata. I partecipanti confermati del gruppo possono rispondere agli indovinelli e scambiarsi messaggi; la soluzione resta privata. Gli avvisi rispettano le preferenze di ricezione anche se già in coda.
