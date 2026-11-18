@@ -32,20 +32,24 @@ describe("avatar face mask", () => {
     expect(result.alpha[3 * width + 31]).toBe(0);
   });
 
-  it("includes side hair halo and soft feathering when includeHair is enabled", () => {
+  it("includes side hair halo, neck skin, and soft feathering when enabled", () => {
     const { width, height, categories, paint } = scene();
     paint(10, 7, 16, 18, 3); // face skin
     paint(7, 9, 3, 12, 1); // left hair locks framing cheek
     paint(26, 9, 3, 12, 1); // right hair locks framing cheek
+    paint(14, 25, 8, 5, 2); // neck skin below chin
 
     const result = faceMask(categories, width, height, {
       includeHair: true,
+      includeNeck: true,
       feather: true,
     });
     expect(result).not.toBeNull();
     expect(result.bounds.x).toBeLessThan(10);
     expect(result.bounds.width).toBeGreaterThan(16);
+    expect(result.bounds.height).toBeGreaterThan(18);
     expect(result.alpha[12 * width + 8]).toBeGreaterThan(100);
+    expect(result.alpha[27 * width + 18]).toBeGreaterThan(100);
     expect(result.landmarks.mouthCenterY).toBeGreaterThan(
       result.landmarks.eyeLineY,
     );
