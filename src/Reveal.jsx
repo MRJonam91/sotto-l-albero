@@ -12,6 +12,8 @@ import { date } from "./api.js";
 import { Button, Notice } from "./ui.jsx";
 import DrawExplanation from "./DrawExplanation.jsx";
 import NameTag from "./NameTag.jsx";
+import { hasAmazonAffiliateTag } from "../shared/amazonLinks.js";
+import "./amazon-wishlist.css";
 import "./reveal.css";
 
 const ceremonyDuration = 3400;
@@ -324,9 +326,10 @@ export default function Reveal({
     </section>
   );
 }
-function Wish({ item }) {
+export function Wish({ item }) {
   const [help, setHelp] = useState(false),
     [answer, setAnswer] = useState(false);
+  const affiliate = hasAmazonAffiliateTag(item.url);
   return (
     <article className="recipient-wish paper">
       <span className="eyebrow">
@@ -341,16 +344,31 @@ function Wish({ item }) {
       </span>
       <h3>{item.title}</h3>
       {item.description ? <p>{item.description}</p> : null}
+      {item.fulfillment === "pickup" && item.pickupCity ? (
+        <p className="wish-pickup-label">
+          <strong>Ritiro a {item.pickupCity}</strong>
+          <br />
+          <small>Verifica negozio, disponibilità e modalità del ritiro.</small>
+        </p>
+      ) : null}
       {item.url && /^https?:\/\//i.test(item.url) ? (
         <a
           className="wish-link"
           href={item.url}
           target="_blank"
-          rel="noreferrer"
+          rel={
+            affiliate ? "sponsored noopener noreferrer" : "noopener noreferrer"
+          }
         >
           Dai un’occhiata
           <ExternalLink size={14} />
         </a>
+      ) : null}
+      {affiliate ? (
+        <small className="wish-affiliate-disclosure">
+          Link affiliato Amazon. In qualità di Affiliato Amazon ricevo un
+          guadagno dagli acquisti idonei.
+        </small>
       ) : null}
       {item.hint ? (
         <>

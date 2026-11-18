@@ -1,0 +1,108 @@
+.wish-shopping {
+  margin: 1.3rem 0;
+  padding: clamp(1rem, 3vw, 1.5rem);
+  border: 1px solid var(--line, #d9d2c5);
+  border-radius: 16px;
+  background: var(--paper, #fffdf8);
+  min-width: 0;
+}
+.wish-shopping h3 {
+  margin-top: 0;
+}
+.wish-shopping .field > small {
+  color: #654b3c;
+  font-size: 0.8rem;
+}
+.wish-shopping p,
+.amazon-advanced p {
+  overflow-wrap: anywhere;
+}
+.wish-search-fields {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+}
+.wish-search-fields .field {
+  flex: 1 1 12rem;
+  min-width: 0;
+  margin-bottom: 0;
+}
+.wish-search-fields .field:first-child {
+  flex-grow: 2;
+}
+.wish-search-fields .button {
+  flex-shrink: 0;
+}
+.wish-shopping .wish-search-note {
+  font-size: 0.85rem;
+  margin: 0.85rem 0;
+  color: #654b3c;
+}
+.wish-manual {
+  margin-top: 1rem;
+}
+.wish-manual summary,
+.wish-pickup summary,
+.amazon-advanced summary {
+  cursor: pointer;
+  font-weight: 650;
+}
+.wish-manual form {
+  margin-top: 1rem;
+}
+.wish-pickup {
+  margin: 0.8rem 0;
+}
+.wish-pickup > label {
+  margin-top: 0.8rem;
+}
+.wish-pickup .field {
+  margin-top: 0.8rem;
+}
+.wish-affiliate {
+  display: flex;
+  align-items: start;
+  gap: 0.65rem;
+  margin: 0.8rem 0;
+  font-size: 0.9rem;
+}
+.wish-affiliate input {
+  flex: 0 0 auto;
+  width: auto;
+  margin-top: 0.25rem;
+}
+.wish-affiliate-disclosure {
+  display: block;
+  margin: 0.5rem 0;
+  font-size: 0.85rem;
+  color: var(--muted, #605d57);
+}
+.paper .wish-affiliate-disclosure {
+  color: #654b3c;
+}
+.wish-pickup-label {
+  margin: 0.7rem 0;
+  padding: 0.65rem 0.8rem;
+  border-radius: 8px;
+  background: #f5e9cf;
+  color: #493022;
+  overflow-wrap: anywhere;
+}
+.amazon-advanced > form {
+  margin-top: 1rem;
+}
+.amazon-advanced .profile-toggle {
+  align-items: start;
+}
+@media (max-width: 420px) {
+  .wish-search-fields > .button {
+    width: 100%;
+  }
+  .wish-shopping {
+    padding: 0.85rem;
+  }
+  .wish-shopping .form-actions {
+    flex-wrap: wrap;
+  }
+}

@@ -1,5 +1,9 @@
 import { Button } from "./ui.jsx";
-import { holidayIconMap, holidayMoods } from "../shared/holidayPortrait.js";
+import {
+  computeHolidayPortrait,
+  holidayIconMap,
+  holidayMoods,
+} from "../shared/holidayPortrait.js";
 import {
   HolidaySpiritImage,
   MovieCharacterComparison,
@@ -8,20 +12,19 @@ import {
 
 export default function HolidayProfileSummary({ profile, user, onEditMood }) {
   const status = profile.holidayProfile || {};
-  const portrait = profile.portrait || {};
-  const hasState = Boolean(
-    status.quote ||
-    status.activity ||
-    status.iconMessage?.length ||
-    status.riddle ||
-    status.customDescription?.trim() ||
-    status.dailyMood?.id ||
-    profile.gamesPlayed > 0 ||
-    profile.stampsCount > 0 ||
-    profile.context?.activity?.interactionsCount > 0 ||
-    profile.context?.activity?.games?.some((game) => game.count > 0) ||
-    Object.keys(status.answers || {}).length,
-  );
+  const fallbackPortrait =
+    !profile.portrait?.tastes || !profile.portrait?.characterMatches
+      ? computeHolidayPortrait(status, {
+          ...profile.context,
+          name: profile.name || user.name,
+          nickname: profile.nickname,
+          stampsCount: profile.stampsCount ?? profile.context?.stampsCount,
+        })
+      : null;
+  const portrait = { ...fallbackPortrait, ...profile.portrait };
+  const isInitial =
+    portrait.matchingExplanation?.provisional &&
+    portrait.matchingExplanation.weights?.every((source) => !source.available);
   const icons = (status.iconMessage || [])
     .map((id) => holidayIconMap.get(id))
     .filter(Boolean);
@@ -101,22 +104,18 @@ export default function HolidayProfileSummary({ profile, user, onEditMood }) {
             "Il ritratto si forma mentre usi il tool. Le domande servono soltanto se vuoi personalizzarlo."}
         </p>
       </div>
-      <p className="profile-footnote">
-        Un ritratto per gioco, basato sulle tue scelte. I passaggi sono
-        facoltativi.
-      </p>
+      <div className="holiday-summary-traits">
+        <div className="holiday-summary-heading">
+          <h3>I tuoi tratti natalizi</h3>
+          {isInitial && <span className="quiet">Valori iniziali</span>}
+        </div>
+        <TasteRadarChart tastes={portrait.tastes} />
+      </div>
+      <h3>I tuoi personaggi di Natale</h3>
       <MovieCharacterComparison
         characterMatches={portrait.characterMatches}
         matchingExplanation={portrait.matchingExplanation}
       />
-      {hasState && (
-        <details className="holiday-summary-details">
-          <summary>Gusti e dettagli del ritratto</summary>
-          <div>
-            <TasteRadarChart tastes={portrait.tastes} />
-          </div>
-        </details>
-      )}
       <div className="holiday-summary-actions">
         {onEditMood && (
           <Button type="button" onClick={onEditMood}>

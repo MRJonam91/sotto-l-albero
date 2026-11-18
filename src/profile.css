@@ -129,9 +129,23 @@
   min-height: 46px;
   white-space: normal;
 }
+.holiday-summary-traits {
+  display: grid;
+  min-width: 0;
+  gap: 10px;
+}
+.holiday-summary-traits .portrait-tastes {
+  grid-template-columns: minmax(0, 150px) minmax(0, 1fr);
+}
 @media (max-width: 620px) {
   .holiday-summary-portrait {
     grid-template-columns: minmax(0, 1fr);
+  }
+  .holiday-summary-traits .portrait-tastes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .holiday-summary-traits .portrait-radar-wrap {
+    display: none;
   }
 }
 .holiday-summary-icons {
@@ -922,6 +936,7 @@
 
 .portrait-taste-head strong {
   color: var(--gold);
+  flex-shrink: 0;
 }
 
 .portrait-taste-track {

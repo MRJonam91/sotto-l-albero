@@ -103,6 +103,18 @@
 
 ## Execution ledger
 
+### Estensione finale e rilascio 1.6.0
+
+- [x] Mostrare sempre tratti su 100 e tre affinità numeriche, con nota iniziale quando mancano segnali. Accorciare le etichette e rendere evidente il ritratto dei partecipanti.
+- [x] Considerare tutti i giochi attivi, compreso curling contro il computer, e gli usi effettivi salvati; mantenere contributi limitati e privacy dei contenuti.
+- [x] Aggiungere ricerca esterna multiprovider, inserimento del prodotto, città esplicita per il ritiro e controlli server. Configurazioni personali escluse dal repository.
+- [x] Correggere i problemi delle revisioni indipendenti: contrasto dei nuovi controlli e rimozione del tag gestito quando deselezionato sul singolo prodotto, preservando i collegamenti manuali.
+- [x] 260 test unitari/integrati; suite browser finale44/44; build e pacchetto Cloudflare riusciti; audit dipendenze senza vulnerabilità.
+- [x] Demo completa esclusivamente locale e visibile nel browser: profili, gruppo, wishlist, curling e quiz attuali/archiviati. Script, sessioni e immagini sono esclusi da Git.
+- [ ] Integrare su main, applicare le sole due migrazioni additive, pubblicare e verificare dati/manifest online.
+
+L’ultima istruzione dell’utente autorizza esplicitamente pubblicazione e aggiornamento repository, omettendo dati dimostrativi e configurazioni personali. Supera il precedente vincolo di attendere una revisione prima di pubblicare. Baseline remota: sei insiemi aggregati e bookmark acquisiti prima delle modifiche.
+
 - Stato iniziale: ramo di rilascio pulito a `771e643`; versione online 1.5.0. Il precedente vincolo di riepilogo quiz monouso è esplicitamente superato dalla nuova richiesta.
 - Validazione browser: Browser plugin non disponibile; si usa Playwright installato nel progetto.
 - Task 1: riprodotti tre difetti da browser; avatar e riepilogo passati ROSSO→VERDE, incluse quattro larghezze. Aggiunti casi di descrizione libera senza domande e indovinello senza soluzione visibile.

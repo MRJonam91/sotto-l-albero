@@ -2110,6 +2110,18 @@ input[type="datetime-local"] {
   margin: 20px 0;
   padding: clamp(18px, 4vw, 28px);
 }
+.guest-list .guest-portrait-trigger {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  border: 1px solid #9d705d;
+  border-radius: 6px;
+  padding: 8px 12px;
+  color: #703b2e;
+  background: transparent;
+  text-align: left;
+  white-space: normal;
+}
 .invite-notification-hint h2 {
   margin-top: 0;
 }

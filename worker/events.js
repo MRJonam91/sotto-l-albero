@@ -21,6 +21,8 @@ import {
 } from "../shared/holidayPortrait.js";
 import { telegramAvailable, telegramMessage } from "./telegram.js";
 import { loadHolidayActivities } from "./holidayActivity.js";
+import { loadAmazonPreferences } from "./amazonPreferences.js";
+import { amazonWishlistLink } from "../shared/amazonLinks.js";
 const nowIso = () => new Date().toISOString();
 const stmt = (db, sql, ...args) => db.prepare(sql).bind(...args);
 const audit = (db, eventId, userId, action) =>
@@ -686,15 +688,40 @@ export async function eventRoute(request, env, path, body, user) {
       "surprise",
       "preference",
     ];
+    const amazonPreferences = await loadAmazonPreferences(db, user, env);
+    let previousItems = [];
+    try {
+      const stored = JSON.parse(member.wishlist || "[]");
+      if (Array.isArray(stored)) previousItems = stored;
+    } catch {
+      // Malformed legacy data cannot authorize management of a supplied link.
+    }
+    const previousById = new Map(
+      previousItems.filter((item) => item?.id).map((item) => [item.id, item]),
+    );
+    const retainedIds = new Set();
     const items = body.items.map((x) => {
       if (!x || !types.includes(x.type))
         throw new HttpError("Scegli il tipo di desiderio.");
+      const pickupCity =
+        x.fulfillment === "pickup" ? safeText(x.pickupCity, 80, true) : "";
+      const previousItem =
+        typeof x.id === "string" && !retainedIds.has(x.id)
+          ? previousById.get(x.id)
+          : undefined;
+      const itemId = previousItem?.id || id();
+      retainedIds.add(itemId);
       return {
-        id: id(),
+        id: itemId,
         type: x.type,
         title: safeText(x.title, 150, true),
         description: safeText(x.description, 1500),
-        url: safeUrl(x.url),
+        ...amazonWishlistLink(
+          { url: safeUrl(x.url), amazonAffiliate: x.amazonAffiliate },
+          amazonPreferences,
+          previousItem,
+        ),
+        ...(pickupCity ? { fulfillment: "pickup", pickupCity } : {}),
         hint: safeText(x.hint, 1000),
         answer: safeText(x.answer, 1000),
       };
@@ -706,7 +733,7 @@ export async function eventRoute(request, env, path, body, user) {
       nowIso(),
       member.id,
     );
-    return json({ ok: true });
+    return json({ ok: true, items });
   }
   if (!admin)
     throw new HttpError("Questa azione spetta all’organizzatore.", 403);

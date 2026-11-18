@@ -115,4 +115,61 @@ describe("ritratto automatico", () => {
       ),
     ).toEqual([0, 100, 0]);
   });
+  it("considera curling e usi salvati con contributi saturati e senza inventare gusti", () => {
+    const curling = computeHolidayPortrait(
+      {},
+      { activity: activity("curling", 1, null) },
+    );
+    expect(curling.matchingExplanation.weights[0].effectiveWeight).toBe(100);
+    expect(curling.matchingExplanation.signals.join(" ")).toContain("Curling");
+    expect(curling.matchingExplanation.signals.join(" ")).not.toContain(
+      "risultato medio",
+    );
+    const tools = {
+      wishlistItemsCount: 1,
+      participatingEventsCount: 1,
+      organizedEventsCount: 1,
+    };
+    const minimal = computeHolidayPortrait({}, { activity: { tools } });
+    expect(minimal.matchingExplanation.weights[0].effectiveWeight).toBe(100);
+    expect(minimal.matchingExplanation.signals.join(" ")).toMatch(
+      /desideri|eventi/,
+    );
+    expect(minimal.generatedDescription).not.toMatch(/preferisce|ama|adora/);
+    expect(
+      computeHolidayPortrait(
+        {},
+        {
+          activity: {
+            tools: {
+              wishlistItemsCount: 1000,
+              participatingEventsCount: 1000,
+              organizedEventsCount: 1000,
+            },
+          },
+        },
+      ).tastes,
+    ).toEqual(
+      computeHolidayPortrait(
+        {},
+        {
+          activity: {
+            tools: {
+              wishlistItemsCount: 5,
+              participatingEventsCount: 3,
+              organizedEventsCount: 3,
+            },
+          },
+        },
+      ).tastes,
+    );
+    const combined = computeHolidayPortrait(
+      {},
+      { activity: { ...activity("quiz", 3), tools } },
+    );
+    expect(combined.topCharacter.id).toBe(
+      computeHolidayPortrait({}, { activity: activity("quiz", 3) }).topCharacter
+        .id,
+    );
+  });
 });

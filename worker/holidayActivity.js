@@ -13,15 +13,28 @@ export async function loadHolidayActivities(db, userIds) {
     ...new Set(userIds.filter((id) => typeof id === "string" && id)),
   ];
   const result = new Map(
-    ids.map((id) => [id, { games: [], stampsCount: 0, interactionsCount: 0 }]),
+    ids.map((id) => [
+      id,
+      {
+        games: [],
+        stampsCount: 0,
+        interactionsCount: 0,
+        tools: {
+          wishlistItemsCount: 0,
+          participatingEventsCount: 0,
+          organizedEventsCount: 0,
+        },
+      },
+    ]),
   );
   for (let offset = 0; offset < ids.length; offset += 20) {
     const chunk = ids.slice(offset, offset + 20);
     const placeholders = chunk.map(() => "?").join(",");
-    const [games, stamps, interactions] = await Promise.all([
-      all(
-        db,
-        `WITH completed AS (
+    const [games, stamps, interactions, curling, memberships, organized] =
+      await Promise.all([
+        all(
+          db,
+          `WITH completed AS (
         SELECT user_id,game,MAX(0.0,MIN(1.0,raw_score*1.0/(${scoreMaximum}))) AS result
         FROM competition_attempts WHERE user_id IN (${placeholders}) AND raw_score IS NOT NULL
         UNION ALL
@@ -40,27 +53,66 @@ export async function loadHolidayActivities(db, userIds) {
         SELECT player_o AS user_id,'tris' AS game,CASE WHEN status='draw' THEN 0.5 WHEN winner='O' THEN 1.0 ELSE 0.0 END AS result
         FROM tris_duels WHERE player_o IN (${placeholders}) AND status IN ('won','draw')
       ) SELECT user_id,game,COUNT(*) AS count,AVG(result) AS averageResult FROM completed GROUP BY user_id,game ORDER BY user_id,game`,
-        ...chunk,
-        ...chunk,
-        ...chunk,
-        ...chunk,
-      ),
-      all(
-        db,
-        `SELECT user_id,COUNT(DISTINCT stamp) AS count FROM user_stamps WHERE user_id IN (${placeholders}) GROUP BY user_id`,
-        ...chunk,
-      ),
-      all(
-        db,
-        `SELECT sender_id AS user_id,COUNT(*) AS count FROM portrait_interactions WHERE sender_id IN (${placeholders}) GROUP BY sender_id`,
-        ...chunk,
-      ),
-    ]);
+          ...chunk,
+          ...chunk,
+          ...chunk,
+          ...chunk,
+        ),
+        all(
+          db,
+          `SELECT user_id,COUNT(DISTINCT stamp) AS count FROM user_stamps WHERE user_id IN (${placeholders}) GROUP BY user_id`,
+          ...chunk,
+        ),
+        all(
+          db,
+          `SELECT sender_id AS user_id,COUNT(*) AS count FROM portrait_interactions WHERE sender_id IN (${placeholders}) GROUP BY sender_id`,
+          ...chunk,
+        ),
+        all(
+          db,
+          `SELECT user_id,MIN(COUNT(*),3) AS count FROM profile_activity WHERE user_id IN (${placeholders}) AND game='curling' GROUP BY user_id`,
+          ...chunk,
+        ),
+        all(
+          db,
+          `SELECT user_id,COUNT(DISTINCT event_id) AS participatingEventsCount,
+          SUM(CASE WHEN json_valid(wishlist) THEN CASE WHEN json_type(wishlist)='array' THEN json_array_length(wishlist) ELSE 0 END ELSE 0 END) AS wishlistItemsCount
+          FROM members WHERE user_id IN (${placeholders}) AND status='approved' GROUP BY user_id`,
+          ...chunk,
+        ),
+        all(
+          db,
+          `SELECT owner_id AS user_id,COUNT(*) AS count FROM events WHERE owner_id IN (${placeholders}) GROUP BY owner_id`,
+          ...chunk,
+        ),
+      ]);
     for (const { user_id, game, count, averageResult } of games)
       result.get(user_id).games.push({ game, count, averageResult });
     for (const row of stamps) result.get(row.user_id).stampsCount = row.count;
     for (const row of interactions)
       result.get(row.user_id).interactionsCount = row.count;
+    for (const row of curling) {
+      result.get(row.user_id).games.push({
+        game: "curling",
+        count: row.count,
+        averageResult: null,
+        selfReported: true,
+      });
+      result
+        .get(row.user_id)
+        .games.sort((a, b) => a.game.localeCompare(b.game));
+    }
+    for (const {
+      user_id,
+      participatingEventsCount,
+      wishlistItemsCount,
+    } of memberships)
+      Object.assign(result.get(user_id).tools, {
+        participatingEventsCount,
+        wishlistItemsCount,
+      });
+    for (const row of organized)
+      result.get(row.user_id).tools.organizedEventsCount = row.count;
   }
   return result;
 }

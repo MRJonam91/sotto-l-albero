@@ -12,6 +12,8 @@ import {
 } from "./profile.js";
 import { telegramWebhook } from "./telegram.js";
 import { notificationRoute, runNotifications } from "./notifications.js";
+import { amazonPreferencesRoute } from "./amazonPreferences.js";
+import { profileActivityRoute } from "./profileActivity.js";
 export default {
   async fetch(request, env) {
     const url = new URL(request.url),
@@ -68,6 +70,10 @@ export default {
       if (path.startsWith("/api/invite/") && request.method === "GET")
         return await inviteRoute(env, path.split("/").pop(), user);
       if (!user) throw new HttpError("Accedi per continuare.", 401);
+      if (path === "/api/preferences/amazon")
+        return await amazonPreferencesRoute(request, env, body, user);
+      if (path === "/api/profile/activity")
+        return await profileActivityRoute(request, env, body, user);
       if (path === "/api/stamps")
         return await stampRoute(request.method, env.DB, user.id, body, env);
       if (path.startsWith("/api/practice/"))

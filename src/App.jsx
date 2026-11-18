@@ -294,16 +294,18 @@ export default function App() {
               <button
                 className={section === "events" ? "selected" : ""}
                 aria-current={section === "events" ? "page" : undefined}
+                aria-label="I miei eventi"
                 onClick={() => navigate("events")}
               >
-                I miei eventi
+                Eventi
               </button>
               <button
                 className={section === "wishes" ? "selected" : ""}
                 aria-current={section === "wishes" ? "page" : undefined}
+                aria-label="I desideri"
                 onClick={() => navigate("wishes")}
               >
-                I desideri
+                Desideri
               </button>
               <button
                 className={section === "games" ? "selected" : ""}

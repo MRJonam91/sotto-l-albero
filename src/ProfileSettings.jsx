@@ -13,6 +13,7 @@ import DailyMoodPicker from "./DailyMoodPicker.jsx";
 import { HolidayGuidedWizard } from "./HolidayPortrait.jsx";
 import NameTag, { holidayBadges } from "./NameTag.jsx";
 import HolidayProfileSummary from "./HolidayProfileSummary.jsx";
+import AmazonAffiliateSettings from "./AmazonAffiliateSettings.jsx";
 
 import { api } from "./api.js";
 import { Button, Field, Modal, Notice } from "./ui.jsx";
@@ -736,6 +737,7 @@ export default function ProfileSettings({ user, onChange }) {
         <Notice error>{error}</Notice>
         <Notice>{notice}</Notice>
       </section>
+      <AmazonAffiliateSettings />
     </section>
   );
 }

@@ -26,6 +26,8 @@ function database() {
     "0016_profile_identity_and_badges.sql",
     "0017_holiday_portrait_and_interactions.sql",
     "0018_practice_film_catalog.sql",
+    "0019_amazon_preferences.sql",
+    "0020_profile_activity.sql",
   ])
     sql.exec(
       readFileSync(new URL(`../migrations/${file}`, import.meta.url), "utf8"),
@@ -1612,7 +1614,7 @@ describe("API privata", () => {
       saved.data.portrait.matchingExplanation.weights.map(
         (weight) => weight.effectiveWeight,
       ),
-    ).toEqual([0, 63, 37]);
+    ).toEqual([60, 25, 15]);
     expect(saved.data.portrait.finalDescription).toContain(
       saved.data.portrait.topCharacter.name,
     );

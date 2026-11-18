@@ -1,10 +1,10 @@
-# Anteprima mobile e profilo natalizio
+# Profilo natalizio e uso da mobile · versione 1.6.0
 
-Stato: **in revisione locale, non pubblicata**. Base: versione 1.5.0, commit `771e643`. Ramo: `codex/mobile-ux-avatar-results`. Nessun deploy, push o intervento sui dati remoti eseguito durante questa revisione.
+Revisione sviluppata dalla versione 1.5.0, commit `771e643`, e preparata per il rilascio 1.6.0 autorizzato dall’utente. Per l’esito della pubblicazione si veda il [registro del rilascio](release-1.6.0.md).
 
 ## Uso da telefono
 
-L’avatar nell’intestazione mantiene una forma quadrata/circolare senza deformare la foto. Il profilo apre con lo stato salvato, il ritratto illustrato, la descrizione e tre personaggi, anche senza risposte facoltative. “Modifica stato e ritratto” è un bottone; domande e personalizzazioni si aprono in un pannello riquadrato. Grafici e targhettine restano su richiesta. I controlli principali conservano una superficie di tocco di almeno 44 pixel. Layout verificati a 320, 390, 430 e 1440 pixel.
+L’avatar nell’intestazione mantiene una forma quadrata/circolare senza deformare la foto. Il profilo apre con stato, ritratto, descrizione, cinque tratti e tre personaggi, anche senza risposte facoltative. I tratti sono valori su 100; le affinità dei personaggi sono percentuali indipendenti, indicate come iniziali quando mancano segnali. “Modifica stato e ritratto” è un bottone; domande e personalizzazioni si aprono in un pannello riquadrato. Le targhettine restano facoltative. I controlli principali conservano una superficie di tocco di almeno 44 pixel. Layout verificati a 320, 390, 430 e 1440 pixel. Nel gruppo il bottone “Vedi stato e ritratto” apre i valori condivisi della persona, rispettando la scelta di visibilità.
 
 Nell’editor la foto e i cursori stanno nello stesso blocco. Si può trascinare direttamente il volto o usare tastiera e cursori. Il centraggio usa il rettangolo del viso anche nelle scene classiche, senza trattare capelli e collo come centro facciale. I limiti del movimento manuale si adattano anche alle foto panoramiche. Il filtro della foto viene riusato fra anteprime ed esportazione; una vecchia elaborazione non può sovrascrivere una foto o una regolazione successiva.
 
@@ -48,6 +48,6 @@ L’album mostra gli oggetti già usciti e soltanto la prossima data, senza diec
 
 ## Verifica
 
-231 test unitari/integrati superati; build riuscita. La suite browser comprende 43 casi: nella prova completa 41 superati e due aspettative da aggiornare al nuovo album; dopo l’aggiornamento, tutti e cinque i casi dei due file interessati sono passati. Coperti accessibilità, layout mobile, stato leggero, foto, riapertura dei risultati, restituzione del focus e calendario dei timbri. Non viene dichiarata una singola esecuzione completa 43/43 verde. Tutte le prove usano account fittizi e un database locale separato.
+260 test unitari/integrati superati; build riuscita e 44 scenari browser superati nella suite completa finale. Coperti accessibilità, layout mobile, stato leggero, foto, risultati anche archiviati, ritorno del focus, ricerca prodotti, ritratti del gruppo, curling contro il computer e calendario dei timbri. Le prove e la demo usano esclusivamente un database locale separato e non vengono trasferite online.
 
 Le schermate dell’editor usano una foto illustrata di prova. L’anteprima resta attiva su `http://127.0.0.1:8795`; l’accesso locale mostra il codice nella pagina e non invia email reali.

@@ -22,6 +22,7 @@ async function openApp(page, events = [], start = "/") {
       },
       "/api/events": { events },
       "/api/stamps": { stamps: [] },
+      "/api/preferences/amazon": { allowed: false },
       "/api/practice/access": { allowed: false },
     };
     for (const event of events) {
@@ -91,8 +92,8 @@ for (const width of [320, 390, 430, 1440]) {
         name: "Navigazione principale",
       });
       await expect(nav.getByRole("button")).toHaveText([
-        "I miei eventi",
-        "I desideri",
+        "Eventi",
+        "Desideri",
         "Giochi",
         "Sfide",
         "Nome segreto",

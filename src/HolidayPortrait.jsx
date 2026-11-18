@@ -244,7 +244,7 @@ export function TasteRadarChart({ tastes = [] }) {
 
   const polygonPoints = tastes
     .map((item, i) => {
-      const r = (Math.max(15, item.value) / 100) * radius;
+      const r = (Math.max(0, Math.min(100, item.value)) / 100) * radius;
       const angle = angleFor(i);
       const x = center + r * Math.cos(angle);
       const y = center + r * Math.sin(angle);
@@ -293,7 +293,7 @@ export function TasteRadarChart({ tastes = [] }) {
             strokeWidth="2.2"
           />
           {tastes.map((item, i) => {
-            const r = (Math.max(15, item.value) / 100) * radius;
+            const r = (Math.max(0, Math.min(100, item.value)) / 100) * radius;
             const angle = angleFor(i);
             const x = center + r * Math.cos(angle);
             const y = center + r * Math.sin(angle);
@@ -301,12 +301,16 @@ export function TasteRadarChart({ tastes = [] }) {
           })}
         </svg>
       </div>
-      <div className="portrait-taste-bars" role="list">
+      <div
+        className="portrait-taste-bars"
+        role="list"
+        aria-label="Tratti natalizi, ciascuno su una scala da 0 a 100"
+      >
         {tastes.map((item) => (
           <div key={item.id} className="portrait-taste-row" role="listitem">
             <div className="portrait-taste-head">
               <span>{item.label}</span>
-              <strong>{item.value}%</strong>
+              <strong>{item.value}/100</strong>
             </div>
             <div className="portrait-taste-track" aria-hidden="true">
               <div
@@ -324,15 +328,19 @@ export function TasteRadarChart({ tastes = [] }) {
 export function MovieCharacterComparison({
   characterMatches = [],
   matchingExplanation,
+  showExplanation = true,
 }) {
   const visible = characterMatches.slice(0, 3);
+  const isInitial =
+    matchingExplanation?.provisional &&
+    matchingExplanation.weights?.every((source) => !source.available);
   if (!visible.length) return null;
   return (
     <div className="portrait-characters">
       <div
         className="character-comparison-grid compact-characters"
         role="list"
-        aria-label="I tuoi tre personaggi natalizi"
+        aria-label="Tre personaggi natalizi più affini"
       >
         {visible.map((character, index) => (
           <div
@@ -357,11 +365,7 @@ export function MovieCharacterComparison({
             <div className="character-comparison-body">
               <div className="character-comparison-head">
                 <strong>{character.name}</strong>
-                <span>
-                  {matchingExplanation?.provisional
-                    ? "Provvisorio"
-                    : `${character.affinity}%`}
-                </span>
+                <span>{character.affinity}%</span>
               </div>
               <small>{character.movie}</small>
               {index === 0 && (
@@ -372,22 +376,22 @@ export function MovieCharacterComparison({
         ))}
       </div>
       <p className="profile-footnote affinity-note">
-        Sono affinità indipendenti, non quote di un totale: le percentuali non
-        devono sommare 100%.
+        {matchingExplanation?.provisional && (
+          <>
+            {isInitial
+              ? "Affinità iniziali da tratti neutri; si aggiornano con le attività. "
+              : "Prime affinità, ancora in aggiornamento. "}
+          </>
+        )}
+        Le affinità sono indipendenti: non devono sommare 100%.
       </p>
-      {matchingExplanation && (
+      {matchingExplanation && showExplanation && (
         <details className="portrait-matching-explanation">
           <summary>Come nasce l’associazione?</summary>
           <p>
             È un gioco di somiglianze, non un test della personalità. L’attività
             nel tool forma il ritratto; stato e domande facoltative lo affinano.
           </p>
-          {matchingExplanation.provisional && (
-            <p>
-              È un punto di partenza: si aggiornerà con le attività e le scelte
-              che vorrai fare.
-            </p>
-          )}
           <ul className="matching-weights">
             {matchingExplanation.weights?.map((source) => (
               <li key={source.id}>
@@ -941,10 +945,10 @@ export function HolidayGuidedWizard({
               topCharacter={computed.topCharacter}
             />
 
-            <h4>Grafico tendenze e spirito delle feste</h4>
+            <h4>I tuoi tratti natalizi</h4>
             <TasteRadarChart tastes={computed.tastes} />
 
-            <h4>A quale personaggio dei film di Natale ti avvicini?</h4>
+            <h4>I tuoi personaggi di Natale</h4>
             <MovieCharacterComparison
               characterMatches={computed.characterMatches}
               matchingExplanation={computed.matchingExplanation}
@@ -1026,7 +1030,7 @@ export function GroupMemberPortraitCard({
 
   const status = member.holidayStatus || {};
   const mood = holidayMoods.find((item) => item.id === status.dailyMood?.id);
-  const portrait = member.portrait;
+  const portrait = status.portraitApproved === false ? null : member.portrait;
   const isMe = member.userId === currentUserId;
   const memberInteractions = interactions.filter(
     (item) => item.receiverId === member.userId,
@@ -1209,20 +1213,18 @@ export function GroupMemberPortraitCard({
             topCharacter={portrait.topCharacter}
           />
 
-          <h4>Tendenze e gusti natalizi</h4>
+          <h4>Tratti natalizi</h4>
           <TasteRadarChart tastes={portrait.tastes} />
 
-          <h4>Somiglianza con i personaggi dei film di Natale</h4>
+          <h4>Personaggi di Natale più affini</h4>
           <MovieCharacterComparison
             characterMatches={portrait.characterMatches}
             matchingExplanation={portrait.matchingExplanation}
+            showExplanation={false}
           />
         </>
       ) : (
-        <p className="quiet">
-          Questa persona non ha ancora pubblicato il ritratto completo nel
-          profilo.
-        </p>
+        <p className="quiet">Il ritratto non è condiviso con il gruppo.</p>
       )}
 
       {!isMe ? (

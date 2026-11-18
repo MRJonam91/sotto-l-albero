@@ -8,7 +8,10 @@ function database() {
     CREATE TABLE practice_games(user_id TEXT,game TEXT,done INTEGER,state TEXT);
     CREATE TABLE user_stamps(user_id TEXT,stamp TEXT);
     CREATE TABLE portrait_interactions(sender_id TEXT,receiver_id TEXT);
-    CREATE TABLE tris_duels(player_x TEXT,player_o TEXT,status TEXT,winner TEXT);`);
+    CREATE TABLE tris_duels(player_x TEXT,player_o TEXT,status TEXT,winner TEXT);
+    CREATE TABLE profile_activity(user_id TEXT,game TEXT,day TEXT);
+    CREATE TABLE members(user_id TEXT,event_id TEXT,status TEXT,wishlist TEXT);
+    CREATE TABLE events(id TEXT,owner_id TEXT);`);
   return {
     sql,
     prepare(query) {
@@ -70,5 +73,39 @@ describe("attività natalizia verificata", () => {
     expect(result.get("two").games).toEqual([
       { game: "tris", count: 1, averageResult: 0 },
     ]);
+  });
+  it("include il curling come partecipazione dichiarata senza un risultato competitivo", async () => {
+    const db = database();
+    db.sql.exec(
+      `INSERT INTO profile_activity VALUES('one','curling','2026-11-18'),('one','curling','2026-11-19');`,
+    );
+    const result = await activityModule.loadHolidayActivities(db, ["one"]);
+    expect(result.get("one").games).toEqual([
+      { game: "curling", count: 2, averageResult: null, selfReported: true },
+    ]);
+  });
+  it("conta solo usi salvati e approvati senza esportare contenuti privati", async () => {
+    const db = database();
+    db.sql.exec(`INSERT INTO events VALUES('a','one'),('b','two');
+      INSERT INTO members VALUES('one','a','approved','[{"title":"Segreto","answer":"Privato"},{"title":"Altro"}]'),
+        ('one','b','approved','[{}]'),('two','a','pending','[{"title":"Non approvato"}]'),
+        ('one','c','removed','[{"title":"Rimosso"}]');`);
+    const result = await activityModule.loadHolidayActivities(db, [
+      "one",
+      "two",
+    ]);
+    expect(result.get("one").tools).toEqual({
+      wishlistItemsCount: 3,
+      participatingEventsCount: 2,
+      organizedEventsCount: 1,
+    });
+    expect(result.get("two").tools).toEqual({
+      wishlistItemsCount: 0,
+      participatingEventsCount: 0,
+      organizedEventsCount: 1,
+    });
+    expect(JSON.stringify([...result.values()])).not.toMatch(
+      /Segreto|Privato|Non approvato/,
+    );
   });
 });

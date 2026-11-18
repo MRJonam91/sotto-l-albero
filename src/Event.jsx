@@ -33,6 +33,12 @@ import { GroupMemberPortraitCard } from "./HolidayPortrait.jsx";
 import { holidayIconMap } from "../shared/holidayPortrait.js";
 import EventTools from "./EventTools.jsx";
 import DrawExplanation from "./DrawExplanation.jsx";
+import {
+  hasAmazonAffiliateTag,
+  isAmazonUrl,
+  productSearchLinks,
+} from "../shared/amazonLinks.js";
+import "./amazon-wishlist.css";
 const Reveal = lazy(() => import("./Reveal.jsx"));
 const Competition = lazy(() => import("./Competition.jsx"));
 const types = {
@@ -261,7 +267,11 @@ export default function Event({
           </section>
           <aside className="paper guest-list">
             <span className="eyebrow">Attorno all’albero</span>
-            <h2>Chi c’è</h2>
+            <h2>Il gruppo</h2>
+            <p>
+              Apri il ritratto di una persona per vedere stato, tratti e
+              personaggi condivisi.
+            </p>
             {members.length ? (
               members
                 .filter((m) => m.status !== "removed")
@@ -303,17 +313,19 @@ export default function Event({
                             .join(" ")}
                         </small>
                       ) : null}
-                      {m.portrait ||
+                      {m.status === "approved" ||
+                      m.portrait ||
                       m.holidayStatus?.riddle ||
                       m.holidayStatus?.activity ? (
                         <button
                           type="button"
-                          className="text-button guest-portrait-trigger"
+                          className="guest-portrait-trigger"
+                          aria-label={`Vedi il ritratto di ${m.name}`}
                           onClick={() => setSelectedMemberId(m.userId)}
                         >
                           {m.holidayStatus?.riddle
-                            ? "🧩 Indovinello e ritratto di Natale"
-                            : "✨ Ritratto di Natale"}
+                            ? "Indovinello e ritratto"
+                            : "Vedi stato e ritratto"}
                         </button>
                       ) : null}
                     </span>
@@ -477,6 +489,26 @@ function Wishlist({ initial, id, onSaved }) {
     ),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
+  const [query, setQuery] = useState("");
+  const [provider, setProvider] = useState("amazon");
+  const [searchCity, setSearchCity] = useState("");
+  const [product, setProduct] = useState({ title: "", url: "" });
+  const [productError, setProductError] = useState("");
+  const [amazonPreferences, setAmazonPreferences] = useState(null);
+  useEffect(() => {
+    let active = true;
+    api("/preferences/amazon")
+      .then((result) => {
+        if (active) setAmazonPreferences(result);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+  const searchReady =
+    !!query.trim() && (provider !== "local" || !!searchCity.trim());
+  const searchUrl = productSearchLinks(query, searchCity)[provider];
   function update(index, key, value) {
     setItems((all) =>
       all.map((item, i) => (i === index ? { ...item, [key]: value } : item)),
@@ -487,7 +519,8 @@ function Wishlist({ initial, id, onSaved }) {
     setBusy(true);
     setError("");
     try {
-      await api(`/events/${id}/wishlist`, "PUT", { items });
+      const result = await api(`/events/${id}/wishlist`, "PUT", { items });
+      if (Array.isArray(result.items)) setItems(result.items);
       onSaved();
     } catch (e) {
       setError(e.message);
@@ -526,6 +559,127 @@ function Wishlist({ initial, id, onSaved }) {
           Aggiungi un desiderio
         </Button>
       </div>
+      <section className="wish-shopping paper" aria-label="Cerca un prodotto">
+        <h3>Cerca un’idea regalo</h3>
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (searchReady)
+              window.open(searchUrl, "_blank", "noopener,noreferrer");
+          }}
+        >
+          <div className="wish-search-fields">
+            <Field
+              label="Cosa cerchi?"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              maxLength={200}
+              placeholder="Per esempio, tazza blu"
+            />
+            <Field label="Dove cercare">
+              <select
+                value={provider}
+                onChange={(event) => setProvider(event.target.value)}
+              >
+                <option value="amazon">Amazon.it</option>
+                <option value="etsy">Etsy</option>
+                <option value="toyscenter">
+                  Toys Center · ricerca sul web
+                </option>
+                <option value="web">Tutto il web</option>
+                <option value="local">Negozi in una città</option>
+              </select>
+            </Field>
+            <Button type="submit" variant="outline" disabled={!searchReady}>
+              Cerca ↗
+            </Button>
+          </div>
+          {provider === "local" ? (
+            <Field
+              label="Città dello scambio"
+              value={searchCity}
+              onChange={(event) => setSearchCity(event.target.value)}
+              maxLength={80}
+              placeholder="Dove vi scambierete i regali?"
+              hint="La ricerca usa questa città; non richiediamo la tua posizione."
+            />
+          ) : null}
+        </form>
+        <p className="wish-search-note">
+          La ricerca si apre in una nuova scheda. Scegli sul sito del negozio,
+          copia il link e torna qui per aggiungerlo. Non verifichiamo prezzi,
+          disponibilità, spedizione o ritiro.
+        </p>
+        <details className="wish-manual">
+          <summary>Aggiungi un prodotto con nome e link</summary>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              setProductError("");
+              if (items.length >= 30) {
+                setProductError("Puoi lasciare fino a 30 desideri.");
+                return;
+              }
+              try {
+                const url = new URL(product.url);
+                if (
+                  !["https:", "http:"].includes(url.protocol) ||
+                  !product.title.trim()
+                )
+                  throw new Error();
+                setItems((all) => [
+                  ...all,
+                  {
+                    type: "object",
+                    title: product.title.trim(),
+                    url: url.href,
+                    description: "",
+                    hint: "",
+                    answer: "",
+                  },
+                ]);
+                setProduct({ title: "", url: "" });
+              } catch {
+                setProductError(
+                  "Inserisci il nome del prodotto e un link che inizi con https:// o http://.",
+                );
+              }
+            }}
+          >
+            <Field
+              label="Nome del prodotto"
+              value={product.title}
+              onChange={(event) =>
+                setProduct({ ...product, title: event.target.value })
+              }
+              required
+              maxLength={150}
+            />
+            <Field
+              label="Link del prodotto o del negozio"
+              type="url"
+              value={product.url}
+              onChange={(event) =>
+                setProduct({ ...product, url: event.target.value })
+              }
+              required
+              placeholder="https://"
+              hint="Puoi usare Amazon, Etsy, Toys Center o qualsiasi altro negozio, anche locale."
+            />
+            <Notice error>{productError}</Notice>
+            <Button
+              type="submit"
+              variant="outline"
+              disabled={items.length >= 30 || busy}
+            >
+              Aggiungi alla lettera
+            </Button>
+            <p className="wish-search-note">
+              Poi premi “Salva la lettera” per conservare tutti i desideri.
+            </p>
+          </form>
+        </details>
+      </section>
       <form onSubmit={save}>
         {items.length ? (
           items.map((item, i) => (
@@ -581,13 +735,76 @@ function Wishlist({ initial, id, onSaved }) {
                 />
               </Field>
               {item.type === "object" ? (
-                <Field
-                  label="Un link, se ti va"
-                  type="url"
-                  value={item.url || ""}
-                  onChange={(e) => update(i, "url", e.target.value)}
-                  placeholder="https://"
-                />
+                <>
+                  <Field
+                    label="Un link, se ti va"
+                    type="url"
+                    value={item.url || ""}
+                    onChange={(e) => update(i, "url", e.target.value)}
+                    placeholder="https://"
+                  />
+                  {amazonPreferences?.allowed &&
+                  amazonPreferences.enabled &&
+                  amazonPreferences.tag &&
+                  isAmazonUrl(item.url) ? (
+                    <label className="wish-affiliate">
+                      <input
+                        type="checkbox"
+                        checked={item.amazonAffiliate === true}
+                        onChange={(event) =>
+                          update(i, "amazonAffiliate", event.target.checked)
+                        }
+                      />
+                      <span>
+                        Applica il mio tracking ID Amazon a questo prodotto
+                        quando salvo la lettera
+                      </span>
+                    </label>
+                  ) : null}
+                  {/^https:\/\/(?:www\.)?amzn\.to\//i.test(item.url || "") &&
+                  amazonPreferences?.allowed ? (
+                    <small className="wish-affiliate-disclosure">
+                      Per applicare il tuo codice, apri il link breve e copia
+                      qui il link completo di Amazon.
+                    </small>
+                  ) : null}
+                  {hasAmazonAffiliateTag(item.url) ? (
+                    <small className="wish-affiliate-disclosure">
+                      Link affiliato Amazon
+                    </small>
+                  ) : null}
+                  <details className="wish-pickup">
+                    <summary>Ritiro in negozio (facoltativo)</summary>
+                    <label className="wish-affiliate">
+                      <input
+                        type="checkbox"
+                        checked={item.fulfillment === "pickup"}
+                        onChange={(event) =>
+                          update(
+                            i,
+                            "fulfillment",
+                            event.target.checked ? "pickup" : "",
+                          )
+                        }
+                      />
+                      <span>
+                        Questo desiderio richiede il ritiro in negozio
+                      </span>
+                    </label>
+                    {item.fulfillment === "pickup" ? (
+                      <Field
+                        label="Città del ritiro"
+                        value={item.pickupCity || ""}
+                        onChange={(event) =>
+                          update(i, "pickupCity", event.target.value)
+                        }
+                        required
+                        maxLength={80}
+                        hint="Scegli una città comoda per lo scambio. Usa la descrizione per indicare negozio e dettagli da verificare."
+                      />
+                    ) : null}
+                  </details>
+                </>
               ) : null}
               {["riddle", "hint"].includes(item.type) ? (
                 <>

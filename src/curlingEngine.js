@@ -11,7 +11,7 @@ export function scoreGift(gift) {
 }
 
 // Isolated imperative canvas controller; React owns its mount and disposal.
-export function createCurlingGame(root) {
+export function createCurlingGame(root, { onComplete } = {}) {
   const listeners = new AbortController();
   let disposed = false,
     animationFrame = null,
@@ -65,23 +65,20 @@ export function createCurlingGame(root) {
     epoch = 0,
     angle = 0,
     force = 63,
-    drag = null;
+    drag = null,
+    completed = false;
   const colors = ["#b6574d", "#d9b45e"],
-    names = () => [
-      "Giocatore 1",
-      $("[data-mode]").value === "cpu" ? "Computer" : "Giocatore 2",
-    ],
+    names = () => ["Tu", "Computer"],
     reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const current = () => (starter + shots) % 2;
-  const computerTurn = () =>
-    $("[data-mode]").value === "cpu" && current() === 1;
+  const computerTurn = () => current() === 1;
   const pts = scoreGift;
   const speed = () => 2.2 + force * 0.074;
   const distance = () => (speed() * (1 - 0.022 / 2)) / 0.022; // two half-steps per 60 Hz frame; geometric friction sum.
   function controls() {
     root
       .querySelectorAll(
-        "[data-launch],[data-left],[data-right],[data-angle],[data-force],[data-mode]",
+        "[data-launch],[data-left],[data-right],[data-angle],[data-force]",
       )
       .forEach((n) => (n.disabled = busy || computerTurn() || shots >= 6));
     $("[data-cancel]").disabled = busy || computerTurn() || shots >= 6;
@@ -107,7 +104,7 @@ export function createCurlingGame(root) {
       msg =
         scores[0] === scores[1]
           ? "Pareggio! La lanterna aspetta la rivincita."
-          : `${names()[scores[0] > scores[1] ? 0 : 1]} vince. Nella rivincita cambia chi comincia.`;
+          : `${scores[0] > scores[1] ? "Hai vinto" : "Il computer ha vinto"}. Nella rivincita cambia chi comincia.`;
     $("[data-status]").textContent =
       msg ||
       `${names()[current()]}, avvicina il regalo alla lanterna. La mira iniziale raggiunge il centro.`;
@@ -273,8 +270,8 @@ export function createCurlingGame(root) {
     for (let g of gifts)
       if (!g.out && (g.body.position.y < 26 || g.body.position.y > 477)) out(g);
   }
-  function launch() {
-    if (busy || shots >= 6) return;
+  function launch(isComputer = false) {
+    if (busy || shots >= 6 || computerTurn() !== isComputer) return;
     drag = null;
     $(".f1-rink").classList.remove("aiming");
     busy = true;
@@ -306,11 +303,15 @@ export function createCurlingGame(root) {
       angle = 0;
       force = 63;
       update();
-      if (shots < 6 && $("[data-mode]").value === "cpu" && current() === 1) {
+      if (shots === 6 && !completed) {
+        completed = true;
+        onComplete?.();
+      }
+      if (shots < 6 && computerTurn()) {
         angle = [-3, 5, -6][Math.floor(shots / 2)] || 2;
         force = [63, 60, 68][Math.floor(shots / 2)] || 63;
         scheduleComputer(() => {
-          if (my === epoch) launch();
+          if (my === epoch) launch(true);
         }, 350);
       }
     }
@@ -359,15 +360,21 @@ export function createCurlingGame(root) {
     M.Engine.clear(engine);
     gifts = [];
     shots = 0;
+    completed = false;
     busy = false;
     angle = 0;
     force = 63;
     drag = null;
     $(".f1-rink").classList.remove("aiming");
     update();
-    if ($("[data-mode]").value === "cpu" && current() === 1) launch();
+    if (computerTurn()) {
+      const my = epoch;
+      scheduleComputer(() => {
+        if (my === epoch) launch(true);
+      }, 350);
+    }
   }
-  $("[data-launch]").onclick = launch;
+  $("[data-launch]").onclick = () => launch();
   $("[data-cancel]").onclick = cancel;
   $("[data-left]").onclick = () => {
     angle = Math.max(-38, angle - 3);
@@ -391,10 +398,6 @@ export function createCurlingGame(root) {
   };
   $("[data-reset]").onclick = () => {
     starter = 1 - starter;
-    reset();
-  };
-  $("[data-mode]").onchange = () => {
-    starter = 0;
     reset();
   };
   root.addEventListener(
@@ -438,7 +441,7 @@ export function createCurlingGame(root) {
     };
   };
   handle.onpointerdown = (e) => {
-    if (busy || shots >= 6) return;
+    if (busy || computerTurn() || shots >= 6) return;
     drag = point(e);
     handle.setPointerCapture(e.pointerId);
     $(".f1-rink").classList.add("aiming");

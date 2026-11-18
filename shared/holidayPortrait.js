@@ -97,11 +97,11 @@ export const holidayRiddlePresets = [
 ];
 
 export const tasteAxes = [
-  { id: "entusiasmo", label: "Entusiasmo & Meraviglia" },
-  { id: "ingegno", label: "Ingegno & Indovinelli" },
-  { id: "tradizione", label: "Calore & Tradizione" },
-  { id: "ironia", label: "Spirito Frizzante & Ironia" },
-  { id: "spettacolo", label: "Scenografia & Lucine" },
+  { id: "entusiasmo", label: "Entusiasmo" },
+  { id: "ingegno", label: "Ingegno" },
+  { id: "tradizione", label: "Tradizione" },
+  { id: "ironia", label: "Ironia" },
+  { id: "spettacolo", label: "Scenografia" },
 ];
 
 export const holidayQuestions = [
@@ -590,6 +590,7 @@ const gameTraits = {
   addobbi: [88, 52, 86, 62, 98],
   tris: [62, 98, 52, 78, 48],
   duel: [65, 96, 62, 76, 60],
+  curling: [76, 86, 60, 68, 72],
 };
 const traitVector = (values) =>
   Object.fromEntries(tasteAxes.map(({ id }, index) => [id, values[index]]));
@@ -637,9 +638,12 @@ export function computeHolidayPortrait(rawProfile, context = {}) {
     }
     activityEntries.push({ traits, weight: count });
     const label =
-      gameCatalog.find((item) => item.id === game.game)?.name || "Duello quiz";
+      game.game === "curling"
+        ? "Curling dei regali"
+        : gameCatalog.find((item) => item.id === game.game)?.name ||
+          "Duello quiz";
     signals.push(
-      `${label}: ${Math.max(0, Math.floor(Number(game.count) || 0))} partite completate (contano al massimo 3)${typeof game.averageResult === "number" && Number.isFinite(game.averageResult) ? `; risultato medio ${Math.round(bounded(game.averageResult, 1) * 100)}% del massimo` : ""}.`,
+      `${label}: ${Math.max(0, Math.floor(Number(game.count) || 0))} partite completate (contano al massimo 3)${game.game === "curling" ? "; partecipazione dichiarata dal dispositivo, senza punteggi verificati" : typeof game.averageResult === "number" && Number.isFinite(game.averageResult) ? `; risultato medio ${Math.round(bounded(game.averageResult, 1) * 100)}% del massimo` : ""}.`,
     );
   }
   const stampsCount = bounded(
@@ -661,6 +665,36 @@ export function computeHolidayPortrait(rawProfile, context = {}) {
     });
     signals.push(
       `${interactionsCount} interazioni inviate al gruppo (contano al massimo 5).`,
+    );
+  }
+  // Saved tool use is a small, saturated participation signal. We use counts
+  // only: no interpretation of wish titles, answers, messages or event details.
+  const toolSignals = [
+    ["wishlistItemsCount", 5, [62, 72, 90, 48, 58], "desideri salvati", 0.25],
+    [
+      "participatingEventsCount",
+      3,
+      [82, 62, 86, 54, 62],
+      "eventi con iscrizione approvata",
+      0.25,
+    ],
+    [
+      "organizedEventsCount",
+      3,
+      [72, 84, 78, 48, 72],
+      "eventi organizzati",
+      0.25,
+    ],
+  ];
+  for (const [key, cap, values, label, maxWeight] of toolSignals) {
+    const count = bounded(context.activity?.tools?.[key], cap);
+    if (!count) continue;
+    activityEntries.push({
+      traits: traitVector(values),
+      weight: (count / cap) * maxWeight,
+    });
+    signals.push(
+      `${count} ${label} (contano al massimo ${cap}; solo partecipazione, senza leggere i contenuti).`,
     );
   }
   // Legacy callers can still supply a completed-game count, without inventing a game type.

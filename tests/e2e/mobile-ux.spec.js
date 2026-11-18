@@ -152,6 +152,11 @@ test("stato e ritratto visibili subito, modifica a bottone e domande in un riqua
   await expect(summary.locator(".holiday-summary-status")).toBeVisible();
   await expect(summary.locator(".spirit-generated-svg")).toBeVisible();
   await expect(summary.locator(".holiday-summary-description")).toBeVisible();
+  await expect(summary.locator(".portrait-taste-row")).toHaveCount(5);
+  await expect(summary.locator(".portrait-taste-row").first()).toBeVisible();
+  await expect(
+    summary.locator(".character-comparison-head > span").first(),
+  ).toContainText("%");
   await expect(summary.locator(".character-comparison-item")).toHaveCount(3);
   const editor = page.locator("#profile-holiday-editor");
   await expect(editor).toHaveCSS("border-top-style", "solid");

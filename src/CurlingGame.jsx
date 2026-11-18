@@ -1,10 +1,45 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createCurlingGame } from "./curlingEngine.js";
+import { api } from "./api.js";
 import "./curling-game.css";
 
 export default function CurlingGame({ onClose }) {
   const root = useRef(null);
-  useEffect(() => createCurlingGame(root.current), []);
+  const [participation, setParticipation] = useState("");
+  const [saveError, setSaveError] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const alive = useRef(false);
+  async function saveParticipation() {
+    setSaving(true);
+    setSaveError(false);
+    setParticipation("Salviamo la partecipazione nel tuo ritratto…");
+    try {
+      await api("/profile/activity", "POST", { game: "curling" });
+      if (alive.current)
+        setParticipation(
+          "Il tuo ritratto tiene conto della partecipazione al curling. Nessun punto in classifica.",
+        );
+    } catch (error) {
+      if (alive.current) {
+        setSaveError(true);
+        setParticipation(
+          `Partita conclusa. Partecipazione non salvata: ${error.message}`,
+        );
+      }
+    } finally {
+      if (alive.current) setSaving(false);
+    }
+  }
+  useEffect(() => {
+    alive.current = true;
+    const dispose = createCurlingGame(root.current, {
+      onComplete: saveParticipation,
+    });
+    return () => {
+      alive.current = false;
+      dispose();
+    };
+  }, []);
   return (
     <section
       ref={root}
@@ -13,16 +48,16 @@ export default function CurlingGame({ onClose }) {
     >
       <div className="f1-intro">
         <span className="f1-eyebrow">
-          IL CORTILE DELLA LANTERNA · SULLO STESSO SCHERMO
+          IL CORTILE DELLA LANTERNA · CONTRO IL COMPUTER
         </span>
         <h2 id="curling-title">Un regalo sul ghiaccio.</h2>
         <p>
           Trascina il pacco verso di te, prendi la mira e lascia andare. Vicino
-          alla luce vale di più. E puoi spostare i regali dell’altro.
+          alla luce vale di più. E puoi spostare i regali del computer.
         </p>
       </div>
       <div className="f1-score" aria-live="polite">
-        <b data-score="">Giocatore 1: 0 · Giocatore 2: 0</b>
+        <b data-score="">Tu: 0 · Computer: 0</b>
         <span data-turn=""></span>
       </div>
       <div className="f1-rink">
@@ -48,15 +83,8 @@ export default function CurlingGame({ onClose }) {
         <button data-reset="">Rivincita</button>
       </div>
       <details className="f1-settings">
-        <summary>Gioca da tastiera · cambia modalità</summary>
+        <summary>Gioca da tastiera · regola la mira</summary>
         <div className="controls">
-          <label>
-            Partita{" "}
-            <select data-mode="">
-              <option value="local">Due persone, stesso schermo</option>
-              <option value="cpu">Allenamento contro il computer</option>
-            </select>
-          </label>
           <button data-left="" aria-label="Mira a sinistra">
             ← Mira
           </button>
@@ -94,10 +122,17 @@ export default function CurlingGame({ onClose }) {
         </p>
       </details>
       <p className="profile">
-        Sei tiri alternati · tre pacchi a testa · rivincita con primo giocatore
-        alternato · due persone sullo stesso schermo o allenamento contro il
-        computer · nessun risultato salvato e nessun punto in classifica.
+        Sei tiri alternati · tre pacchi per te e tre per il computer · nella
+        rivincita cambia chi comincia. Una partita conclusa contribuisce al
+        ritratto come partecipazione dichiarata dal dispositivo: non salviamo
+        punteggi e non assegniamo punti in classifica.
       </p>
+      {participation && <p role="status">{participation}</p>}
+      {saveError && (
+        <button type="button" disabled={saving} onClick={saveParticipation}>
+          Riprova a salvare la partecipazione
+        </button>
+      )}
       <button type="button" className="button ghost" onClick={onClose}>
         Torna ai giochi
       </button>

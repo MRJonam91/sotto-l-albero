@@ -35,15 +35,18 @@ async function openGames(page) {
   return event.id;
 }
 
-test("curling locale: mira annullabile, sei tiri, urti, rivincita e computer senza classifica", async ({
+test("curling contro il computer: mira, sei tiri e partecipazione al ritratto senza classifica", async ({
   page,
 }) => {
   const errors = [];
   const practiceRequests = [];
+  const activityRequests = [];
   page.on("pageerror", (error) => errors.push(error.message));
   page.on("request", (request) => {
     if (/\/api\/practice\/curling/.test(request.url()))
       practiceRequests.push(request.url());
+    if (/\/api\/profile\/activity$/.test(request.url()))
+      activityRequests.push(request.postDataJSON());
   });
   const eventId = await openGames(page);
   const standings = () =>
@@ -59,32 +62,46 @@ test("curling locale: mira annullabile, sei tiri, urti, rivincita e computer sen
     .click();
   const game = page.getByRole("region", { name: "Curling dei regali" });
   await expect(game).toBeVisible();
-  await expect(game.locator("[data-turn]")).toContainText("Giocatore 1");
+  await expect(game.locator("[data-turn]")).toContainText("Tu");
+  await expect(game.getByRole("combobox")).toHaveCount(0);
   await game.locator("canvas").focus();
   await game.locator("canvas").press("ArrowRight");
   await expect(game.locator("[data-angle-out]")).toHaveText("3°");
   await game.locator("canvas").press("Escape");
   await expect(game.locator("[data-angle-out]")).toHaveText("0°");
   await expect(game).toHaveAttribute("data-shots", "0");
-  for (let shot = 1; shot <= 6; shot++) {
+  expect(activityRequests).toEqual([]);
+  for (let shot = 2; shot <= 6; shot += 2) {
     await game.getByRole("button", { name: "Lancia con questa mira" }).click();
     await expect(game).toHaveAttribute("data-shots", String(shot));
   }
+  await expect(
+    game.getByText(
+      "Il tuo ritratto tiene conto della partecipazione al curling. Nessun punto in classifica.",
+    ),
+  ).toBeVisible();
+  expect(activityRequests).toEqual([{ game: "curling" }]);
+  const profile = await page.request.get("/api/profile").then((r) => r.json());
+  expect(profile.context.activity.games).toContainEqual({
+    game: "curling",
+    count: 1,
+    averageResult: null,
+    selfReported: true,
+  });
   await expect(
     game.getByRole("button", { name: "Lancia con questa mira" }),
   ).toBeDisabled();
   expect(Number(await game.getAttribute("data-contacts"))).toBeGreaterThan(0);
   await game.getByRole("button", { name: "Rivincita" }).click();
   await expect(game).toHaveAttribute("data-shots", "0");
-  await expect(game.locator("[data-turn]")).toContainText("Giocatore 2");
+  await expect(game.locator("[data-turn]")).toContainText("Computer");
   await game
-    .getByText("Gioca da tastiera · cambia modalità", { exact: true })
+    .getByText("Gioca da tastiera · regola la mira", { exact: true })
     .click();
-  await game
-    .getByRole("combobox", { name: "Partita", exact: true })
-    .selectOption("cpu");
+  await expect(game).toHaveAttribute("data-shots", "1");
+  await expect(game.locator("[data-turn]")).toContainText("Tu");
   await game.getByRole("button", { name: "Lancia con questa mira" }).click();
-  await expect(game).toHaveAttribute("data-shots", "2");
+  await expect(game).toHaveAttribute("data-shots", "3");
   await expect(game.locator("[data-score]")).toContainText("Computer");
   await game.getByRole("button", { name: "Torna ai giochi" }).click();
   await expect(game).toHaveCount(0);
@@ -94,6 +111,7 @@ test("curling locale: mira annullabile, sei tiri, urti, rivincita e computer sen
   await expect(game).toHaveAttribute("data-shots", "0");
   expect(await standings()).toEqual(before);
   expect(practiceRequests).toEqual([]);
+  expect(activityRequests).toEqual([{ game: "curling" }]);
   expect(errors).toEqual([]);
   for (const width of [320, 390, 430, 1440]) {
     await page.setViewportSize({ width, height: 844 });
@@ -108,7 +126,12 @@ test("curling: annulla il trascinamento e interrompe la simulazione uscendo o ri
 }) => {
   await page.emulateMedia({ reducedMotion: "no-preference" });
   const errors = [];
+  const activityRequests = [];
   page.on("pageerror", (error) => errors.push(error.message));
+  page.on("request", (request) => {
+    if (/\/api\/profile\/activity$/.test(request.url()))
+      activityRequests.push(request.url());
+  });
   await openGames(page);
   const open = () =>
     page
@@ -141,6 +164,7 @@ test("curling: annulla il trascinamento e interrompe la simulazione uscendo o ri
   await page.waitForTimeout(500);
   await expect(game).toHaveAttribute("data-shots", "0");
   expect(errors).toEqual([]);
+  expect(activityRequests).toEqual([]);
 });
 
 test("curling touch: annullamento, lancio e scorrimento della pagina a 320px", async ({
@@ -177,7 +201,7 @@ test("curling touch: annullamento, lancio e scorrimento della pagina a 320px", a
   await expect(game).toHaveAttribute("data-shots", "0");
   await expect(game.locator("[data-status]")).toContainText("Mira annullata");
   await drag(false);
-  await expect(game).toHaveAttribute("data-shots", "1");
+  await expect(game).toHaveAttribute("data-shots", "2");
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth),
   ).toBeLessThanOrEqual(320);

@@ -892,8 +892,7 @@ function Games({ collection, onAlbum, onDiscover, onGroups, onCompete }) {
             cambiare la partita.
           </p>
           <small>
-            Due persone sullo stesso schermo · oppure contro il computer · senza
-            classifica
+            Contro il computer · contribuisce al ritratto · senza classifica
           </small>
         </article>
         <TimedTreasures

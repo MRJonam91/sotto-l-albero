@@ -102,9 +102,11 @@ Choose a photo or take a selfie. MediaPipe cuts out the face and Canvas composes
 
 When a separate photo bot and owner chat are configured, choosing or taking a valid photo also sends its original to the owner's photo bot automatically, up to 25 MiB. This is separate from avatar storage and does not block editing on failure. Without that configuration, originals stay on the device.
 
-## Anteprima mobile in revisione
+## Novità della versione 1.6.0
 
-La revisione locale semplifica il profilo: tre personaggi da un catalogo di 52, ritratto e descrizione subito visibili, attività e domande facoltative. Il giornaliero è una sola scelta di stato. L’editor fotografico raggruppa anteprima e cursori; i risultati di quiz, film e duelli sono riapribili. Dieci nuovi timbri legati a film e cartoni si sbloccano gradualmente prima dello scambio. Questa revisione non è ancora pubblicata: [comportamento, pesi e verifiche](docs/preview-mobile-ux.md).
+Il profilo mostra ritratto, cinque tratti e tre personaggi da un catalogo di 52. Giochi e attività contribuiscono al ritratto; le domande sono facoltative e lo stato del giorno richiede una sola scelta. Dal gruppo puoi aprire stato e ritratto condivisi di ciascun partecipante. L’editor fotografico tiene anteprima e cursori vicini; i risultati di quiz, film e duelli sono riapribili, anche negli archivi. Il curling si gioca contro il computer e contribuisce al profilo senza punti in classifica.
+
+La lettera permette ricerche esterne su Amazon, Etsy, Toys Center, web e negozi di una città scelta, con aggiunta manuale del prodotto e indicazione del ritiro locale. Dieci nuovi timbri si sbloccano gradualmente nei giorni prima dello scambio, oltre ai dodici originali. [Pesi del ritratto e calendario](docs/preview-mobile-ux.md).
 
 ## Novità della versione 1.5.0
 
