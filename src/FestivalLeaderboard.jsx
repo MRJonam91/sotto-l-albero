@@ -1,6 +1,7 @@
 import { useId, useState } from "react";
 import { Sparkles } from "lucide-react";
 import Avatar from "./Avatar.jsx";
+import NameTag from "./NameTag.jsx";
 import ScoreVessel from "./ScoreVessel.jsx";
 import { Button, Field, Modal } from "./ui.jsx";
 
@@ -120,6 +121,23 @@ export default function FestivalLeaderboard({
           <strong className="competition-name">
             {row.name}
             {row.userId === userId ? " (tu)" : ""}
+            {memberById.get(row.userId)?.badge ? (
+              <>
+                {" "}
+                <NameTag
+                  badge={memberById.get(row.userId).badge}
+                  name={row.name}
+                  nickname={memberById.get(row.userId).nickname}
+                  badgeText={memberById.get(row.userId).badgeText}
+                  size="sm"
+                />
+              </>
+            ) : memberById.get(row.userId)?.nickname ? (
+              <small className="guest-realname">
+                {" "}
+                @{memberById.get(row.userId).nickname}
+              </small>
+            ) : null}
           </strong>
           <strong className="competition-points">{row.score} pt</strong>
           <div className="competition-row-actions">

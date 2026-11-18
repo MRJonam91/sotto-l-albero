@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DatabaseSync } from "node:sqlite";
 import { readFileSync, readdirSync } from "node:fs";
 import { competitionRoute, getLeaderboard } from "../worker/competition.js";
+import { quizQuestions } from "../shared/quizQuestions.js";
 import { practiceRoute } from "../worker/practice.js";
 import { eventRoute } from "../worker/events.js";
 import { stampRoute } from "../worker/stamps.js";
@@ -1002,4 +1003,209 @@ it("keeps the practice deadline on reopen and starts the next timer after feedba
   } finally {
     clock.mockRestore();
   }
+});
+
+it("contains 200 unique Christmas quiz questions with balanced options and review notes", () => {
+  expect(quizQuestions.length).toBeGreaterThanOrEqual(200);
+  const seen = new Set();
+  for (const entry of quizQuestions) {
+    expect(entry).toHaveLength(4);
+    const [text, options, answer, note] = entry;
+    expect(typeof text).toBe("string");
+    expect(text.trim().length).toBeGreaterThan(10);
+    expect(seen.has(text)).toBe(false);
+    seen.add(text);
+    expect(Array.isArray(options)).toBe(true);
+    expect(options).toHaveLength(3);
+    expect(new Set(options).size).toBe(3);
+    expect(Number.isInteger(answer)).toBe(true);
+    expect(answer).toBeGreaterThanOrEqual(0);
+    expect(answer).toBeLessThan(options.length);
+    expect(typeof note).toBe("string");
+    expect(note.trim().length).toBeGreaterThan(15);
+  }
+  const sword = quizQuestions.find(([text]) =>
+    text.includes("La spada nella roccia"),
+  );
+  expect(sword?.[3]).toMatch(/natal|Capodanno|feste/i);
+});
+
+it("returns a one-time quiz review on completion without exposing questions or answers afterwards", async () => {
+  const now = Date.now();
+  const clock = vi.spyOn(Date, "now").mockReturnValue(now);
+  try {
+    let attempt = await start(anna, "quiz");
+    expect(attempt.question.answer).toBeUndefined();
+    expect(attempt.question.note).toBeUndefined();
+    expect(attempt.review).toBeUndefined();
+
+    const stored = JSON.parse(
+      env.DB.sql
+        .prepare("SELECT state FROM competition_attempts WHERE id=?")
+        .get(attempt.id).state,
+    );
+    for (let i = 0; i < stored.questions.length; i++) {
+      const q = stored.questions[i];
+      if (i === 9) {
+        clock.mockReturnValue(now + 25_000);
+        attempt = await action(anna, attempt, { timeout: true });
+      } else {
+        const choice =
+          i % 2 === 0 ? q.answer : (q.answer + 1) % q.options.length;
+        attempt = await action(anna, attempt, { choice });
+        expect(attempt.review).toBeUndefined();
+      }
+      clock.mockReturnValue(now);
+    }
+
+    expect(attempt.done).toBe(true);
+    expect(attempt.score).toBe(150);
+    expect(attempt.review).toMatchObject({
+      oneTime: true,
+      correctCount: 5,
+      total: 10,
+    });
+    expect(attempt.review.items).toHaveLength(10);
+    expect(attempt.review.items[0]).toMatchObject({
+      text: stored.questions[0].text,
+      correctAnswer: stored.questions[0].answer,
+      myOutcome: "correct",
+    });
+    expect(attempt.review.items[0].note.length).toBeGreaterThan(10);
+    expect(attempt.review.items[1].myOutcome).toBe("wrong");
+    expect(attempt.review.items[9]).toMatchObject({
+      myChoice: -1,
+      myOutcome: "timeout",
+    });
+
+    // Replaying the final action or fetching the board must not reveal the review again
+    const replayed = await action(anna, attempt, { choice: 0 });
+    expect(replayed.review).toBeUndefined();
+
+    const board = await api(anna);
+    const quizCard = board.games.find((game) => game.id === "quiz");
+    expect(quizCard.history).toEqual([
+      {
+        ordinal: 1,
+        score: 150,
+        correct: 5,
+        total: 10,
+        outcomes: [
+          "correct",
+          "wrong",
+          "correct",
+          "wrong",
+          "correct",
+          "wrong",
+          "correct",
+          "wrong",
+          "correct",
+          "timeout",
+        ],
+      },
+    ]);
+    const serialized = JSON.stringify(board);
+    for (const q of stored.questions) {
+      expect(serialized).not.toContain(q.text);
+      expect(serialized).not.toContain(q.note);
+    }
+  } finally {
+    clock.mockRestore();
+  }
+});
+
+it("shows Quiz Duello outcomes and enforces a strictly one-time head-to-head review in duels", async () => {
+  const { duelId } = await api(anna, "/duels", { userId: bea.id });
+  let a = await start(anna, "duel", duelId);
+  let b = await start(bea, "duel", duelId);
+  const stored = JSON.parse(
+    env.DB.sql
+      .prepare("SELECT questions FROM competition_duels WHERE id=?")
+      .get(duelId).questions,
+  );
+
+  for (let i = 0; i < stored.length; i++) {
+    a = await action(anna, a, { choice: stored[i].answer });
+  }
+  expect(a.done).toBe(true);
+  expect(a.review).toMatchObject({ oneTime: true, correctCount: 10, total: 10 });
+  expect(a.review.opponent).toBeUndefined();
+
+  // While waiting for Bea, Anna sees her own scorecard dots only and cannot open head-to-head review
+  const waitingBoard = await api(anna);
+  expect(waitingBoard.duels[0].reviewAvailable).toBe(false);
+  expect(waitingBoard.duels[0].roundOutcomes).toHaveLength(10);
+  expect(waitingBoard.duels[0].roundOutcomes[0]).toEqual({
+    me: "correct",
+    opponent: null,
+  });
+  await expect(
+    api(anna, `/duels/${duelId}/review`, {}),
+  ).rejects.toMatchObject({ status: 409 });
+
+  // Bea finishes second and receives the head-to-head review immediately (consumed once)
+  for (let i = 0; i < stored.length; i++) {
+    const q = stored[i];
+    b = await action(bea, b, {
+      choice: i < 4 ? q.answer : (q.answer + 1) % q.options.length,
+    });
+  }
+  expect(b.done).toBe(true);
+  expect(b.review).toMatchObject({
+    oneTime: true,
+    correctCount: 4,
+    total: 10,
+    opponent: { name: "Anna", correctCount: 10, score: 100 },
+  });
+  expect(b.review.items[0].opponentOutcome).toBe("correct");
+  expect(b.review.items[5]).toMatchObject({
+    myOutcome: "wrong",
+    opponentOutcome: "correct",
+  });
+
+  // Bea cannot reopen the duel review later
+  const beaBoard = await api(bea);
+  expect(beaBoard.duels[0].reviewAvailable).toBe(false);
+  expect(beaBoard.duels[0].reviewSeen).toBe(true);
+  await expect(
+    api(bea, `/duels/${duelId}/review`, {}),
+  ).rejects.toMatchObject({ status: 409 });
+
+  // Anna sees the scorecard and can open the head-to-head review strictly ONCE
+  const annaBoardBefore = await api(anna);
+  expect(annaBoardBefore.duels[0].reviewAvailable).toBe(true);
+  expect(annaBoardBefore.duels[0].roundOutcomes[5]).toEqual({
+    me: "correct",
+    opponent: "wrong",
+  });
+
+  const headToHead = await api(anna, `/duels/${duelId}/review`, {});
+  expect(headToHead.review).toMatchObject({
+    oneTime: true,
+    correctCount: 10,
+    opponent: { name: "Bea", correctCount: 4, score: 40 },
+  });
+  expect(headToHead.review.items[5]).toMatchObject({
+    myOutcome: "correct",
+    opponentOutcome: "wrong",
+  });
+
+  // Second attempt for Anna must fail (409) and board hides the review button
+  await expect(
+    api(anna, `/duels/${duelId}/review`, {}),
+  ).rejects.toMatchObject({ status: 409 });
+  const annaBoardAfter = await api(anna);
+  expect(annaBoardAfter.duels[0].reviewAvailable).toBe(false);
+  expect(annaBoardAfter.duels[0].reviewSeen).toBe(true);
+
+  // Unplayed duel expired cannot expose questions via review
+  const { duelId: unplayedId } = await api(owner, "/duels", { userId: bea.id }).catch(
+    () => api(anna, "/duels", { userId: bea.id }),
+  );
+  env.DB.sql
+    .prepare("UPDATE competition_duels SET expires=0 WHERE id=?")
+    .run(unplayedId);
+  await expect(
+    api(anna, `/duels/${unplayedId}/review`, {}),
+  ).rejects.toMatchObject({ status: 409 });
 });

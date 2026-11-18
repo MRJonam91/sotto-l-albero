@@ -1,4 +1,5 @@
 import { expect, request, test } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { quizQuestions } from "../../shared/quizQuestions.js";
@@ -32,7 +33,7 @@ test("Sfide aperte agli iscritti, duelli e bicchieri anche a zero punti", async 
   browser,
   baseURL,
 }) => {
-  test.setTimeout(75_000);
+  test.setTimeout(95_000);
   const organizer = await request.newContext({ baseURL });
   const friend = await request.newContext({ baseURL });
   const third = await request.newContext({ baseURL });
@@ -284,26 +285,126 @@ test("Sfide aperte agli iscritti, duelli e bicchieri anche a zero punti", async 
     await page.getByRole("button", { name: "Torna alle sfide" }).click();
 
     await expect(standings.getByText("405 pt", { exact: true })).toBeVisible();
-    await page.getByRole("button", { name: "Gioca: Quiz di Natale" }).click();
-    const play = page.locator(".competition-play");
-    for (let question = 1; question <= 10; question++) {
-      await expect(play.getByText(`Domanda ${question} di 10`)).toBeVisible();
-      const prompt = await play.getByRole("heading").textContent();
-      const choices = await play
-        .locator(".competition-options button")
-        .allTextContents();
-      const entry = quizQuestions.find(
-        ([text, options]) =>
-          text === prompt &&
-          options.every((option) => choices.includes(option)),
-      );
-      expect(entry, prompt).toBeTruthy();
-      await play
-        .getByRole("button", { name: entry[1][entry[2]], exact: true })
-        .click();
+    async function checkA11y() {
+      const { violations } = await new AxeBuilder({ page })
+        .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+        .analyze();
+      expect(
+        violations.map(({ id, nodes }) => ({
+          id,
+          targets: nodes.map(({ target }) => target),
+        })),
+      ).toEqual([]);
     }
+
+    async function playQuizMatch(
+      targetPage,
+      correctTarget = 10,
+      captureFirst = false,
+    ) {
+      const container = targetPage.locator(".competition-play");
+      for (let question = 1; question <= 10; question++) {
+        await expect(
+          container.getByText(`Domanda ${question} di 10`),
+        ).toBeVisible();
+        await expect(
+          container.locator(".competition-play-bar .competition-back"),
+        ).toHaveText("Torna alle sfide");
+        await expect(
+          container.locator(".competition-options button"),
+        ).toHaveCount(3);
+        if (question === 1 && captureFirst) {
+          await capture("quiz-domanda");
+          await checkA11y();
+        }
+        const prompt = await container.getByRole("heading").textContent();
+        const choices = await container
+          .locator(".competition-options button")
+          .allTextContents();
+        const entry = quizQuestions.find(
+          ([text, options]) =>
+            text === prompt &&
+            options.every((option) => choices.includes(option)),
+        );
+        expect(entry, prompt).toBeTruthy();
+        const pickIndex =
+          question <= correctTarget ? entry[2] : (entry[2] + 1) % 3;
+        await container
+          .getByRole("button", { name: entry[1][pickIndex], exact: true })
+          .click();
+      }
+      return container;
+    }
+
+    await page.getByRole("button", { name: "Gioca: Quiz di Natale" }).click();
+    const play = await playQuizMatch(page, 10, true);
+    await expect(play).toContainText("Quiz completato");
     await expect(play).toContainText("300 punti");
-    await page.getByRole("button", { name: "Torna alle sfide" }).click();
+    await expect(play.locator(".quiz-review-card")).toHaveCount(10);
+    await expect(play.locator(".quiz-review-note").first()).toBeVisible();
+    await expect(
+      play.locator(".competition-done-actions .competition-finish-cta"),
+    ).toHaveText("Torna alle sfide");
+    await capture("quiz-review");
+    await checkA11y();
+    await page
+      .locator(".competition-done-actions")
+      .getByRole("button", { name: "Torna alle sfide" })
+      .click();
+    await expect(page.locator(".quiz-review")).toHaveCount(0);
+    await expect(
+      page.getByText("Tentativo 1: 10/10 (300 pt)"),
+    ).toBeVisible();
+
+    // Verifica duello Quiz Duello (andamento + review una tantum anti-memorizzazione)
+    await page.getByRole("button", { name: "Gioca il duello" }).click();
+    const annaDuelPlay = await playQuizMatch(page, 8);
+    await expect(annaDuelPlay).toContainText("Duello completato");
+    await expect(annaDuelPlay).toContainText("8 su 10 esatte");
+    await expect(annaDuelPlay).toContainText("2 sbagliate");
+    await expect(annaDuelPlay.locator(".quiz-review-card")).toHaveCount(10);
+    await annaDuelPlay
+      .locator(".competition-done-actions")
+      .getByRole("button", { name: "Torna alle sfide" })
+      .click();
+    await expect(
+      page.getByRole("button", { name: "Vedi risposte del duello" }),
+    ).toHaveCount(0);
+
+    await receiver.getByRole("button", { name: "Gioca il duello" }).click();
+    const brunoDuelPlay = await playQuizMatch(receiver, 5);
+    await expect(brunoDuelPlay).toContainText("Ha vinto Anna Sfide");
+    await expect(brunoDuelPlay.locator(".quiz-review-card")).toHaveCount(10);
+    await brunoDuelPlay
+      .locator(".competition-done-actions")
+      .getByRole("button", { name: "Torna alle sfide" })
+      .click();
+    await expect(
+      receiver.getByRole("button", { name: "Vedi risposte del duello" }),
+    ).toHaveCount(0);
+    await expect(receiver.locator(".duel-scorecard")).toBeVisible();
+
+    await openCompetition(page, event.id);
+    await expect(page.locator(".duel-scorecard")).toBeVisible();
+    await checkA11y();
+    await page.getByRole("button", { name: "Vedi risposte del duello" }).click();
+    await expect(play).toContainText("Confronto del duello");
+    await expect(play).toContainText("Hai vinto il duello!");
+    await expect(play.locator(".quiz-review-card")).toHaveCount(10);
+    await capture("duello-review");
+    await checkA11y();
+    await play
+      .locator(".competition-done-actions")
+      .getByRole("button", { name: "Torna alle sfide" })
+      .click();
+    await expect(
+      page.getByRole("button", { name: "Vedi risposte del duello" }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByText("Confronto risposte già consultato"),
+    ).toBeVisible();
+    await expect(page.locator(".duel-scorecard")).toBeVisible();
+
     await expect(standings.getByText("705 pt", { exact: true })).toBeVisible();
     await page
       .getByRole("button", { name: "Dettaglio punti di Anna Sfide" })

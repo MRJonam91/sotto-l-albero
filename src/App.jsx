@@ -35,6 +35,16 @@ import { version } from "../package.json";
 import AppUpdateNotice from "./AppUpdateNotice.jsx";
 import InviteNotificationHint from "./InviteNotificationHint.jsx";
 import EventShortcuts from "./EventShortcuts.jsx";
+import {
+  AmbientEffectsModal,
+  AmbientEffectsOverlay,
+} from "./AmbientEffects.jsx";
+import {
+  countActiveEffects,
+  loadAmbientEffects,
+  saveAmbientEffects,
+} from "./ambientEffects.js";
+import { HolidayGuidedWizard } from "./HolidayPortrait.jsx";
 const ProfileSettings = lazy(() => import("./ProfileSettings.jsx"));
 
 const sectionPaths = {
@@ -100,9 +110,17 @@ export default function App() {
     [inviteError, setInviteError] = useState(""),
     [showInviteNotice, setShowInviteNotice] = useState(false),
     [joining, setJoining] = useState(false),
-    [snow, setSnow] = useState(
-      () => localStorage.getItem("sla-snow") !== "off",
-    );
+    [effects, setEffects] = useState(loadAmbientEffects),
+    [effectsOpen, setEffectsOpen] = useState(false),
+    [checkinDraft, setCheckinDraft] = useState(null),
+    [checkinOpen, setCheckinOpen] = useState(false),
+    [checkinBusy, setCheckinBusy] = useState(false),
+    [checkinError, setCheckinError] = useState(""),
+    [checkinFeedback, setCheckinFeedback] = useState("");
+  const activeEffectsCount = countActiveEffects(effects);
+  function updateEffects(next) {
+    setEffects(saveAmbientEffects(next));
+  }
   const token = location.pathname.match(/^\/invite\/([^/]+)$/)?.[1];
   const collection = useStampCollection(session?.user?.id);
   const loadEvents = useCallback(async () => {
@@ -150,6 +168,48 @@ export default function App() {
     setEvents([]);
     setEventId(null);
     setShowInviteNotice(false);
+    setCheckinDraft(null);
+    setCheckinOpen(false);
+    setCheckinError("");
+    setCheckinFeedback("");
+  }
+  async function submitDailyCheckin(action) {
+    setCheckinBusy(true);
+    setCheckinError("");
+    try {
+      const payload =
+        action === "complete"
+          ? {
+              action,
+              holidayProfile:
+                checkinDraft ?? session?.user?.holidayProfile ?? {},
+            }
+          : { action: "skip" };
+      const updated = await api("/profile/daily-checkin", "POST", payload);
+      setSession((prev) =>
+        prev?.user
+          ? {
+              ...prev,
+              user: {
+                ...prev.user,
+                holidayProfile: updated.holidayProfile,
+                dailyCheckin: updated.dailyCheckin,
+              },
+            }
+          : prev,
+      );
+      setCheckinDraft(null);
+      setCheckinOpen(false);
+      setCheckinFeedback(
+        action === "complete"
+          ? "Ritratto di Natale salvato per oggi! Puoi rivederlo in qualsiasi momento nel Profilo."
+          : "Hai ignorato il check-in di oggi: il profilo resta più riservato e le associazioni restano indicative. Puoi completarlo dal Profilo.",
+      );
+    } catch (failure) {
+      setCheckinError(failure.message);
+    } finally {
+      setCheckinBusy(false);
+    }
   }
   async function join() {
     setJoining(true);
@@ -212,12 +272,31 @@ export default function App() {
   const shown = events.filter((e) =>
     section === "archive" ? e.status === "archived" : e.status !== "archived",
   );
+  const showDailyCheckin = Boolean(
+    session?.user?.dailyCheckin?.pendingToday &&
+      !token &&
+      !["profile", "rules", "games"].includes(section),
+  );
+  const activeCheckinDraft = checkinDraft ??
+    session?.user?.holidayProfile ?? {
+      quote: "",
+      activity: "",
+      iconMessage: [],
+      iconCaption: "",
+      riddle: "",
+      riddleHint: "",
+      riddleAnswer: "",
+      answers: {},
+      customDescription: "",
+      portraitApproved: true,
+    };
   return (
     <>
       <a className="skip-link" href="#main">
         Vai al contenuto
       </a>
-      <div className={`site ${snow ? "snow-on" : ""}`}>
+      <div className={`site ${effects.snow !== "off" ? "snow-on" : ""}`}>
+        <AmbientEffectsOverlay effects={effects} />
         <header className="site-header">
           <button
             className="brand"
@@ -279,15 +358,23 @@ export default function App() {
           )}
           <div className="header-tools">
             <button
-              className="icon-button snow-control"
-              aria-label={snow ? "Disattiva la neve" : "Attiva la neve"}
-              aria-pressed={snow}
-              onClick={() => {
-                localStorage.setItem("sla-snow", snow ? "off" : "on");
-                setSnow(!snow);
-              }}
+              className={`icon-button snow-control ${activeEffectsCount > 0 ? "active" : ""}`}
+              aria-label={
+                activeEffectsCount > 0
+                  ? `Atmosfera di Natale (${activeEffectsCount} ${activeEffectsCount === 1 ? "effetto attivo" : "effetti attivi"})`
+                  : "Atmosfera di Natale (nessun effetto attivo)"
+              }
+              aria-haspopup="dialog"
+              aria-expanded={effectsOpen}
+              title="Neve ed effetti natalizi"
+              onClick={() => setEffectsOpen(true)}
             >
-              <Snowflake size={19} />
+              <Snowflake size={19} aria-hidden="true" />
+              {activeEffectsCount > 1 && (
+                <span className="snow-badge" aria-hidden="true">
+                  {activeEffectsCount}
+                </span>
+              )}
             </button>
             {session?.user ? (
               <button
@@ -315,6 +402,92 @@ export default function App() {
             }
           />
           <Notice error>{error || (token ? inviteError : "")}</Notice>
+          {checkinFeedback ? (
+            <div className="daily-checkin-feedback">
+              <span>{checkinFeedback}</span>
+              <div className="button-row">
+                <button
+                  type="button"
+                  className="text-button"
+                  onClick={() => {
+                    setCheckinFeedback("");
+                    navigate("profile");
+                  }}
+                >
+                  Apri il profilo
+                </button>
+                <button
+                  type="button"
+                  className="text-button"
+                  onClick={() => setCheckinFeedback("")}
+                >
+                  Chiudi
+                </button>
+              </div>
+            </div>
+          ) : null}
+          {showDailyCheckin ? (
+            <section
+              className="daily-checkin-strip"
+              aria-label="Check-in natalizio di oggi"
+            >
+              <div className="daily-checkin-strip-copy">
+                <strong>✨ Momento di Natale di oggi</strong>
+                <span>
+                  {" "}
+                  · Racconta il tuo Natale in 5 passi guidati (facoltativo:
+                  ignorare riduce i dettagli di profilo e personaggi).
+                </span>
+              </div>
+              <div className="button-row">
+                <Button
+                  type="button"
+                  disabled={checkinBusy}
+                  onClick={() => {
+                    setCheckinError("");
+                    setCheckinOpen(true);
+                  }}
+                >
+                  Inizia percorso guidato →
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled={checkinBusy}
+                  onClick={() => submitDailyCheckin("skip")}
+                >
+                  Ignora per oggi
+                </Button>
+              </div>
+              <Notice error>{checkinError}</Notice>
+            </section>
+          ) : null}
+          {showDailyCheckin && checkinOpen ? (
+            <Modal
+              title="Il tuo momento di Natale di oggi"
+              onClose={() => setCheckinOpen(false)}
+              wide
+            >
+              <Notice error>{checkinError}</Notice>
+              <HolidayGuidedWizard
+                mode="daily"
+                user={session.user}
+                today={session.user.dailyCheckin?.today}
+                dailyCheckin={session.user.dailyCheckin}
+                profile={{
+                  name: session.user.name,
+                  nickname: session.user.nickname,
+                  badge: session.user.badge,
+                  stampsCount: collection.ids.length,
+                }}
+                value={activeCheckinDraft}
+                busy={checkinBusy}
+                onChange={setCheckinDraft}
+                onSave={() => submitDailyCheckin("complete")}
+                onSkip={() => submitDailyCheckin("skip")}
+              />
+            </Modal>
+          ) : null}
           {section === "rules" ? (
             <SecretSantaRules />
           ) : loading ? (
@@ -477,12 +650,40 @@ export default function App() {
                   >
                     <ProfileSettings
                       user={session.user}
-                      onChange={({ phone, avatar }) =>
+                      onChange={({
+                        name,
+                        nickname,
+                        badge,
+                        badgeText,
+                        holidayProfile,
+                        dailyCheckin,
+                        phone,
+                        avatar,
+                      }) =>
                         setSession((previous) =>
                           previous?.user?.id === session.user.id
                             ? {
                                 ...previous,
-                                user: { ...previous.user, phone, avatar },
+                                user: {
+                                  ...previous.user,
+                                  ...(name ? { name } : {}),
+                                  nickname:
+                                    nickname !== undefined
+                                      ? nickname
+                                      : previous.user.nickname,
+                                  badge:
+                                    badge !== undefined
+                                      ? badge
+                                      : previous.user.badge,
+                                  badgeText:
+                                    badgeText || previous.user.badgeText,
+                                  ...(holidayProfile
+                                    ? { holidayProfile }
+                                    : {}),
+                                  ...(dailyCheckin ? { dailyCheckin } : {}),
+                                  phone,
+                                  avatar,
+                                },
                               }
                             : previous,
                         )
@@ -711,6 +912,13 @@ export default function App() {
           }}
         />
       ) : null}
+      {effectsOpen && (
+        <AmbientEffectsModal
+          effects={effects}
+          onChange={updateEffects}
+          onClose={() => setEffectsOpen(false)}
+        />
+      )}
       {secret && (
         <Treasure
           id={secret}
@@ -793,13 +1001,21 @@ function CreateEvent({ onClose, onCreated }) {
         impostare le esclusioni.
       </p>
       <form onSubmit={submit} className="form-stack">
-        <Field
-          label="Nome dello scambio"
-          name="name"
-          placeholder="Il Natale del nostro gruppo"
-          required
-          maxLength={100}
-        />
+        <div className="form-grid">
+          <Field
+            label="Nome dello scambio"
+            name="name"
+            placeholder="Il Natale del nostro gruppo"
+            required
+            maxLength={100}
+          />
+          <Field
+            label="Nome del gruppo (facoltativo)"
+            name="groupName"
+            placeholder="Es. Famiglia, Amici…"
+            maxLength={100}
+          />
+        </div>
         <div className="form-grid">
           <Field
             label="Budget a persona (€)"

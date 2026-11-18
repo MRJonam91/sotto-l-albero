@@ -43,13 +43,22 @@ export default function EventEdit({ event: currentEvent, onClose, onSaved }) {
         il gruppo.
       </p>
       <form onSubmit={submit}>
-        <Field
-          label="Nome dell’evento"
-          name="name"
-          defaultValue={event.name}
-          maxLength={100}
-          required
-        />
+        <div className="form-grid">
+          <Field
+            label="Nome dell’evento"
+            name="name"
+            defaultValue={event.name}
+            maxLength={100}
+            required
+          />
+          <Field
+            label="Nome del gruppo"
+            name="groupName"
+            defaultValue={event.groupName || event.name}
+            maxLength={100}
+            hint="Identifica il gruppo nelle varie edizioni."
+          />
+        </div>
         <div className="form-grid">
           <Field
             label="Budget a persona (€)"

@@ -3,6 +3,7 @@ import { DatabaseSync } from "node:sqlite";
 import { readFileSync } from "node:fs";
 import worker from "../worker/index.js";
 import { drawEvent, scheduled, historicalRules } from "../worker/events.js";
+import { holidayBadges, formatBadgeLabel } from "../shared/badges.js";
 
 function database() {
   const sql = new DatabaseSync(":memory:");
@@ -22,6 +23,8 @@ function database() {
     "0013_practice_catalog.sql",
     "0014_tris_duels.sql",
     "0015_existing_email_notifications.sql",
+    "0016_profile_identity_and_badges.sql",
+    "0017_holiday_portrait_and_interactions.sql",
   ])
     sql.exec(
       readFileSync(new URL(`../migrations/${file}`, import.meta.url), "utf8"),
@@ -1434,5 +1437,325 @@ describe("API privata", () => {
     expect(
       await historicalRules(db, { ...raw, history_depth: 0 }, members),
     ).toEqual([]);
+  });
+
+  it("permette di modificare il nome del gruppo e dello scambio", async () => {
+    const admin = await login("admin-group@example.test");
+    const guest = await login("guest-group@example.test");
+    const e = await event(admin);
+    expect(e.groupName).toBe("Natale tra amici");
+
+    const edited = await api(
+      `/events/${e.id}`,
+      "PUT",
+      {
+        name: "Scambio 2026",
+        groupName: "Compagnia delle Feste",
+        budget: 30,
+        description: "Ci vediamo alla vigilia",
+        closeAt: "2099-12-01T18:00:00Z",
+        drawAt: "2099-12-02T18:00:00Z",
+        giftAt: "2099-12-24T18:00:00Z",
+        historyDepth: 1,
+        version: e.version,
+      },
+      admin,
+    );
+    expect(edited.status).toBe(200);
+    expect(edited.data.event).toMatchObject({
+      name: "Scambio 2026",
+      groupName: "Compagnia delle Feste",
+    });
+
+    const forbidden = await api(
+      `/events/${e.id}/rename`,
+      "POST",
+      { groupName: "Non autorizzato" },
+      guest,
+    );
+    expect(forbidden.status).toBe(403);
+
+    const renamed = await api(
+      `/events/${e.id}/rename`,
+      "POST",
+      { groupName: "Amici di Sempre", name: "Natale sotto la neve" },
+      admin,
+    );
+    expect(renamed.status).toBe(200);
+    expect(renamed.data.event).toMatchObject({
+      groupName: "Amici di Sempre",
+      name: "Natale sotto la neve",
+    });
+  });
+
+  it("permette di impostare nome, soprannome/username e una delle 10 targhettine natalizie nel profilo", async () => {
+    expect(holidayBadges).toHaveLength(10);
+    const admin = await login("anna-profilo@example.test");
+    const member = await login("bruno-profilo@example.test");
+    const e = await event(admin);
+    await api(`/events/${e.id}/join`, "POST", { token: e.inviteToken }, member);
+
+    for (const option of holidayBadges) {
+      const res = await api(
+        "/profile",
+        "PUT",
+        {
+          name: "Bruno Stella",
+          nickname: "elfo_bruno",
+          badge: option.id,
+          badgeText: "nickname",
+        },
+        member,
+      );
+      expect(res.status).toBe(200);
+      expect(res.data).toMatchObject({
+        name: "Bruno Stella",
+        nickname: "elfo_bruno",
+        badge: option.id,
+        badgeText: "nickname",
+      });
+    }
+
+    expect(
+      formatBadgeLabel({
+        name: "Bruno Stella",
+        nickname: "elfo_bruno",
+        badgeText: "nickname",
+      }),
+    ).toBe("elfo_bruno");
+    expect(
+      formatBadgeLabel({
+        name: "Bruno Stella",
+        nickname: "elfo_bruno",
+        badgeText: "name",
+      }),
+    ).toBe("Bruno Stella");
+
+    const invalidBadge = await api(
+      "/profile",
+      "PUT",
+      { badge: "inesistente" },
+      member,
+    );
+    expect(invalidBadge.status).toBe(400);
+
+    const me = await api("/me", "GET", null, member);
+    expect(me.data.user).toMatchObject({
+      name: "Bruno Stella",
+      nickname: "elfo_bruno",
+      badge: "bells",
+      badgeText: "nickname",
+    });
+
+    const eventDetails = await api(`/events/${e.id}`, "GET", null, admin);
+    expect(eventDetails.data.members).toContainEqual(
+      expect.objectContaining({
+        name: "Bruno Stella",
+        nickname: "elfo_bruno",
+        badge: "bells",
+        badgeText: "nickname",
+      }),
+    );
+  });
+
+  it("crea il ritratto natalizio con indovinello, attività, icone, domande del giorno, personaggi dei film e interazioni notificate", async () => {
+    const admin = await login("anna-ritratto@example.test");
+    const member = await login("kevin-ritratto@example.test");
+    const e = await event(admin);
+    await api(`/events/${e.id}/join`, "POST", { token: e.inviteToken }, member);
+    const joinList = (await api(`/events/${e.id}`, "GET", null, admin)).data
+      .members;
+    const kevinMember = joinList.find((m) => m.name === "kevin-ritratto");
+    await api(
+      `/events/${e.id}/members/${kevinMember.id}`,
+      "POST",
+      { status: "approved" },
+      admin,
+    );
+
+    const saved = await api(
+      "/profile",
+      "PUT",
+      {
+        name: "Kevin",
+        nickname: "stratega_natalizio",
+        badge: "reindeer",
+        holidayProfile: {
+          quote: "Tenete il resto! Io preparo i pacchetti.",
+          activity: "Progetto trappole ingegnose alla Mamma ho perso l’aereo",
+          iconMessage: ["home", "puzzle", "gift", "tree"],
+          iconCaption: "Casa protetta e regali pronti!",
+          riddle:
+            "Sono bianco e rosso e ho la forma di un bastone da passeggio. Chi sono?",
+          riddleHint: "Sa di menta",
+          riddleAnswer: "Il bastoncino di zucchero",
+          answers: {
+            sweater: "kevin_red",
+            soundtrack: "rock_jingle",
+            treat: "gingerbread_cookies",
+            wrapping: "puzzle_box",
+            movie_night: "boardgames_friends",
+          },
+          customDescription: "",
+          portraitApproved: true,
+        },
+      },
+      member,
+    );
+    expect(saved.status).toBe(200);
+    expect(saved.data.portrait.tastes).toHaveLength(5);
+    expect(saved.data.portrait.characterMatches).toHaveLength(6);
+    expect(
+      saved.data.portrait.characterMatches.map((c) => c.id),
+    ).toEqual(
+      expect.arrayContaining([
+        "grinch",
+        "kevin",
+        "scrooge",
+        "buddy",
+        "jack",
+        "clark",
+      ]),
+    );
+    expect(saved.data.portrait.topCharacter.id).toBe("kevin");
+    expect(saved.data.portrait.finalDescription).toContain("Kevin McCallister");
+
+    // Verifica che nel gruppo il ritratto sia visibile ma la soluzione segreta dell'indovinello resti nascosta
+    const groupView = (await api(`/events/${e.id}`, "GET", null, admin)).data;
+    const kevinInGroup = groupView.members.find(
+      (m) => m.nickname === "stratega_natalizio",
+    );
+    expect(kevinInGroup.holidayStatus).toMatchObject({
+      quote: "Tenete il resto! Io preparo i pacchetti.",
+      iconMessage: ["home", "puzzle", "gift", "tree"],
+      hasRiddleAnswer: true,
+    });
+    expect(kevinInGroup.holidayStatus.riddleAnswer).toBeUndefined();
+    expect(kevinInGroup.portrait.topCharacter.name).toBe("Kevin McCallister");
+
+    // L'organizzatrice prova a indovinare l'indovinello del giorno e invia un messaggio con icona
+    const wrongGuess = await api(
+      `/events/${e.id}/portrait-interact`,
+      "POST",
+      {
+        targetUserId: kevinInGroup.userId,
+        kind: "riddle_guess",
+        message: "una stella",
+      },
+      admin,
+    );
+    expect(wrongGuess.status).toBe(200);
+    expect(wrongGuess.data.correct).toBe(false);
+
+    const rightGuess = await api(
+      `/events/${e.id}/portrait-interact`,
+      "POST",
+      {
+        targetUserId: kevinInGroup.userId,
+        kind: "riddle_guess",
+        message: "bastoncino di zucchero!",
+      },
+      admin,
+    );
+    expect(rightGuess.status).toBe(200);
+    expect(rightGuess.data.correct).toBe(true);
+
+    const iconNote = await api(
+      `/events/${e.id}/portrait-interact`,
+      "POST",
+      {
+        targetUserId: kevinInGroup.userId,
+        kind: "icon_note",
+        icon: "cookie",
+        message: "Ti porto i biscotti alla cannella!",
+      },
+      admin,
+    );
+    expect(iconNote.status).toBe(200);
+
+    // Verifica che le notifiche email siano state accodate in outbox
+    const queuedMails = await env.DB.prepare(
+      "SELECT COUNT(*) AS count FROM outbox WHERE email='kevin-ritratto@example.test'",
+    ).first();
+    expect(queuedMails.count).toBeGreaterThanOrEqual(2);
+  });
+
+  it("propone il check-in guidato al login una sola volta al giorno e l’opzione di ignorare impatta profilo e associazioni", async () => {
+    const email = "checkin-giornaliero@example.test";
+    const firstReq = await api("/auth/request", "POST", {
+      email,
+      name: "Marta",
+    });
+    const firstLogin = await api("/auth/verify", "POST", {
+      email,
+      code: firstReq.data.devCode,
+    });
+    expect(firstLogin.status).toBe(200);
+    expect(firstLogin.data.user.dailyCheckin.pendingToday).toBe(true);
+
+    // Se l'utente ignora il check-in di oggi, il profilo resta indicativo e non viene più richiesto oggi
+    const skipped = await api(
+      "/profile/daily-checkin",
+      "POST",
+      { action: "skip" },
+      firstLogin.cookie,
+    );
+    expect(skipped.status).toBe(200);
+    expect(skipped.data.dailyCheckin).toMatchObject({
+      pendingToday: false,
+      lastPromptStatus: "skipped",
+      skippedCount: 1,
+    });
+    expect(skipped.data.portrait.completeness).toBe(0);
+    expect(skipped.data.portrait.confidenceLevel).toBe("bassa");
+    expect(skipped.data.portrait.ignoredToday).toBe(true);
+    expect(skipped.data.portrait.topCharacter.affinity).toBeLessThanOrEqual(58);
+    expect(skipped.data.portrait.finalDescription).toContain("mistero");
+
+    // Anche effettuando un nuovo login lo stesso giorno, non deve riproporre il check-in
+    const secondReq = await api("/auth/request", "POST", { email });
+    const secondLogin = await api("/auth/verify", "POST", {
+      email,
+      code: secondReq.data.devCode,
+    });
+    expect(secondLogin.status).toBe(200);
+    expect(secondLogin.data.user.dailyCheckin.pendingToday).toBe(false);
+    expect(secondLogin.data.user.dailyCheckin.lastPromptStatus).toBe("skipped");
+
+    // Se poi completa il percorso guidato, l'affinità e la completezza salgono
+    const completed = await api(
+      "/profile/daily-checkin",
+      "POST",
+      {
+        action: "complete",
+        holidayProfile: {
+          activity: "Cioccolata calda, coperta e maratona di film",
+          quote: "Il modo migliore per diffondere lo spirito natalizio è cantare a squarciagola.",
+          iconMessage: ["santa", "star", "cookie", "gift"],
+          answers: {
+            sweater: "reindeer_lights",
+            soundtrack: "choir_classics",
+            treat: "maple_candy",
+            wrapping: "explosion_gold",
+            movie_night: "lights_tour",
+            tree_style: "colorful_fun",
+            gift_mission: "group_cheer",
+          },
+          portraitApproved: true,
+        },
+      },
+      secondLogin.cookie,
+    );
+    expect(completed.status).toBe(200);
+    expect(completed.data.dailyCheckin).toMatchObject({
+      pendingToday: false,
+      lastPromptStatus: "completed",
+      skippedCount: 0,
+      completedCount: 1,
+    });
+    expect(completed.data.portrait.completeness).toBeGreaterThanOrEqual(80);
+    expect(completed.data.portrait.confidenceLevel).toBe("alta");
+    expect(completed.data.portrait.topCharacter.id).toBe("clark");
+    expect(completed.data.portrait.topCharacter.affinity).toBeGreaterThan(75);
   });
 });

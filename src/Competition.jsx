@@ -1,9 +1,21 @@
 import { useEffect, useEffectEvent, useId, useRef, useState } from "react";
-import { BookOpen, Gift, Medal, Puzzle, Swords } from "lucide-react";
+import {
+  ArrowLeft,
+  BookOpen,
+  CheckCircle2,
+  Gift,
+  Medal,
+  Puzzle,
+  Swords,
+} from "lucide-react";
 import { api } from "./api.js";
 import CompetitionChallenge from "./CompetitionChallenge.jsx";
 import FestivalLeaderboard from "./FestivalLeaderboard.jsx";
 import MemoryBoard from "./MemoryBoard.jsx";
+import QuizReview, {
+  DuelScorecard,
+  QuizAttemptHistory,
+} from "./QuizReview.jsx";
 import SnowDuelPanel from "./SnowDuelPanel.jsx";
 import { Button, Field, Modal, Notice } from "./ui.jsx";
 import "./competition.css";
@@ -38,27 +50,102 @@ function PlayCard({ attempt, title, onMove, onClose, busy, error }) {
     return () => clearInterval(interval);
   }, [deadline, isQuestion, busy, error]);
 
+  const contextBadge = attempt.duelId
+    ? "Duello"
+    : attempt.ordinal
+      ? `Tentativo ${attempt.ordinal} di 3`
+      : title;
+  const doneBadge = attempt.duelReviewView
+    ? "Confronto del duello"
+    : attempt.duelId
+      ? "Duello completato"
+      : attempt.game === "quiz"
+        ? "Quiz completato"
+        : "Prova completata";
+
   return (
     <div className="competition-play paper">
+      {!attempt.done && (
+        <div className="competition-play-bar">
+          <button
+            type="button"
+            className="competition-back text-button"
+            disabled={busy}
+            onClick={onClose}
+          >
+            <ArrowLeft size={16} aria-hidden="true" />
+            Torna alle sfide
+          </button>
+          {contextBadge && (
+            <span className="competition-play-badge">{contextBadge}</span>
+          )}
+        </div>
+      )}
       {attempt.done ? (
         <>
-          <h3 tabIndex={-1} ref={heading}>
-            Partita conclusa
-          </h3>
+          <div className="competition-done-head">
+            <span className="competition-done-badge">
+              <CheckCircle2 size={16} aria-hidden="true" />
+              {doneBadge}
+            </span>
+            <h3 tabIndex={-1} ref={heading}>
+              {attempt.duelReviewView
+                ? `Duello con ${attempt.review?.opponent?.name ?? "avversario"}`
+                : "Partita conclusa"}
+            </h3>
+          </div>
           {attempt.lost === 3 && (
             <p>Hai perso tre pacchi. Il nastro si è fermato.</p>
           )}
-          {attempt.duelId ? (
-            <p>
-              La tua prova è registrata. Trovi il confronto nei duelli quando
-              avete giocato entrambi o scade l’invito.
-            </p>
+          {attempt.duelReviewView ? (
+            <p>Ecco il confronto domanda per domanda del vostro duello.</p>
+          ) : attempt.duelId ? (
+            attempt.review?.opponent ? (
+              <p>
+                Duello completato: tu hai totalizzato{" "}
+                <strong>
+                  {attempt.rawScore ?? attempt.review.correctCount * 10} punti
+                </strong>
+                , {attempt.review.opponent.name}{" "}
+                <strong>{attempt.review.opponent.score} punti</strong>.
+              </p>
+            ) : (
+              <p>
+                La tua prova è registrata
+                {attempt.review
+                  ? ` (${attempt.review.correctCount} su ${attempt.review.total} corrette)`
+                  : ""}
+                . Trovi il confronto nei duelli quando avete giocato entrambi o
+                scade l’invito.
+              </p>
+            )
           ) : (
             <p>
               Hai ottenuto <strong>{attempt.score} punti</strong> con questo
               tentativo. In classifica conta il risultato migliore.
             </p>
           )}
+          {attempt.review && (
+            <QuizReview
+              review={attempt.review}
+              myScore={
+                attempt.duelId
+                  ? (attempt.rawScore ?? attempt.review.correctCount * 10)
+                  : attempt.score
+              }
+            />
+          )}
+          <Notice error>{error}</Notice>
+          <div className="competition-done-actions">
+            <Button
+              type="button"
+              className="competition-finish-cta"
+              disabled={busy}
+              onClick={onClose}
+            >
+              Torna alle sfide
+            </Button>
+          </div>
         </>
       ) : board ? (
         <>
@@ -75,6 +162,7 @@ function PlayCard({ attempt, title, onMove, onClose, busy, error }) {
             busy={busy}
             onMove={onMove}
           />
+          <Notice error>{error}</Notice>
         </>
       ) : attempt.challenge ? (
         <>
@@ -91,6 +179,7 @@ function PlayCard({ attempt, title, onMove, onClose, busy, error }) {
             onMove={onMove}
             busy={busy}
           />
+          <Notice error>{error}</Notice>
         </>
       ) : attempt.question ? (
         <>
@@ -117,14 +206,20 @@ function PlayCard({ attempt, title, onMove, onClose, busy, error }) {
               </div>
             )}
           </div>
-          <h3 ref={heading} tabIndex={-1}>
+          <h3 ref={heading} tabIndex={-1} className="quiz-question-text">
             {attempt.question.text}
           </h3>
-          <div className="competition-options">
+          <p className="quiz-options-label">Scegli una risposta:</p>
+          <div
+            className="competition-options"
+            role="group"
+            aria-label="Opzioni di risposta"
+          >
             {attempt.question.options.map((option, index) => (
               <Button
                 type="button"
                 variant="outline"
+                className="competition-option"
                 key={option}
                 disabled={busy}
                 onClick={() => onMove({ choice: index })}
@@ -133,14 +228,14 @@ function PlayCard({ attempt, title, onMove, onClose, busy, error }) {
               </Button>
             ))}
           </div>
+          <Notice error>{error}</Notice>
         </>
       ) : (
-        <Notice error>Questa prova è momentaneamente indisponibile.</Notice>
+        <>
+          <Notice error>Questa prova è momentaneamente indisponibile.</Notice>
+          <Notice error>{error}</Notice>
+        </>
       )}
-      <Notice error>{error}</Notice>
-      <Button type="button" variant="outline" disabled={busy} onClick={onClose}>
-        Torna alle sfide
-      </Button>
     </div>
   );
 }
@@ -322,6 +417,21 @@ export default function Competition({ event, user, members = [], onStamp }) {
       if (data.stamp) onStamp?.(data.stamp);
       if (data.attempt.done) await refresh();
     });
+  const openDuelReview = (duel) =>
+    perform(async () => {
+      const data = await api(`${path}/duels/${duel.id}/review`, "POST", {});
+      setAttempt({
+        id: `duel-review-${duel.id}`,
+        game: "duel",
+        duelId: duel.id,
+        duelReviewView: true,
+        done: true,
+        rawScore: data.myScore,
+        score: null,
+        review: data.review,
+      });
+      await refresh();
+    });
   const memberById = new Map(members.map((member) => [member.userId, member]));
   const opponents = (board?.leaderboard ?? [])
     .filter((row) => row.userId !== user.id)
@@ -456,6 +566,9 @@ export default function Competition({ event, user, members = [], onStamp }) {
                             ? "1 tentativo nuovo"
                             : `${remaining} tentativi nuovi`}
                         </p>
+                        {game.id === "quiz" && (
+                          <QuizAttemptHistory history={game.history} />
+                        )}
                         <Button
                           type="button"
                           variant="outline"
@@ -500,8 +613,8 @@ export default function Competition({ event, user, members = [], onStamp }) {
               <h3>I tuoi duelli</h3>
               <ul className="competition-duels" role="list">
                 {board.duels.map((duel) => (
-                  <li key={duel.id}>
-                    <div>
+                  <li key={duel.id} className="competition-duel-item">
+                    <div className="competition-duel-main">
                       <strong>Duello con {duel.opponent.name}</strong>
                       {duel.scores ? (
                         <p>
@@ -518,24 +631,50 @@ export default function Competition({ event, user, members = [], onStamp }) {
                               : "Hai ricevuto un invito."}
                         </p>
                       )}
+                      <DuelScorecard
+                        outcomes={duel.roundOutcomes}
+                        opponentName={duel.opponent.name}
+                      />
                     </div>
-                    {!duel.expired &&
-                      !duel.myDone &&
-                      board.canPlay &&
-                      !board.closed && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          disabled={busy}
-                          onClick={() => start("duel", duel.id)}
-                        >
-                          {board.active.some(
-                            (active) => active.duelId === duel.id,
-                          )
-                            ? "Riprendi"
-                            : "Gioca il duello"}
-                        </Button>
+                    <div className="competition-duel-actions">
+                      {!duel.expired &&
+                        !duel.myDone &&
+                        board.canPlay &&
+                        !board.closed && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            disabled={busy}
+                            onClick={() => start("duel", duel.id)}
+                          >
+                            {board.active.some(
+                              (active) => active.duelId === duel.id,
+                            )
+                              ? "Riprendi"
+                              : "Gioca il duello"}
+                          </Button>
+                        )}
+                      {duel.reviewAvailable && (
+                        <div className="duel-review-cta">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            disabled={busy}
+                            onClick={() => openDuelReview(duel)}
+                          >
+                            Vedi risposte del duello
+                          </Button>
+                          <small>Consultabile una sola volta</small>
+                        </div>
                       )}
+                      {!duel.reviewAvailable &&
+                        duel.reviewSeen &&
+                        duel.scores && (
+                          <small className="duel-review-seen">
+                            Confronto risposte già consultato
+                          </small>
+                        )}
+                    </div>
                   </li>
                 ))}
               </ul>
