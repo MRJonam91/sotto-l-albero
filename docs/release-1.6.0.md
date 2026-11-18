@@ -18,4 +18,13 @@ Le migrazioni 0019 e 0020 creano due tabelle aggiuntive. Non modificano account,
 
 ## Pubblicazione
 
-Rilascio autorizzato dall’utente; registro dell’attivazione e del confronto dei dati da completare dopo il deploy.
+Pubblicata il 18 novembre 2026 alle 23:49, ora italiana, su https://sottolalbero.gifts, al 100% del traffico.
+
+- Codice integrato su `main`: `29567c9`.
+- Build: `2b56cda8-2b1f-4adb-88a8-140d4d6e4ed5`.
+- Versione Worker attiva: `d9c81a40-9abc-4e2e-b78d-127099f712d1`; deployment `678009f7-92ce-4137-8c93-155c284fa957`.
+- Le sole migrazioni pendenti 0019 e 0020 sono applicate; nessuna migrazione residua.
+- Sei insiemi aggregati confrontati prima delle migrazioni, dopo le migrazioni e dopo il deploy: invariati account, gruppi, eventi, iscrizioni e stati, abbinamenti, storico, regole, allenamenti, tentativi, punteggi, timbri e preferenze degli avvisi.
+- Dodici percorsi pubblici verificati; manifest identico e 36 asset confrontati tramite SHA-256. Cache HTML senza memorizzazione, asset con nome derivato dal contenuto immutabili.
+- API anonima in modalità produzione, invio email configurato e nessun codice di accesso locale esposto. Controllo pubblico a 320 pixel senza overflow o errori JavaScript; apertura e chiusura dell’atmosfera riuscite.
+- Audit dipendenze senza vulnerabilità rilevate. Le evidenze locali e i controlli online sono distinti; le prove non hanno creato account o dati dimostrativi in produzione.

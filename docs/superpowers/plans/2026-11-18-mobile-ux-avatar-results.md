@@ -111,9 +111,11 @@
 - [x] Correggere i problemi delle revisioni indipendenti: contrasto dei nuovi controlli e rimozione del tag gestito quando deselezionato sul singolo prodotto, preservando i collegamenti manuali.
 - [x] 260 test unitari/integrati; suite browser finale44/44; build e pacchetto Cloudflare riusciti; audit dipendenze senza vulnerabilità.
 - [x] Demo completa esclusivamente locale e visibile nel browser: profili, gruppo, wishlist, curling e quiz attuali/archiviati. Script, sessioni e immagini sono esclusi da Git.
-- [ ] Integrare su main, applicare le sole due migrazioni additive, pubblicare e verificare dati/manifest online.
+- [x] Integrare su main, applicare le sole due migrazioni additive, pubblicare e verificare dati/manifest online.
 
 L’ultima istruzione dell’utente autorizza esplicitamente pubblicazione e aggiornamento repository, omettendo dati dimostrativi e configurazioni personali. Supera il precedente vincolo di attendere una revisione prima di pubblicare. Baseline remota: sei insiemi aggregati e bookmark acquisiti prima delle modifiche.
+
+Pubblicazione 1.6.0 completata e controllata: codice `29567c9`, build `2b56cda8-2b1f-4adb-88a8-140d4d6e4ed5`, 100% traffico. I sei aggregati sono invariati dopo migrazioni e deploy; manifest, dodici percorsi e 36 asset verificati; nessun dato dimostrativo remoto. [Registro](../../release-1.6.0.md).
 
 - Stato iniziale: ramo di rilascio pulito a `771e643`; versione online 1.5.0. Il precedente vincolo di riepilogo quiz monouso è esplicitamente superato dalla nuova richiesta.
 - Validazione browser: Browser plugin non disponibile; si usa Playwright installato nel progetto.
