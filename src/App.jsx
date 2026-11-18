@@ -122,7 +122,7 @@ export default function App() {
     setEffects(saveAmbientEffects(next));
   }
   const token = location.pathname.match(/^\/invite\/([^/]+)$/)?.[1];
-  const collection = useStampCollection(session?.user?.id);
+  const collection = useStampCollection(session?.user?.id, events);
   const loadEvents = useCallback(async () => {
     try {
       const r = await api("/events");
@@ -713,7 +713,11 @@ export default function App() {
                       </button>
                     )}
                     {section === "events" && (
-                      <TimedTreasures section={section} onDiscover={discover} />
+                      <TimedTreasures
+                        section={section}
+                        collection={collection}
+                        onDiscover={discover}
+                      />
                     )}
                   </section>
                   <section className="events-section">
@@ -749,6 +753,7 @@ export default function App() {
                       {(section === "archive" || section === "wishes") && (
                         <TimedTreasures
                           section={section}
+                          collection={collection}
                           onDiscover={discover}
                         />
                       )}

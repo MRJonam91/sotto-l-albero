@@ -25,6 +25,28 @@
 .stamp-album {
   margin-top: 16px;
 }
+.stamp-release {
+  border-top: 1px solid #a28260;
+  margin-top: 28px;
+  padding-top: 22px;
+}
+.stamp-release > h3 {
+  font-size: clamp(26px, 4vw, 34px);
+  margin-bottom: 10px;
+}
+.stamp-release > p {
+  max-width: 65ch;
+  color: #543b2d;
+}
+.stamp-release-next {
+  font-weight: 700;
+}
+.stamp-tile .text-button {
+  min-height: 44px;
+  color: #703b2e;
+  text-align: left;
+  white-space: normal;
+}
 .stamp-count {
   color: #6e352e;
   border: 1px solid #9d705d;
@@ -162,6 +184,9 @@
   display: flex;
   align-items: center;
   flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: 124px;
 }
 .hero .timed-treasures {
   position: absolute;

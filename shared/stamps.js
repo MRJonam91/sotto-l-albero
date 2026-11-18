@@ -1,3 +1,5 @@
+import { seasonalStamps } from "./seasonalStamps.js";
+
 export const stamps = {
   star: {
     name: "Stella d’oro",
@@ -72,6 +74,7 @@ export const stamps = {
     section: "events",
     window: [21 * 60, 23 * 60],
   },
+  ...seasonalStamps,
 };
 
 const italianClock = new Intl.DateTimeFormat("en-GB", {

@@ -82,6 +82,25 @@
 - [x] Riepilogo e tre personaggi sempre raggiungibili nel profilo; grafici, dettagli dei pesi e domande si aprono su richiesta.
 - [x] Test di diversità dei personaggi fra attività diverse, assenza di penalità, pesi normalizzati, soglia di saturazione, compatibilità con profili esistenti e scelta del giorno in una sola schermata.
 
+### Task 6: Catalogo e visibilità iniziale richiesti nella revisione
+
+- [x] Ampliare a 52 personaggi di 19 film, massimo tre per film e nessuna incarnazione di Babbo/Mamma Natale; conservare gli ID compatibili e i tre soli risultati.
+- [x] Misurare la diversità su combinazioni di attività/stati/risposte senza presentarla come previsione sugli utenti.
+- [x] Mostrare sempre ritratto e descrizione, separare il messaggio di stato vuoto, sostituire il link con un bottone mobile e riquadrare le personalizzazioni.
+- [x] Verificare casi iniziali, mobile, accessibilità e revisione indipendente.
+
+### Task 7: Dieci oggetti natalizi e uscite distribuite
+
+**Intento aggiuntivo dell’utente:** conservare una base di timbri e aggiungerne dieci con riferimenti a film/cartoni, citazioni e link; distribuirli sui giorni disponibili prima dell’apertura dei pacchi (1 giorno: tutti; 10 giorni: uno al giorno; 20 giorni: uno ogni due giorni).
+
+- [x] Aggiungere dieci oggetti e icone SVG locali, con fonti primarie attribuite e sole citazioni testuali verificate.
+- [x] Calcolare in giorni civili italiani gli sblocchi a partire dall’abilitazione o dalla creazione dell’evento, con date server e prove 1/10/20 giorni, cambio d’ora e lancio futuro.
+- [x] Unire le prime date utili fra iscrizioni approvate non archiviate; escludere vecchie edizioni anteriori al lancio e mantenere leggibili i timbri già raccolti.
+- [x] Bloccare raccolte anticipate sul server e conservare idempotenza e punteggi storici.
+- [x] Mostrare nell’album solo timbri usciti/raccolti e la prossima data, al massimo un nuovo oggetto per sezione.
+- [x] Configurare l’anteprima; lasciare la produzione disabilitata fino al rilascio approvato.
+- [x] Completare prova browser e schermate finali.
+
 ## Execution ledger
 
 - Stato iniziale: ramo di rilascio pulito a `771e643`; versione online 1.5.0. Il precedente vincolo di riepilogo quiz monouso è esplicitamente superato dalla nuova richiesta.
@@ -97,3 +116,9 @@
 - Final review: indipendente su autorizzazioni, dati storici, geometria, concorrenza, pesi e privacy. Tutti i problemi importanti corretti con regressioni ROSSO→VERDE. Nessun problema importante aperto.
 - Verifica finale: npm test →196/196; build →successo; 40/41 browser superati nella suite completa e restante test aggiornato al nuovo requisito e passato separatamente (1/1). Il primo fallimento era un’aspettativa obsoleta di riepilogo monouso.
 - Anteprima: http://127.0.0.1:8795; schermate con dati e foto illustrata fittizi. Nessun push, merge su main o deploy autorizzato/eseguito per questa revisione.
+- Estensione Task 6: catalogo52/top3; 450 combinazioni sintetiche producono 27 primi classificati e 42 personaggi nei primi tre. Stato, ritratto e descrizione sempre visibili; modifica come bottone; personalizzazione riquadrata. Nuovo test browser ROSSO→VERDE e revisione indipendente senza problemi concreti.
+- Ruling Task 7: data di abilitazione configurata sul server, anziché cron esterni — rende le uscite automatiche e verificabili per ogni evento senza toccare dati di produzione — alla pubblicazione va impostata la data effettiva.
+- Ruling Task 7: con più gruppi vale il primo sblocco utile per ciascun timbro — evita di ribloccare gli oggetti dopo uno scambio — la raccolta resta globale come l’album esistente.
+- Task 7: 12 timbri base preservati, 10 oggetti nuovi con storie e fonti; due citazioni testuali controllate, altre otto schede con riferimenti narrativi. Calendario in ora italiana, vincoli server e refresh del client implementati. Revisione indipendente senza problemi concreti.
+- Verifica estensione: npm test →231/231 in24file; build →successo. Suite completa browser: 41/43 superati; due aspettative aggiornate (totale12→22 e raccolta già automatica al tocco). Rilanciati i due file interessati: 5/5 superati. Non è una singola esecuzione completa 43/43 verde.
+- Schermate finali controllate visivamente: profilo con stato/ritratto/descrizione e bottoni, primo accesso senza domande, pannello personalizzazione riquadrato, prossima uscita e storia Office, tavola dei dieci timbri. Salvate nella cartella degli artefatti dell’anteprima. Nessun push, merge su main, deploy o abilitazione remota.

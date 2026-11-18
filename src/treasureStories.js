@@ -1,3 +1,5 @@
+import { seasonalTreasureStories } from "./seasonalTreasureStories.js";
+
 export const treasureStories = {
   star: {
     title: "Hai acceso una stella",
@@ -33,4 +35,5 @@ export const treasureStories = {
     link: "https://tv.apple.com/us/episode/the-one-with-the-holiday-armadillo/umc.cmc.eztv5730am071wgkgzzwag12?showId=umc.cmc.4dxfvjbc4rdww1dcp3kbgoaqm",
     linkLabel: "Leggi la scheda dell’episodio",
   },
+  ...seasonalTreasureStories,
 };

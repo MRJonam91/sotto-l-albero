@@ -104,7 +104,7 @@ When a separate photo bot and owner chat are configured, choosing or taking a va
 
 ## Anteprima mobile in revisione
 
-La revisione locale semplifica il profilo: tre personaggi da un catalogo di dieci, ritratto alimentato dall’attività e domande facoltative. Il giornaliero è una sola scelta di stato. L’editor fotografico raggruppa anteprima e cursori; i risultati di quiz, film e duelli sono riapribili. Questa revisione non è ancora pubblicata: [comportamento, pesi e verifiche](docs/preview-mobile-ux.md).
+La revisione locale semplifica il profilo: tre personaggi da un catalogo di 52, ritratto e descrizione subito visibili, attività e domande facoltative. Il giornaliero è una sola scelta di stato. L’editor fotografico raggruppa anteprima e cursori; i risultati di quiz, film e duelli sono riapribili. Dieci nuovi timbri legati a film e cartoni si sbloccano gradualmente prima dello scambio. Questa revisione non è ancora pubblicata: [comportamento, pesi e verifiche](docs/preview-mobile-ux.md).
 
 ## Novità della versione 1.5.0
 

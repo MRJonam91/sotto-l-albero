@@ -1,46 +1,63 @@
 import { useEffect, useState } from "react";
 import { api } from "./api.js";
 
-const emptyCollection = { ids: [], loaded: false, saving: false, error: "" };
+const emptyCollection = {
+  ids: [],
+  loaded: false,
+  saving: false,
+  error: "",
+  release: null,
+};
 
-export function useStampCollection(userId) {
+export function useStampCollection(userId, eventsRevision) {
   const [accounts, setAccounts] = useState({});
   const collection = accounts[userId] ?? emptyCollection;
 
   useEffect(() => {
     if (!userId) return;
     let active = true;
-    api("/stamps").then(
-      ({ stamps }) => {
-        if (!active) return;
-        setAccounts((previous) => {
-          const current = previous[userId] ?? emptyCollection;
-          return {
+    function refresh() {
+      if (document.visibilityState === "hidden") return;
+      api("/stamps").then(
+        ({ stamps, release }) => {
+          if (!active) return;
+          setAccounts((previous) => {
+            const current = previous[userId] ?? emptyCollection;
+            return {
+              ...previous,
+              [userId]: {
+                ...current,
+                ids: [...new Set([...current.ids, ...stamps])],
+                loaded: true,
+                release: release ?? null,
+                error: "",
+              },
+            };
+          });
+        },
+        (error) => {
+          if (!active) return;
+          setAccounts((previous) => ({
             ...previous,
             [userId]: {
-              ...current,
-              ids: [...new Set([...current.ids, ...stamps])],
-              loaded: true,
-              error: "",
+              ...(previous[userId] ?? emptyCollection),
+              error: error.message,
             },
-          };
-        });
-      },
-      (error) => {
-        if (!active) return;
-        setAccounts((previous) => ({
-          ...previous,
-          [userId]: {
-            ...(previous[userId] ?? emptyCollection),
-            error: error.message,
-          },
-        }));
-      },
-    );
+          }));
+        },
+      );
+    }
+    refresh();
+    const timer = setInterval(refresh, 60_000);
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
     return () => {
       active = false;
+      clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
     };
-  }, [userId]);
+  }, [userId, eventsRevision]);
 
   async function collect(stamp) {
     if (!userId || collection.ids.includes(stamp) || collection.saving) return;

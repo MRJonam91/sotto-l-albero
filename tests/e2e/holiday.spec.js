@@ -254,7 +254,7 @@ test("Caccia, quiz e memory su telefono salvano i timbri nel profilo", async ({
   }
 
   await page.getByRole("button", { name: "Apri il mio profilo" }).click();
-  await expect(page.getByText("4 di 12 timbri", { exact: true })).toBeVisible();
+  await expect(page.getByText("4 di 22 timbri", { exact: true })).toBeVisible();
   await page.getByText("Mostra il ritornello", { exact: true }).first().click();
   await expect(
     page.getByText("Cinque domande, una dopo l’altra,", { exact: false }),
@@ -262,7 +262,7 @@ test("Caccia, quiz e memory su telefono salvano i timbri nel profilo", async ({
   await checkLayout();
   await checkAccessibility();
   await page.reload();
-  await expect(page.getByText("4 di 12 timbri", { exact: true })).toBeVisible();
+  await expect(page.getByText("4 di 22 timbri", { exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "Giochi", exact: true }).click();
   await page
@@ -386,7 +386,7 @@ test("Caccia, quiz e memory su telefono salvano i timbri nel profilo", async ({
     page.getByText("Timbro raccolto: Memoria da elfo."),
   ).toBeVisible();
   await page.getByRole("button", { name: "Il mio album" }).click();
-  await expect(page.getByText("6 di 12 timbri", { exact: true })).toBeVisible();
+  await expect(page.getByText("6 di 22 timbri", { exact: true })).toBeVisible();
 });
 
 test("I giochi richiedono un posto confermato e chiudono l’accesso dopo la rimozione", async ({

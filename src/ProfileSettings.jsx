@@ -379,7 +379,10 @@ export default function ProfileSettings({ user, onChange }) {
         ) : null}
       </section>
 
-      <details id="profile-holiday-editor" className="profile-optional-editor">
+      <details
+        id="profile-holiday-editor"
+        className="profile-panel profile-optional-editor"
+      >
         <summary>Domande e personalizzazione (facoltative)</summary>
         <HolidayGuidedWizard
           mode="profile"

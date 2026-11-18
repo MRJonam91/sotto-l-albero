@@ -2,20 +2,58 @@ import { all, first, run } from "./auth.js";
 import { HttpError, json } from "./security.js";
 import { practiceAllowed } from "./practice.js";
 import { isStampAvailable, stamps } from "../shared/stamps.js";
+import { buildStampRelease, releaseStampIds } from "../shared/stampRollout.js";
 
-export async function stampRoute(method, db, userId, body) {
+async function stampRelease(db, userId, env, now) {
+  const events = await all(
+    db,
+    "SELECT e.id,e.name,e.gift_at,e.created_at FROM events e JOIN members m ON m.event_id=e.id WHERE m.user_id=? AND m.status='approved' AND e.status!='archived'",
+    userId,
+  );
+  return buildStampRelease({ startDate: env.STAMP_ROLLOUT_START, events, now });
+}
+
+export async function stampRoute(method, db, userId, body, env = {}) {
   if (method === "GET") {
     const rows = await all(
       db,
       "SELECT stamp FROM user_stamps WHERE user_id=? ORDER BY stamp",
       userId,
     );
-    return json({ stamps: rows.map(({ stamp }) => stamp) });
+    return json({
+      stamps: rows.map(({ stamp }) => stamp),
+      release: await stampRelease(db, userId, env, Date.now()),
+    });
   }
   if (method !== "POST") throw new HttpError("Metodo non disponibile.", 405);
   const stamp = body?.stamp;
   if (typeof stamp !== "string" || !Object.hasOwn(stamps, stamp)) {
     throw new HttpError("Questo timbro non esiste.");
+  }
+  const now = Date.now();
+  if (releaseStampIds.includes(stamp)) {
+    // Reopening an already collected stamp must survive membership changes and
+    // a disabled rollout. The server alone decides eligibility for new finds.
+    if (
+      await first(
+        db,
+        "SELECT 1 FROM user_stamps WHERE user_id=? AND stamp=?",
+        userId,
+        stamp,
+      )
+    )
+      return json({ stamp });
+    const release = await stampRelease(db, userId, env, now);
+    if (!release.enabled || !release.giftDate)
+      throw new HttpError(
+        "Per raccogliere questo timbro serve un’iscrizione approvata a un evento con la raccolta attiva.",
+        403,
+      );
+    if (!release.availableIds.includes(stamp))
+      throw new HttpError(
+        "Questo timbro non è ancora disponibile. Torna il giorno indicato nella raccolta.",
+        409,
+      );
   }
   if (
     ["quiz", "memory", "cookie"].includes(stamp) &&
@@ -39,7 +77,6 @@ export async function stampRoute(method, db, userId, body) {
   ) {
     throw new HttpError("Completa la partita per raccogliere il timbro.", 403);
   }
-  const now = Date.now();
   if (!isStampAvailable(stamps[stamp], now)) {
     const collected = await first(
       db,

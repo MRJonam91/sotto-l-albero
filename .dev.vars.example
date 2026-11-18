@@ -1,4 +1,5 @@
 LOCAL_DEV=true
+STAMP_ROLLOUT_START=2026-11-18
 ADMIN_EMAILS=admin@example.test,browser@example.test
 # Per provare gli invii reali, configurare un mittente verificato e la chiave:
 # RESEND_API_KEY=

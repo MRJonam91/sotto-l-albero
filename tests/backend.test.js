@@ -702,9 +702,11 @@ describe("API privata", () => {
     }
     expect((await api("/stamps", "GET", null, anna)).data).toEqual({
       stamps: ["star"],
+      release: expect.objectContaining({ enabled: false }),
     });
     expect((await api("/stamps", "GET", null, luca)).data).toEqual({
       stamps: [],
+      release: expect.objectContaining({ enabled: false }),
     });
   });
   it("nega accessi anonimi e crea un organizzatore locale", async () => {

@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { isStampAvailable, stamps } from "../shared/stamps.js";
 import HolidayFigure from "./HolidayFigure.jsx";
+import SeasonalStampIcon from "./SeasonalStampIcon.jsx";
 import MemoryBoard from "./MemoryBoard.jsx";
 import MovieClueStage from "./MovieClueStage.jsx";
 import { Button, Notice } from "./ui.jsx";
@@ -46,6 +47,7 @@ const stampIcons = {
 const timedStamps = Object.entries(stamps).filter(([, stamp]) => stamp.window);
 
 export function StampIcon({ id, size = 26 }) {
+  if (stamps[id]?.seasonal) return <SeasonalStampIcon id={id} size={size} />;
   const Icon = stampIcons[id];
   return Icon ? (
     <Icon size={size} aria-hidden="true" />
@@ -54,7 +56,7 @@ export function StampIcon({ id, size = 26 }) {
   );
 }
 
-export function TimedTreasures({ section, onDiscover }) {
+export function TimedTreasures({ section, onDiscover, collection }) {
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
     let timer;
@@ -74,9 +76,18 @@ export function TimedTreasures({ section, onDiscover }) {
     };
   }, []);
 
-  const visible = timedStamps.filter(
-    ([, stamp]) => stamp.section === section && isStampAvailable(stamp, now),
-  );
+  const seasonal = (collection?.release?.availableIds || [])
+    .filter(
+      (id) => stamps[id]?.section === section && !collection.ids.includes(id),
+    )
+    .slice(0, 1)
+    .map((id) => [id, stamps[id]]);
+  const visible = [
+    ...timedStamps.filter(
+      ([, stamp]) => stamp.section === section && isStampAvailable(stamp, now),
+    ),
+    ...seasonal,
+  ];
   if (!visible.length) return null;
   return (
     <div className="timed-treasures">
@@ -122,6 +133,14 @@ export function StampReward({ id, collection }) {
 }
 
 export function StampAlbum({ user, collection, onLogout, onStory, children }) {
+  const baseIds = Object.keys(stamps).filter((id) => !stamps[id].seasonal);
+  const seasonalIds = Object.keys(stamps).filter(
+    (id) =>
+      stamps[id].seasonal &&
+      (collection.ids.includes(id) ||
+        collection.release?.availableIds?.includes(id)),
+  );
+  const showSeries = collection.release?.enabled || seasonalIds.length > 0;
   return (
     <section className="holiday-page" aria-labelledby="profile-heading">
       <div className="holiday-heading">
@@ -146,62 +165,118 @@ export function StampAlbum({ user, collection, onLogout, onStory, children }) {
           </div>
           <span className="stamp-count" role="status">
             {collection.loaded
-              ? `${collection.ids.length} di ${Object.keys(stamps).length} timbri`
+              ? `${collection.ids.length} di ${baseIds.length + (showSeries ? 10 : 0)} timbri`
               : collection.error
                 ? "Album non disponibile"
                 : "Caricamento album…"}
           </span>
         </div>
         <Notice error>{collection.error}</Notice>
-        <ul className="stamp-grid">
-          {Object.entries(stamps).map(([id, stamp]) => {
-            const collected = collection.ids.includes(id);
-            return (
-              <li
-                key={id}
-                className={collected ? "stamp-tile collected" : "stamp-tile"}
-              >
-                <div className="stamp-mark">
-                  {collected ? (
-                    <StampIcon id={id} />
-                  ) : (
-                    <HelpCircle size={26} aria-hidden="true" />
-                  )}
-                </div>
-                <h3>{collected ? stamp.name : "Timbro da scoprire"}</h3>
-                {!collected && stamp.window && (
-                  <span className="stamp-time">A orario</span>
-                )}
-                {collected ? (
-                  <>
-                    <p>
-                      {["quiz", "memory"].includes(id)
-                        ? "Raccolto"
-                        : "Raccolto · 5 punti"}
-                    </p>
-                    {(treasureStories[id] || stamp.story) && (
-                      <button
-                        type="button"
-                        className="text-button"
-                        aria-label={`Rileggi la sorpresa: ${stamp.name}`}
-                        onClick={() => onStory(id)}
-                      >
-                        Rileggi la sorpresa
-                      </button>
-                    )}
-                  </>
+        <StampGrid ids={baseIds} collection={collection} onStory={onStory} />
+        {showSeries && (
+          <section
+            className="stamp-release"
+            aria-labelledby="stamp-release-heading"
+          >
+            <h3 id="stamp-release-heading">Aspettando i pacchi</h3>
+            {collection.release?.eventName ? (
+              <>
+                <p>
+                  {collection.release.availableCount} di 10 nuove sorprese
+                  disponibili. Film e cartoni ti accompagnano fino all’apertura
+                  dei pacchi.
+                </p>
+                {collection.release.nextDate ? (
+                  <p className="stamp-release-next">
+                    Prossima uscita: {stampDate(collection.release.nextDate)} ·
+                    ora italiana.
+                  </p>
                 ) : (
-                  <details>
-                    <summary>Mostra il ritornello</summary>
-                    <p className="stamp-verse">{stamp.hint}</p>
-                  </details>
+                  <p>
+                    La serie è tutta disponibile. I timbri sbloccati restano da
+                    scoprire.
+                  </p>
                 )}
-              </li>
-            );
-          })}
-        </ul>
+              </>
+            ) : (
+              <p>
+                Dieci nuove sorprese si sbloccano nei giorni prima dello
+                scambio. Appariranno quando partecipi a un evento con iscrizione
+                approvata.
+              </p>
+            )}
+            {seasonalIds.length > 0 && (
+              <StampGrid
+                ids={seasonalIds}
+                collection={collection}
+                onStory={onStory}
+              />
+            )}
+          </section>
+        )}
       </div>
     </section>
+  );
+}
+
+function stampDate(value) {
+  return new Intl.DateTimeFormat("it-IT", {
+    day: "numeric",
+    month: "long",
+    timeZone: "UTC",
+  }).format(new Date(`${value}T12:00:00Z`));
+}
+
+function StampGrid({ ids, collection, onStory }) {
+  return (
+    <ul className="stamp-grid">
+      {ids.map((id) => {
+        const stamp = stamps[id];
+        const collected = collection.ids.includes(id);
+        return (
+          <li
+            key={id}
+            className={collected ? "stamp-tile collected" : "stamp-tile"}
+          >
+            <div className="stamp-mark">
+              {collected ? (
+                <StampIcon id={id} />
+              ) : (
+                <HelpCircle size={26} aria-hidden="true" />
+              )}
+            </div>
+            <h3>{collected ? stamp.name : "Timbro da scoprire"}</h3>
+            {!collected && stamp.window && (
+              <span className="stamp-time">A orario</span>
+            )}
+            {collected ? (
+              <>
+                <p>
+                  {["quiz", "memory"].includes(id)
+                    ? "Raccolto"
+                    : "Raccolto · 5 punti"}
+                </p>
+                {(treasureStories[id] || stamp.story) && (
+                  <button
+                    type="button"
+                    className="text-button"
+                    aria-label={`Rileggi la sorpresa: ${stamp.name}`}
+                    onClick={() => onStory(id)}
+                  >
+                    Rileggi la sorpresa
+                  </button>
+                )}
+              </>
+            ) : (
+              <details>
+                <summary>Mostra il ritornello</summary>
+                <p className="stamp-verse">{stamp.hint}</p>
+              </details>
+            )}
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
@@ -821,7 +896,11 @@ function Games({ collection, onAlbum, onDiscover, onGroups, onCompete }) {
             classifica
           </small>
         </article>
-        <TimedTreasures section="games" onDiscover={onDiscover} />
+        <TimedTreasures
+          section="games"
+          collection={collection}
+          onDiscover={onDiscover}
+        />
       </div>
       <div ref={playArea} tabIndex={-1}>
         {game === "quiz" && <Quiz collection={collection} />}

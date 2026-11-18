@@ -1,3 +1,4 @@
+import { Button } from "./ui.jsx";
 import { holidayIconMap, holidayMoods } from "../shared/holidayPortrait.js";
 import {
   HolidaySpiritImage,
@@ -26,6 +27,14 @@ export default function HolidayProfileSummary({ profile, user, onEditMood }) {
     .filter(Boolean);
   const mood = holidayMoods.find((item) => item.id === status.dailyMood?.id);
   const moodIsToday = status.dailyMood?.date === profile.dailyCheckin?.today;
+  const hasStatus = Boolean(
+    mood ||
+    status.quote ||
+    status.activity ||
+    icons.length ||
+    status.iconCaption ||
+    status.riddle,
+  );
   return (
     <section
       className="profile-panel holiday-profile-summary"
@@ -68,12 +77,7 @@ export default function HolidayProfileSummary({ profile, user, onEditMood }) {
             <p>{status.riddle}</p>
           </div>
         )}
-        {!hasState && (
-          <p>
-            Una frase, un’attività o una preferenza: scegli cosa raccontare del
-            tuo Natale.
-          </p>
-        )}
+        {!hasStatus && <p>Il tuo stato di oggi non è ancora impostato.</p>}
       </div>
       {status.portraitApproved === false && (
         <p className="profile-footnote">
@@ -81,12 +85,20 @@ export default function HolidayProfileSummary({ profile, user, onEditMood }) {
           solo a te.
         </p>
       )}
-      <div>
+      <div className="holiday-summary-portrait">
         <h3>Il tuo ritratto</h3>
+        <HolidaySpiritImage
+          name={profile.name || user.name}
+          nickname={profile.nickname}
+          quote={status.quote}
+          activity={status.activity}
+          spiritScene={portrait.spiritScene}
+          topCharacter={portrait.topCharacter}
+        />
         <p className="holiday-summary-description">
-          {hasState
-            ? portrait.finalDescription || portrait.generatedDescription
-            : "Il ritratto si forma mentre usi il tool. Le domande servono soltanto se vuoi personalizzarlo."}
+          {portrait.finalDescription ||
+            portrait.generatedDescription ||
+            "Il ritratto si forma mentre usi il tool. Le domande servono soltanto se vuoi personalizzarlo."}
         </p>
       </div>
       <p className="profile-footnote">
@@ -99,35 +111,39 @@ export default function HolidayProfileSummary({ profile, user, onEditMood }) {
       />
       {hasState && (
         <details className="holiday-summary-details">
-          <summary>Immagine e gusti del ritratto</summary>
+          <summary>Gusti e dettagli del ritratto</summary>
           <div>
-            <HolidaySpiritImage
-              name={profile.name || user.name}
-              nickname={profile.nickname}
-              quote={status.quote}
-              activity={status.activity}
-              spiritScene={portrait.spiritScene}
-              topCharacter={portrait.topCharacter}
-            />
             <TasteRadarChart tastes={portrait.tastes} />
           </div>
         </details>
       )}
-      {onEditMood && (
-        <button type="button" className="button" onClick={onEditMood}>
-          Cambia stato di oggi
-        </button>
-      )}
-      <a
-        href="#profile-holiday-editor"
-        className="text-button"
-        onClick={() => {
-          const editor = document.getElementById("profile-holiday-editor");
-          if (editor) editor.open = true;
-        }}
-      >
-        Modifica stato e ritratto
-      </a>
+      <div className="holiday-summary-actions">
+        {onEditMood && (
+          <Button type="button" onClick={onEditMood}>
+            Cambia stato di oggi
+          </Button>
+        )}
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => {
+            const editor = document.getElementById("profile-holiday-editor");
+            if (editor) {
+              editor.open = true;
+              editor.scrollIntoView({
+                block: "start",
+                behavior: window.matchMedia("(prefers-reduced-motion: reduce)")
+                  .matches
+                  ? "auto"
+                  : "smooth",
+              });
+              editor.querySelector("summary")?.focus({ preventScroll: true });
+            }
+          }}
+        >
+          Modifica stato e ritratto
+        </Button>
+      </div>
     </section>
   );
 }

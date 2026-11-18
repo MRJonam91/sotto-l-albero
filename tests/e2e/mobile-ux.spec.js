@@ -8,7 +8,7 @@ test.use({
   reducedMotion: "reduce",
 });
 
-async function profileFixture(page) {
+async function profileFixture(page, withStatus = true) {
   const email = `mobile-ux-${Date.now()}-${Math.random().toString(16).slice(2)}@example.test`;
   const started = await page.request.post("/api/auth/request", {
     data: { email, name: "Ada Mobile" },
@@ -36,23 +36,25 @@ async function profileFixture(page) {
       })
     ).ok(),
   ).toBe(true);
-  expect(
-    (
-      await page.request.put("/api/profile", {
-        data: {
-          holidayProfile: {
-            quote: "Un regalo pensato con calma",
-            activity: "Preparo biscotti per gli amici",
-            iconMessage: ["cookie", "gift"],
-            iconCaption: "Dolci e pensieri",
-            answers: { soundtrack: "jazz_fireplace" },
-            portraitApproved: false,
+  if (withStatus) {
+    expect(
+      (
+        await page.request.put("/api/profile", {
+          data: {
+            holidayProfile: {
+              quote: "Un regalo pensato con calma",
+              activity: "Preparo biscotti per gli amici",
+              iconMessage: ["cookie", "gift"],
+              iconCaption: "Dolci e pensieri",
+              answers: { soundtrack: "jazz_fireplace" },
+              portraitApproved: false,
+            },
+            dailyCheckinAction: "complete",
           },
-          dailyCheckinAction: "complete",
-        },
-      })
-    ).ok(),
-  ).toBe(true);
+        })
+      ).ok(),
+    ).toBe(true);
+  }
   await page.goto("/profilo");
   await expect(
     page.getByRole("heading", { name: "Il mio profilo" }),
@@ -96,7 +98,7 @@ test("stato e descrizione salvati restano visibili al proprietario anche con rit
   await expect(summary).toContainText("Ritratto visibile solo a te");
   await expect(summary.locator(".holiday-summary-description")).not.toBeEmpty();
   await expect(
-    summary.getByRole("link", { name: "Modifica stato e ritratto" }),
+    summary.getByRole("button", { name: "Modifica stato e ritratto" }),
   ).toBeVisible();
   await page.reload();
   await expect(summary).toContainText("Un regalo pensato con calma");
@@ -137,4 +139,28 @@ test("ritaglio mobile tiene anteprima e regolazioni nello stesso schermo", async
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth),
   ).toBeLessThanOrEqual(320);
+});
+
+test("stato e ritratto visibili subito, modifica a bottone e domande in un riquadro", async ({
+  page,
+}) => {
+  await profileFixture(page, false);
+  const summary = page.getByRole("region", {
+    name: "Il tuo Natale",
+    exact: true,
+  });
+  await expect(summary.locator(".holiday-summary-status")).toBeVisible();
+  await expect(summary.locator(".spirit-generated-svg")).toBeVisible();
+  await expect(summary.locator(".holiday-summary-description")).toBeVisible();
+  await expect(summary.locator(".character-comparison-item")).toHaveCount(3);
+  const editor = page.locator("#profile-holiday-editor");
+  await expect(editor).toHaveCSS("border-top-style", "solid");
+  const edit = summary.getByRole("button", {
+    name: "Modifica stato e ritratto",
+    exact: true,
+  });
+  await expect(edit).toBeVisible();
+  expect((await edit.boundingBox()).height).toBeGreaterThanOrEqual(44);
+  await edit.click();
+  await expect(editor).toHaveAttribute("open", "");
 });

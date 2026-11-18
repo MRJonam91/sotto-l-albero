@@ -105,11 +105,34 @@
   white-space: pre-line;
   line-height: 1.7;
 }
-.holiday-profile-summary > .text-button {
-  display: inline-flex;
+.holiday-summary-portrait {
+  display: grid;
+  grid-template-columns: minmax(0, 260px) minmax(0, 1fr);
   align-items: center;
-  justify-self: start;
-  min-height: 44px;
+  gap: 14px;
+}
+.holiday-summary-portrait > h3 {
+  grid-column: 1 / -1;
+}
+.holiday-summary-portrait .spirit-generated-card {
+  width: 100%;
+  max-width: 300px;
+  justify-self: center;
+}
+.holiday-summary-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.holiday-summary-actions > .button {
+  flex: 1 1 210px;
+  min-height: 46px;
+  white-space: normal;
+}
+@media (max-width: 620px) {
+  .holiday-summary-portrait {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 .holiday-summary-icons {
   font-size: 1.4rem;
@@ -1185,6 +1208,11 @@
 }
 .profile-optional-editor[open] > summary {
   margin-bottom: 14px;
+}
+.profile-optional-editor > .holiday-portrait-panel {
+  border: 0;
+  padding: 0;
+  background: transparent;
 }
 .compact-characters {
   grid-template-columns: repeat(3, minmax(0, 1fr));

@@ -52,7 +52,7 @@ describe("ritratto automatico", () => {
       /ignor|salt|mistero|rispondendo/,
     );
   });
-  it("ridistribuisce i pesi disponibili e mostra tre affinità indipendenti su dieci personaggi", () => {
+  it("ridistribuisce i pesi disponibili e mostra tre affinità indipendenti su 52 personaggi", () => {
     const portrait = computeHolidayPortrait(
       {
         dailyMood: { id: "cocoa", date: "2026-11-18" },
@@ -63,7 +63,7 @@ describe("ritratto automatico", () => {
     expect(
       portrait.matchingExplanation.weights.map((w) => w.effectiveWeight),
     ).toEqual([60, 25, 15]);
-    expect(holidayCharacters).toHaveLength(10);
+    expect(holidayCharacters).toHaveLength(52);
     expect(portrait.characterMatches).toHaveLength(3);
     expect(portrait.topCharacter).toEqual(portrait.characterMatches[0]);
     expect(

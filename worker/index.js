@@ -69,7 +69,7 @@ export default {
         return await inviteRoute(env, path.split("/").pop(), user);
       if (!user) throw new HttpError("Accedi per continuare.", 401);
       if (path === "/api/stamps")
-        return await stampRoute(request.method, env.DB, user.id, body);
+        return await stampRoute(request.method, env.DB, user.id, body, env);
       if (path.startsWith("/api/practice/"))
         return await practiceRoute(request, env, path, body, user);
       if (path.startsWith("/api/competition/"))
