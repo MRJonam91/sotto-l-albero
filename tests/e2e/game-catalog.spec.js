@@ -41,6 +41,7 @@ test("Giochi mostra tutto il catalogo e l’allenamento non consuma tentativi a 
   for (const name of [
     "Quiz di Natale",
     "Memory di Natale",
+    "Indovina il film",
     "Pacchi smarriti",
     "Sacco della slitta",
     "La cartolina scomparsa",

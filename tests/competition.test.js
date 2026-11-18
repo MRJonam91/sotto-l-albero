@@ -5,6 +5,10 @@ import { competitionRoute, getLeaderboard } from "../worker/competition.js";
 import { practiceRoute } from "../worker/practice.js";
 import { eventRoute } from "../worker/events.js";
 import { stampRoute } from "../worker/stamps.js";
+import {
+  christmasMovies,
+  createMovieQuestions,
+} from "../shared/christmasMovies.js";
 
 const eventMigration = "0009_event_competition.sql";
 const stampMigration = "0012_stamp_ranking_cutoff.sql";
@@ -382,6 +386,7 @@ describe("competition", () => {
       scores: {
         quiz: 300,
         memory: 0,
+        film: 0,
         pacchi: 0,
         slitta: 0,
         cartolina: 0,
@@ -1002,4 +1007,71 @@ it("keeps the practice deadline on reopen and starts the next timer after feedba
   } finally {
     clock.mockRestore();
   }
+});
+
+describe("Indovina il film (100 film natalizi a icone)", () => {
+  it("ha un catalogo di esattamente 100 film natalizi unici con 5 icone ciascuno", () => {
+    expect(christmasMovies).toHaveLength(100);
+    const ids = new Set();
+    const titles = new Set();
+    for (const movie of christmasMovies) {
+      expect(typeof movie.id).toBe("string");
+      expect(movie.id.length).toBeGreaterThan(1);
+      expect(typeof movie.title).toBe("string");
+      expect(movie.title.length).toBeGreaterThan(1);
+      expect(Number.isInteger(movie.year)).toBe(true);
+      expect(movie.year).toBeGreaterThanOrEqual(1930);
+      expect(movie.year).toBeLessThanOrEqual(2026);
+      expect(Array.isArray(movie.icons)).toBe(true);
+      expect(movie.icons).toHaveLength(5);
+      for (const icon of movie.icons) {
+        expect(typeof icon).toBe("string");
+        expect(icon.length).toBeGreaterThan(0);
+      }
+      expect(typeof movie.note).toBe("string");
+      expect(movie.note.length).toBeGreaterThan(10);
+      ids.add(movie.id);
+      titles.add(movie.title);
+    }
+    expect(ids.size).toBe(100);
+    expect(titles.size).toBe(100);
+
+    const sample = createMovieQuestions(10);
+    expect(sample).toHaveLength(10);
+    for (const q of sample) {
+      expect(q.icons).toHaveLength(5);
+      expect(q.options).toHaveLength(4);
+      expect(new Set(q.options).size).toBe(4);
+      expect(q.answer).toBeGreaterThanOrEqual(0);
+      expect(q.answer).toBeLessThan(4);
+    }
+  });
+
+  it("assegna fino a 200 punti nelle sfide ufficiali con moltiplicatori 100%, 95%, 90% e timer da 20s", async () => {
+    let attempt = await start(anna, "film");
+    expect(attempt.game).toBe("film");
+    expect(attempt.total).toBe(10);
+    expect(attempt.timeLimit).toBe(20);
+    expect(attempt.question.icons).toHaveLength(5);
+    expect(attempt.question.options).toHaveLength(4);
+    expect(attempt.question).not.toHaveProperty("answer");
+
+    const done1 = await completeQuiz(anna, attempt, true);
+    expect(done1).toMatchObject({ done: true, rawScore: 200, score: 200 });
+
+    const done2 = await completeQuiz(anna, await start(anna, "film"), true);
+    expect(done2).toMatchObject({ done: true, rawScore: 200, score: 190 });
+
+    const done3 = await completeQuiz(anna, await start(anna, "film"), true);
+    expect(done3).toMatchObject({ done: true, rawScore: 200, score: 180 });
+
+    await expect(start(anna, "film")).rejects.toMatchObject({ status: 409 });
+    const board = await api(owner);
+    expect(
+      board.leaderboard.find((row) => row.userId === anna.id),
+    ).toMatchObject({
+      score: 200,
+      scores: { film: 200 },
+    });
+  });
 });

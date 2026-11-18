@@ -22,6 +22,7 @@ function database() {
     "0013_practice_catalog.sql",
     "0014_tris_duels.sql",
     "0015_existing_email_notifications.sql",
+    "0016_practice_film_catalog.sql",
   ])
     sql.exec(
       readFileSync(new URL(`../migrations/${file}`, import.meta.url), "utf8"),

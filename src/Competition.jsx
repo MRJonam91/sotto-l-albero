@@ -1,5 +1,12 @@
 import { useEffect, useEffectEvent, useId, useRef, useState } from "react";
-import { BookOpen, Gift, Medal, Puzzle, Swords } from "lucide-react";
+import {
+  BookOpen,
+  Clapperboard,
+  Gift,
+  Medal,
+  Puzzle,
+  Swords,
+} from "lucide-react";
 import { api } from "./api.js";
 import CompetitionChallenge from "./CompetitionChallenge.jsx";
 import FestivalLeaderboard from "./FestivalLeaderboard.jsx";
@@ -97,7 +104,8 @@ function PlayCard({ attempt, title, onMove, onClose, busy, error }) {
           <div className="quiz-timer-wrap">
             <div className="quiz-timer-header">
               <span>
-                Domanda {attempt.progress + 1} di {attempt.total}
+                {attempt.question.icons ? "Film" : "Domanda"}{" "}
+                {attempt.progress + 1} di {attempt.total}
               </span>
               {timeLimit && (
                 <span
@@ -120,6 +128,19 @@ function PlayCard({ attempt, title, onMove, onClose, busy, error }) {
           <h3 ref={heading} tabIndex={-1}>
             {attempt.question.text}
           </h3>
+          {attempt.question.icons && (
+            <div
+              className="movie-icons-clue"
+              role="group"
+              aria-label={`Icone indizio del film ${attempt.progress + 1}`}
+            >
+              {attempt.question.icons.map((icon, i) => (
+                <span key={i} className="movie-icon-tile" aria-hidden="true">
+                  {icon}
+                </span>
+              ))}
+            </div>
+          )}
           <div className="competition-options">
             {attempt.question.options.map((option, index) => (
               <Button
@@ -441,7 +462,9 @@ export default function Competition({ event, user, members = [], onStamp }) {
                         ? BookOpen
                         : game.id === "memory"
                           ? Puzzle
-                          : Gift;
+                          : game.id === "film"
+                            ? Clapperboard
+                            : Gift;
                     return (
                       <li key={game.id} className="competition-game paper">
                         <Icon size={22} aria-hidden="true" />

@@ -453,3 +453,28 @@
 .quiz-timer-fill.urgent {
   background: #ff5252;
 }
+
+.movie-icons-clue {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  width: 100%;
+  padding: 0.65rem 0.75rem;
+  border: 1px dashed var(--line);
+  border-radius: 0.6rem;
+  background: rgba(255, 251, 243, 0.55);
+}
+
+.movie-icon-tile {
+  display: inline-grid;
+  place-items: center;
+  width: clamp(2.4rem, 11vw, 3.25rem);
+  height: clamp(2.4rem, 11vw, 3.25rem);
+  font-size: clamp(1.35rem, 5.5vw, 1.9rem);
+  line-height: 1;
+  border: 1px solid #b79962;
+  border-radius: 0.5rem;
+  background: #fffbf3;
+  box-shadow: 0 2px 6px rgba(73, 48, 34, 0.08);
+}
