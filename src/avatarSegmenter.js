@@ -104,6 +104,13 @@ export async function isolateAvatarFace(image, options = {}) {
     ctx.drawImage(mask, 0, 0, result.width, result.height);
     result.landmarks = face.landmarks;
     result.faceBounds = face.faceBounds;
+    const fb = face.faceBounds || face.bounds;
+    result.faceBox = {
+      w: result.width * (fb.width / w),
+      h: result.height * (fb.height / h),
+      cx: result.width * ((fb.x + fb.width * 0.5 - x) / w),
+      cy: result.height * ((fb.y + fb.height * 0.5 - y) / h),
+    };
   });
   return result ?? null;
 }
