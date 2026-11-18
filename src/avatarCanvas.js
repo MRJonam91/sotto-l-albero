@@ -1,55 +1,68 @@
+import {
+  applyAntiqueMedallionFinish,
+  applyVintagePortraitGrade,
+} from "./avatarVintageFilter.js";
+
 export const avatarScenes = [
   {
     id: "elf",
     name: "Elfo di bottega",
-    colors: ["#172f27", "#4a2e28"],
-    face: [129, 121, 53, 66],
+    colors: ["#d8c6a5", "#9f8764"],
+    face: [128, 125, 55, 66],
+    hatShadow: 0.32,
   },
   {
     id: "santa",
     name: "Babbo Natale",
-    colors: ["#153e3b", "#102826"],
-    face: [128, 120, 56, 64],
+    colors: ["#4a4134", "#27211a"],
+    face: [125, 121, 56, 65],
+    hatShadow: 0.34,
   },
   {
     id: "sleigh",
     name: "Volo in slitta",
-    colors: ["#151d42", "#745466"],
-    face: [130, 104, 49, 60],
+    colors: ["#14233c", "#2a384e"],
+    face: [128, 118, 46, 56],
+    hatShadow: 0.36,
   },
   {
     id: "chimney",
     name: "Dentro il camino",
-    colors: ["#182528", "#4e2c2b"],
-    face: [128, 111, 53, 62],
+    colors: ["#17253a", "#324357"],
+    face: [128, 134, 49, 57],
+    hatShadow: 0.34,
   },
   {
     id: "snowglobe",
     name: "Sfera di neve",
-    colors: ["#213b4b", "#3a6771"],
-    face: [128, 117, 56, 62],
+    colors: ["#1e3545", "#385e68"],
+    face: [128, 118, 54, 62],
+    hatShadow: 0.22,
   },
   {
     id: "ornament",
     name: "Pallina di vetro",
-    colors: ["#0b342b", "#061c19"],
-    face: [128, 132, 57, 64],
+    colors: ["#142e24", "#0a1914"],
+    face: [128, 142, 54, 63],
+    hatShadow: 0.2,
   },
   {
     id: "gingerbread",
     name: "Pan di zenzero",
-    colors: ["#4c2923", "#232d27"],
-    face: [128, 105, 53, 59],
+    colors: ["#44251c", "#211510"],
+    face: [128, 108, 52, 59],
+    hatShadow: 0.24,
   },
 ];
 
-const cream = "#fff1d1";
-const gold = "#edba64";
-const red = "#b53c40";
+const cream = "#f6ead3";
+const gold = "#deb261";
+const crimson = "#8f2224";
+const brightRed = "#b33234";
 
-function ellipse(ctx, x, y, rx, ry, color) {
+function ellipse(ctx, x, y, rx, ry, color, rotation = 0) {
   ctx.beginPath();
-  ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
+  ctx.ellipse(x, y, rx, ry, rotation, 0, Math.PI * 2);
   if (color) {
     ctx.fillStyle = color;
     ctx.fill();
@@ -80,18 +93,18 @@ function stroke(ctx, color, width, draw) {
   ctx.stroke();
 }
 
-function star(ctx, x, y, size, color = gold) {
+function star(ctx, x, y, size, color = "#ffdf96") {
   polygon(
     ctx,
     [
       [x, y - size],
-      [x + size * 0.22, y - size * 0.24],
+      [x + size * 0.2, y - size * 0.22],
       [x + size, y],
-      [x + size * 0.22, y + size * 0.24],
+      [x + size * 0.2, y + size * 0.22],
       [x, y + size],
-      [x - size * 0.22, y + size * 0.24],
+      [x - size * 0.2, y + size * 0.22],
       [x - size, y],
-      [x - size * 0.22, y - size * 0.24],
+      [x - size * 0.2, y - size * 0.22],
     ],
     color,
   );
@@ -112,205 +125,372 @@ function glow(ctx, x, y, radius, color) {
   ellipse(ctx, x, y, radius, radius, gradient);
 }
 
-function evergreen(ctx, x, y, angle) {
+function furCluster(
+  ctx,
+  points,
+  baseRadius,
+  baseColor = "#e7d8be",
+  highlight = "#fbf3e4",
+) {
+  for (let i = 0; i < points.length; i++) {
+    const [x, y, rScale = 1] = points[i];
+    const r = baseRadius * rScale;
+    ellipse(ctx, x, y + 1.5, r * 1.05, r * 0.95, "#9c896e55");
+    ellipse(ctx, x, y, r, r * 0.92, baseColor);
+    ellipse(ctx, x - r * 0.18, y - r * 0.18, r * 0.65, r * 0.58, highlight);
+  }
+}
+
+function pineBranch(ctx, x, y, angle, length = 85) {
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(angle);
-  stroke(ctx, "#668a68", 2, () => {
+  stroke(ctx, "#4a3525", 2.5, () => {
     ctx.moveTo(0, 0);
-    ctx.lineTo(92, 0);
+    ctx.lineTo(length, 0);
   });
-  for (let i = 0; i < 17; i++) {
-    const start = 5 + i * 5;
-    const span = 23 - i * 0.8;
-    stroke(ctx, i % 3 ? "#426f55" : "#86a682", 1.5, () => {
-      ctx.moveTo(start + 9, -span);
+  for (let i = 0; i < 18; i++) {
+    const start = 4 + (i * length) / 19;
+    const span = 21 - i * 0.65;
+    stroke(ctx, i % 2 ? "#274732" : "#486b4c", 1.7, () => {
+      ctx.moveTo(start + 8, -span);
       ctx.lineTo(start, 0);
-      ctx.lineTo(start + 9, span);
+      ctx.lineTo(start + 8, span);
     });
   }
   ctx.restore();
 }
 
-function snow(ctx, count, foreground = false) {
-  for (let i = 0; i < count; i += 1) {
-    const x = (17 + i * 97) % 256;
-    const y = (23 + i * 61) % 256;
-    if (foreground && x > 74 && x < 182 && y > 50 && y < 175) continue;
-    const r = 0.7 + (i % 5) / 2;
-    ellipse(ctx, x, y, r, r, i % 4 ? "#fff3d796" : "#f9d38cba");
+function hollyBerries(ctx, clusters) {
+  for (const [cx, cy] of clusters) {
+    for (const [dx, dy] of [
+      [-4, 0],
+      [3, -3],
+      [2, 3],
+    ]) {
+      ellipse(ctx, cx + dx, cy + dy, 3.6, 3.6, "#8c2224");
+      ellipse(ctx, cx + dx - 1, cy + dy - 1, 1.2, 1.2, "#e07a74");
+    }
   }
 }
 
-function pine(ctx, x, y, scale, color) {
-  const w = 19 * scale;
-  const h = 54 * scale;
+function snow(ctx, count, foreground = false) {
+  for (let i = 0; i < count; i += 1) {
+    const x = (19 + i * 97) % 256;
+    const y = (23 + i * 61) % 256;
+    if (foreground && x > 70 && x < 186 && y > 48 && y < 182) continue;
+    const r = 0.8 + (i % 5) * 0.42;
+    ellipse(ctx, x, y, r, r, i % 3 ? "#fff4dc90" : "#f5d79ab0");
+  }
+}
+
+function snowflakeMotif(ctx, cx, cy, radius, color = "#fff6e5cc") {
+  ctx.save();
+  ctx.translate(cx, cy);
+  for (let arm = 0; arm < 6; arm++) {
+    ctx.rotate(Math.PI / 3);
+    stroke(ctx, color, 1.1, () => {
+      ctx.moveTo(0, 0);
+      ctx.lineTo(0, radius);
+      ctx.moveTo(0, radius * 0.55);
+      ctx.lineTo(-radius * 0.25, radius * 0.78);
+      ctx.moveTo(0, radius * 0.55);
+      ctx.lineTo(radius * 0.25, radius * 0.78);
+    });
+  }
+  ctx.restore();
+}
+
+function pineTree(
+  ctx,
+  x,
+  y,
+  scale,
+  darkColor = "#1d332c",
+  snowColor = "#dce3e0",
+) {
+  const w = 20 * scale;
+  const h = 56 * scale;
   polygon(
     ctx,
     [
       [x, y - h],
-      [x + w * 0.68, y - h * 0.55],
-      [x + w * 0.38, y - h * 0.55],
-      [x + w, y - h * 0.16],
-      [x + w * 0.6, y - h * 0.16],
+      [x + w * 0.65, y - h * 0.55],
+      [x + w * 0.35, y - h * 0.55],
+      [x + w, y - h * 0.18],
+      [x + w * 0.55, y - h * 0.18],
       [x + w * 1.15, y],
       [x - w * 1.15, y],
-      [x - w * 0.6, y - h * 0.16],
-      [x - w, y - h * 0.16],
-      [x - w * 0.38, y - h * 0.55],
-      [x - w * 0.68, y - h * 0.55],
+      [x - w * 0.55, y - h * 0.18],
+      [x - w, y - h * 0.18],
+      [x - w * 0.35, y - h * 0.55],
+      [x - w * 0.65, y - h * 0.55],
     ],
-    color,
+    darkColor,
   );
+  ellipse(ctx, x, y - h * 0.58, w * 0.42, 3 * scale, snowColor);
+  ellipse(ctx, x, y - h * 0.22, w * 0.62, 3.5 * scale, snowColor);
 }
 
-function parcel(ctx, x, y, w, h, paper) {
-  fillRect(ctx, x, y, w, h, paper);
-  fillRect(ctx, x + w * 0.43, y, w * 0.16, h, gold);
-  fillRect(ctx, x, y + h * 0.38, w, h * 0.12, gold);
+function drawCottageVillage(ctx) {
+  fillRect(ctx, 18, 120, 44, 42, "#3a3537");
+  polygon(
+    ctx,
+    [
+      [12, 123],
+      [40, 96],
+      [68, 123],
+    ],
+    "#e8e0d5",
+  );
+  fillRect(ctx, 33, 132, 12, 14, "#f7c774");
+  glow(ctx, 39, 139, 16, "#ffcf7566");
+
+  fillRect(ctx, 178, 108, 64, 55, "#463733");
+  fillRect(ctx, 194, 82, 13, 24, "#744133");
+  ellipse(ctx, 201, 72, 7, 10, "#d9dad788");
+  ellipse(ctx, 206, 57, 10, 13, "#d9dad755");
+  polygon(
+    ctx,
+    [
+      [170, 112],
+      [210, 84],
+      [248, 112],
+    ],
+    "#ebe3d5",
+  );
+  fillRect(ctx, 198, 124, 16, 16, "#fad184");
+  glow(ctx, 206, 132, 22, "#ffd98477");
 }
 
-function village(ctx) {
-  ellipse(ctx, 205, 44, 22, 22, "#fff0bb");
-  for (let i = 0; i < 7; i += 1) {
-    const x = 10 + i * 38;
-    const y = 197 + (i % 3) * 10;
-    fillRect(ctx, x, y, 27, 47, i % 2 ? "#3d424d" : "#343440");
-    polygon(
-      ctx,
-      [
-        [x - 3, y + 1],
-        [x + 12, y - 18],
-        [x + 30, y + 1],
-      ],
-      "#eadbc8",
-    );
-    fillRect(ctx, x + 6, y + 8, 6, 9, "#f6c987");
-    fillRect(ctx, x + 17, y + 8, 6, 9, "#f6c987");
-  }
-  ellipse(ctx, 119, 267, 160, 37, "#d4ced1");
-}
-
-function bricks(ctx, yStart, edgeOnly = false) {
-  for (let row = 0; row < 7; row += 1) {
-    const y = yStart + row * 25;
-    if (y >= 256) break;
-    for (let col = 0; col < 7; col += 1) {
-      const x = col * 43 - (row % 2) * 20;
-      if (edgeOnly && x > 33 && x < 187) continue;
-      fillRect(
-        ctx,
-        x,
-        y,
-        40,
-        22,
-        ["#793d35", "#9a503e", "#82433a"][(row + col) % 3],
-      );
-      fillRect(ctx, x + 1, y + 1, 37, 2, "#c67d5b55");
+function texturedBricks(ctx, yStart) {
+  fillRect(ctx, 24, yStart, 208, 256 - yStart, "#b59f8e");
+  const rows = [
+    [
+      [28, 58, "#8c3d2b"],
+      [90, 74, "#9e4b36"],
+      [168, 60, "#7a3223"],
+    ],
+    [
+      [28, 34, "#7d3525"],
+      [66, 68, "#94412e"],
+      [138, 56, "#a6513b"],
+      [198, 30, "#833828"],
+    ],
+    [
+      [28, 62, "#9b4734"],
+      [94, 70, "#813726"],
+      [168, 60, "#91412f"],
+    ],
+  ];
+  for (let r = 0; r < rows.length; r++) {
+    const y = yStart + 6 + r * 24;
+    for (const [x, w, color] of rows[r]) {
+      fillRect(ctx, x, y, w, 19, color);
+      fillRect(ctx, x + 2, y + 2, w - 4, 3, "#cb765744");
+      fillRect(ctx, x + 2, y + 14, w - 4, 3, "#3b150e44");
     }
   }
 }
 
 function drawBackground(ctx, scene) {
   const [top, bottom] = scene.colors;
-  const gradient = ctx.createLinearGradient(30, 0, 190, 256);
+  const gradient = ctx.createLinearGradient(25, 10, 225, 246);
   gradient.addColorStop(0, top);
   gradient.addColorStop(1, bottom);
   fillRect(ctx, 0, 0, 256, 256, gradient);
-  snow(ctx, 44);
+
   switch (scene.id) {
     case "elf":
-      glow(ctx, 129, 105, 126, "#9c7e467f");
-      evergreen(ctx, 0, 125, -1.12);
-      evergreen(ctx, 257, 141, -2.02);
-      for (const [x, y] of [
-        [31, 116],
-        [221, 121],
-        [34, 163],
-        [219, 50],
-      ]) {
-        glow(ctx, x, y, 18, "#ebb35b8c");
-        star(ctx, x, y, 3);
-      }
+      glow(ctx, 128, 116, 118, "#f5deb380");
+      pineBranch(ctx, 170, 26, 0.55, 92);
+      pineBranch(ctx, 182, 104, 0.18, 84);
+      pineBranch(ctx, 178, 162, -0.25, 86);
+      pineBranch(ctx, 76, 172, 2.85, 86);
+      pineBranch(ctx, 72, 118, 3.25, 80);
+      hollyBerries(ctx, [
+        [204, 66],
+        [218, 92],
+        [44, 152],
+        [55, 184],
+      ]);
       ellipse(
         ctx,
         128,
-        257,
-        99,
-        87,
-        material(ctx, 65, 164, 121, 85, ["#467759", "#254d3c", "#123428"]),
+        244,
+        96,
+        66,
+        material(ctx, 50, 185, 156, 70, ["#2e4f39", "#1d3827", "#14281c"]),
       );
       polygon(
         ctx,
         [
-          [83, 101],
-          [48, 88],
-          [76, 132],
+          [78, 102],
+          [42, 86],
+          [56, 116],
+          [79, 130],
         ],
-        "#b17a57",
+        "#ce916a",
       );
       polygon(
         ctx,
         [
-          [172, 101],
-          [208, 88],
-          [180, 132],
+          [74, 108],
+          [50, 94],
+          [60, 114],
+          [75, 122],
         ],
-        "#b17a57",
+        "#9d5f41",
+      );
+      polygon(
+        ctx,
+        [
+          [178, 102],
+          [214, 86],
+          [200, 116],
+          [177, 130],
+        ],
+        "#ce916a",
+      );
+      polygon(
+        ctx,
+        [
+          [182, 108],
+          [206, 94],
+          [196, 114],
+          [181, 122],
+        ],
+        "#9d5f41",
       );
       break;
+
     case "santa":
-      pine(ctx, 30, 215, 1.9, "#567c70");
-      pine(ctx, 223, 227, 2.4, "#4b7366");
-      pine(ctx, 20, 226, 1.4, "#28584c");
-      ellipse(ctx, 129, 266, 91, 104, red);
+      glow(ctx, 128, 115, 112, "#8c735355");
+      ellipse(
+        ctx,
+        128,
+        244,
+        104,
+        74,
+        material(ctx, 40, 175, 176, 80, ["#8e2022", "#631315", "#470d0e"]),
+      );
+      furCluster(
+        ctx,
+        [
+          [56, 192, 1.1],
+          [72, 206, 1.15],
+          [90, 218, 1.2],
+          [166, 218, 1.2],
+          [184, 206, 1.15],
+          [200, 192, 1.1],
+        ],
+        13,
+      );
       break;
+
     case "sleigh":
-      village(ctx);
-      glow(ctx, 205, 44, 45, "#ffedb963");
-      star(ctx, 47, 45, 11, "#ffdf9e");
-      star(ctx, 204, 101, 6, "#ffdf9e");
+      snow(ctx, 38);
+      glow(ctx, 198, 66, 28, "#ffe7a366");
+      star(ctx, 198, 66, 12, "#ffe59e");
+      pineTree(ctx, 34, 176, 1.35);
+      pineTree(ctx, 224, 178, 1.3);
+      polygon(
+        ctx,
+        [
+          [12, 152],
+          [68, 156],
+          [188, 156],
+          [244, 152],
+          [232, 235],
+          [24, 235],
+        ],
+        material(ctx, 20, 150, 210, 85, ["#862022", "#581315", "#3d0c0e"]),
+      );
+      stroke(ctx, gold, 4, () => {
+        ctx.moveTo(14, 153);
+        ctx.quadraticCurveTo(45, 148, 70, 165);
+        ctx.moveTo(242, 153);
+        ctx.quadraticCurveTo(211, 148, 186, 165);
+      });
+      ellipse(ctx, 128, 112, 62, 68, "#452d1e");
       ellipse(
         ctx,
         128,
-        150,
-        61,
-        102,
-        material(ctx, 62, 55, 111, 112, ["#6c4835", "#382825", "#201c24"]),
+        232,
+        92,
+        62,
+        material(ctx, 50, 175, 156, 75, ["#61412b", "#462d1d", "#2f1e13"]),
       );
-      ellipse(ctx, 128, 202, 73, 57, "#623936");
       break;
+
     case "chimney":
-      bricks(ctx, 32, true);
-      ellipse(ctx, 129, 235, 78, 85, "#9b4540");
+      snow(ctx, 48);
+      drawCottageVillage(ctx);
       break;
+
     case "snowglobe":
-      pine(ctx, 45, 208, 1.3, "#9ab8b8");
-      pine(ctx, 211, 206, 1.7, "#a7c4c3");
-      ellipse(ctx, 129, 202, 75, 48, "#b4c7c5");
+      snow(ctx, 36);
+      pineTree(ctx, 52, 204, 1.25, "#5f8588");
+      pineTree(ctx, 204, 204, 1.5, "#6b9396");
+      ellipse(ctx, 128, 202, 78, 46, "#b9cfcd");
       break;
+
     case "ornament":
-      evergreen(ctx, 0, 13, 0.63);
-      evergreen(ctx, 256, 21, 2.55);
-      evergreen(ctx, 0, 224, -0.48);
-      evergreen(ctx, 256, 224, -2.65);
-      glow(ctx, 128, 135, 97, "#d5dbad72");
+      pineBranch(ctx, 8, 42, 0.45, 105);
+      pineBranch(ctx, 248, 42, 2.69, 105);
+      pineBranch(ctx, 10, 210, -0.45, 105);
+      pineBranch(ctx, 246, 210, -2.69, 105);
+      hollyBerries(ctx, [
+        [34, 82],
+        [224, 78],
+        [38, 198],
+        [218, 196],
+      ]);
+      glow(ctx, 128, 142, 86, "#e3c58845");
       ellipse(
         ctx,
         128,
-        136,
-        89,
-        89,
-        material(ctx, 48, 57, 156, 153, ["#315e51", "#253e39", "#193833"]),
+        142,
+        78,
+        78,
+        material(ctx, 56, 68, 144, 144, ["#4c3f2f", "#2c241b", "#1c1610"]),
       );
-      pine(ctx, 63, 177, 0.7, "#56786d");
-      pine(ctx, 192, 179, 0.9, "#628579");
       break;
+
     case "gingerbread":
-      ellipse(ctx, 129, 107, 75, 77, "#ae633d");
-      ellipse(ctx, 129, 214, 89, 81, "#bd7449");
+      glow(ctx, 128, 115, 95, "#c57c4644");
+      ellipse(ctx, 128, 108, 74, 76, "#9c5633");
+      ellipse(ctx, 128, 214, 88, 80, "#ab623c");
       break;
   }
+}
+
+function makeGradedPortraitCanvas(image, isIsolated, hatShadow) {
+  if (typeof document === "undefined") return image;
+  const maxDim = 240;
+  const scale = Math.min(
+    1,
+    maxDim / Math.max(image.width || 240, image.height || 240),
+  );
+  const w = Math.max(1, Math.round((image.width || 240) * scale));
+  const h = Math.max(1, Math.round((image.height || 240) * scale));
+  const off = document.createElement("canvas");
+  off.width = w;
+  off.height = h;
+  const octx = off.getContext("2d");
+  octx.drawImage(image, 0, 0, w, h);
+  try {
+    const imgData = octx.getImageData(0, 0, w, h);
+    applyVintagePortraitGrade(imgData.data, w, h, {
+      strength: 0.84,
+      smoothing: true,
+      hatShadow: isIsolated ? hatShadow : hatShadow * 0.85,
+    });
+    octx.putImageData(imgData, 0, 0);
+  } catch {
+    // Fallback if canvas is tainted
+  }
+  return off;
 }
 
 function drawFace(
@@ -318,18 +498,20 @@ function drawFace(
   { source: image, isolated },
   [x, y, rx, ry],
   { zoom, offsetX, offsetY },
+  hatShadow = 0.28,
 ) {
+  const graded = makeGradedPortraitCanvas(image, isolated, hatShadow);
   ctx.save();
   if (isolated) {
     const scale =
-      Math.min((rx * 2.15) / image.width, (ry * 2) / image.height) * zoom;
-    const w = image.width * scale;
-    const h = image.height * scale;
-    ctx.shadowColor = "#271a167c";
-    ctx.shadowBlur = 4;
+      Math.min((rx * 2.22) / graded.width, (ry * 2.08) / graded.height) * zoom;
+    const w = graded.width * scale;
+    const h = graded.height * scale;
+    ctx.shadowColor = "#1a100b88";
+    ctx.shadowBlur = 6;
     ctx.shadowOffsetY = 2;
     ctx.drawImage(
-      image,
+      graded,
       x - w / 2 + offsetX * 0.27,
       y - h / 2 + offsetY * 0.27,
       w,
@@ -338,239 +520,513 @@ function drawFace(
     ctx.restore();
     return;
   }
+
   ellipse(ctx, x, y, rx, ry);
   ctx.clip();
   const scale =
-    Math.max((rx * 2) / image.width, (ry * 2) / image.height) * zoom;
-  const w = image.width * scale;
-  const h = image.height * scale;
+    Math.max((rx * 2) / graded.width, (ry * 2) / graded.height) * zoom;
+  const w = graded.width * scale;
+  const h = graded.height * scale;
   const dx = ((w / 2 - rx) * offsetX) / 100;
   const dy = ((h / 2 - ry) * offsetY) / 100;
-  ctx.drawImage(image, x - w / 2 + dx, y - h / 2 + dy, w, h);
-  ctx.restore();
-  stroke(ctx, "#fff1d17c", 2, () =>
-    ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2),
+  ctx.drawImage(graded, x - w / 2 + dx, y - h / 2 + dy, w, h);
+
+  const innerShade = ctx.createRadialGradient(
+    x,
+    y,
+    Math.min(rx, ry) * 0.68,
+    x,
+    y,
+    Math.max(rx, ry),
   );
+  innerShade.addColorStop(0, "transparent");
+  innerShade.addColorStop(1, "#1e130c66");
+  ellipse(ctx, x, y, rx, ry, innerShade);
+  ctx.restore();
 }
 
-function elfHat(ctx) {
+function drawElfForeground(ctx) {
   ctx.beginPath();
-  ctx.moveTo(65, 81);
-  ctx.bezierCurveTo(70, 27, 104, 37, 148, 17);
-  ctx.bezierCurveTo(188, -1, 208, 27, 207, 47);
-  ctx.quadraticCurveTo(179, 30, 171, 53);
-  ctx.quadraticCurveTo(176, 68, 186, 76);
-  ctx.quadraticCurveTo(125, 62, 65, 81);
-  ctx.fillStyle = material(ctx, 93, 23, 45, 56, [
-    "#7b9770",
-    "#3e644d",
-    "#244537",
+  ctx.moveTo(74, 84);
+  ctx.bezierCurveTo(64, 34, 96, 12, 136, 16);
+  ctx.bezierCurveTo(174, 20, 190, 52, 184, 84);
+  ctx.quadraticCurveTo(128, 62, 74, 84);
+  ctx.fillStyle = material(ctx, 70, 16, 118, 70, [
+    "#3d6146",
+    "#25422e",
+    "#192e1f",
   ]);
   ctx.fill();
-  stroke(ctx, "#d3b472", 4, () => {
-    ctx.moveTo(66, 81);
-    ctx.quadraticCurveTo(125, 62, 186, 76);
-  });
+
+  ctx.beginPath();
+  ctx.moveTo(86, 36);
+  ctx.bezierCurveTo(54, 42, 34, 82, 38, 126);
+  ctx.bezierCurveTo(46, 104, 62, 82, 78, 72);
+  ctx.closePath();
+  ctx.fillStyle = material(ctx, 36, 36, 50, 90, ["#35563d", "#1e3726"]);
+  ctx.fill();
+
   ellipse(
     ctx,
-    207,
-    47,
-    8,
-    8,
-    material(ctx, 200, 40, 15, 13, [cream, gold, "#846035"]),
+    38,
+    131,
+    8.5,
+    8.5,
+    material(ctx, 30, 123, 16, 16, ["#f9df9b", "#c5923e", "#6e4c1a"]),
   );
-  star(ctx, 104, 58, 5);
-  star(ctx, 123, 51, 3);
-}
-
-function goggles(ctx) {
-  stroke(ctx, "#49312d", 10, () => {
-    ctx.moveTo(78, 59);
-    ctx.quadraticCurveTo(128, 32, 180, 59);
+  stroke(ctx, "#3d260b", 1.5, () => {
+    ctx.moveTo(33, 132);
+    ctx.lineTo(43, 132);
   });
-  for (const x of [109, 149]) {
-    ellipse(
-      ctx,
-      x,
-      49,
-      19,
-      14,
-      material(ctx, x - 9, 40, 19, 16, ["#f0cd83", "#af783f", "#f3d29a"]),
-    );
-    ellipse(
-      ctx,
-      x,
-      49,
-      14,
-      10,
-      material(ctx, x - 11, 45, 16, 11, ["#73889d", "#253842", "#201f2d"]),
-    );
-    stroke(ctx, "#e7edf5b5", 2, () => ctx.arc(x, 50, 9, 3.7, 4.7));
-  }
-}
 
-function drawHat(ctx, color, x, y) {
+  ctx.beginPath();
+  ctx.moveTo(71, 85);
+  ctx.quadraticCurveTo(128, 59, 185, 85);
+  ctx.quadraticCurveTo(188, 71, 180, 62);
+  ctx.quadraticCurveTo(128, 42, 76, 62);
+  ctx.closePath();
+  ctx.fillStyle = material(ctx, 72, 48, 114, 36, [
+    "#2a4a34",
+    "#1f3827",
+    "#2a4a34",
+  ]);
+  ctx.fill();
+
+  stroke(ctx, gold, 2.2, () => {
+    ctx.moveTo(72, 85);
+    ctx.quadraticCurveTo(128, 61, 184, 85);
+    ctx.moveTo(75, 65);
+    ctx.quadraticCurveTo(128, 44, 181, 65);
+  });
+
+  for (const [bx, by] of [
+    [92, 68],
+    [110, 62],
+    [128, 59],
+    [146, 62],
+    [164, 68],
+  ]) {
+    star(ctx, bx, by, 3.8, gold);
+    ellipse(ctx, bx, by, 1.8, 1.8, "#a6292b");
+  }
+
+  furCluster(
+    ctx,
+    [
+      [96, 179, 0.7],
+      [106, 184, 0.7],
+      [117, 187, 0.7],
+      [139, 187, 0.7],
+      [150, 184, 0.7],
+      [160, 179, 0.7],
+    ],
+    7,
+    "#e5d5b7",
+    "#fbf2df",
+  );
   polygon(
     ctx,
     [
-      [x - 61, y],
-      [x - 52, y - 30],
-      [x - 16, y - 52],
-      [x + 26, y - 55],
-      [x + 73, y - 31],
-      [x + 47, y - 33],
-      [x + 55, y],
+      [84, 181],
+      [124, 194],
+      [124, 240],
+      [68, 232],
     ],
-    color,
+    "#213d2a",
   );
-  ellipse(ctx, x + 73, y - 31, 12, 11, cream);
-  ellipse(ctx, x - 2, y + 1, 61, 9, cream);
+  polygon(
+    ctx,
+    [
+      [172, 181],
+      [132, 194],
+      [132, 240],
+      [188, 232],
+    ],
+    "#213d2a",
+  );
+  for (const [cx, cy] of [
+    [98, 206],
+    [108, 220],
+    [158, 206],
+    [148, 220],
+  ]) {
+    star(ctx, cx, cy, 4, gold);
+    ellipse(ctx, cx, cy, 2, 2, "#a4282a");
+  }
+}
+
+function drawSantaHat(ctx, cx = 126, brimY = 72, scale = 1, pomRight = true) {
+  ctx.save();
+  ctx.translate(cx, brimY);
+  ctx.scale(scale, scale);
+
+  ctx.beginPath();
+  ctx.moveTo(-64, 6);
+  ctx.bezierCurveTo(-62, -46, -12, -64, 34, -54);
+  if (pomRight) {
+    ctx.bezierCurveTo(72, -44, 92, -8, 88, 34);
+    ctx.bezierCurveTo(70, 22, 62, 6, 56, 4);
+  } else {
+    ctx.bezierCurveTo(-72, -44, -92, -8, -88, 34);
+  }
+  ctx.closePath();
+  ctx.fillStyle = material(ctx, -60, -58, 145, 88, [
+    "#a92629",
+    "#7c171a",
+    "#540e10",
+  ]);
+  ctx.fill();
+
+  const brimPuffs = [
+    [-54, 8, 1.05],
+    [-38, 2, 1.15],
+    [-20, -2, 1.2],
+    [0, -4, 1.22],
+    [20, -2, 1.2],
+    [38, 2, 1.15],
+    [54, 9, 1.05],
+  ];
+  furCluster(ctx, brimPuffs, 13.5, "#e6d7bd", "#fbf4e6");
+
+  const px = pomRight ? 84 : -84;
+  const py = 42;
+  furCluster(
+    ctx,
+    [
+      [px - 6, py, 0.9],
+      [px + 6, py, 0.9],
+      [px, py - 6, 0.95],
+      [px, py + 5, 0.95],
+      [px, py, 1.1],
+    ],
+    13,
+    "#e6d7bd",
+    "#fcf5e8",
+  );
+  ctx.restore();
+}
+
+function drawSantaBeardAndMoustache(ctx) {
+  ellipse(ctx, 126, 152, 46, 12, "#24160e44");
+
+  const beardPuffs = [
+    [76, 144, 0.95],
+    [74, 160, 1.1],
+    [176, 144, 0.95],
+    [178, 160, 1.1],
+    [82, 174, 1.2],
+    [98, 170, 1.15],
+    [114, 172, 1.18],
+    [138, 172, 1.18],
+    [154, 170, 1.15],
+    [170, 174, 1.2],
+    [88, 192, 1.3],
+    [108, 194, 1.35],
+    [126, 196, 1.4],
+    [144, 194, 1.35],
+    [164, 192, 1.3],
+    [98, 212, 1.25],
+    [118, 216, 1.32],
+    [136, 216, 1.32],
+    [154, 212, 1.25],
+    [114, 232, 1.15],
+    [138, 232, 1.15],
+  ];
+  furCluster(ctx, beardPuffs, 13.5, "#dfd0b6", "#f8eedc");
+
+  ctx.beginPath();
+  ctx.moveTo(126, 135);
+  ctx.bezierCurveTo(110, 130, 88, 135, 76, 147);
+  ctx.bezierCurveTo(90, 149, 110, 143, 126, 140);
+  ctx.bezierCurveTo(142, 143, 162, 149, 176, 147);
+  ctx.bezierCurveTo(164, 135, 142, 130, 126, 135);
+  ctx.fillStyle = "#f7eedb";
+  ctx.fill();
+  stroke(ctx, "#d1bfa2", 1.4, () => {
+    ctx.moveTo(82, 145);
+    ctx.quadraticCurveTo(106, 136, 126, 138);
+    ctx.quadraticCurveTo(146, 136, 170, 145);
+  });
+}
+
+function drawAviatorSleighForeground(ctx) {
+  ctx.beginPath();
+  ctx.moveTo(68, 86);
+  ctx.bezierCurveTo(66, 26, 190, 26, 188, 86);
+  ctx.quadraticCurveTo(128, 66, 68, 86);
+  ctx.fillStyle = material(ctx, 68, 28, 120, 60, [
+    "#734c32",
+    "#4f3320",
+    "#382315",
+  ]);
+  ctx.fill();
+
+  furCluster(
+    ctx,
+    [
+      [74, 86, 0.9],
+      [70, 102, 0.95],
+      [68, 118, 1.0],
+      [66, 134, 1.05],
+      [63, 148, 0.95],
+      [182, 86, 0.9],
+      [186, 102, 0.95],
+      [188, 118, 1.0],
+      [190, 134, 1.05],
+      [193, 148, 0.95],
+    ],
+    10.5,
+    "#d8c09d",
+    "#f2e3ca",
+  );
+  furCluster(
+    ctx,
+    [
+      [86, 76, 0.95],
+      [102, 72, 1.0],
+      [120, 70, 1.02],
+      [136, 70, 1.02],
+      [154, 72, 1.0],
+      [170, 76, 0.95],
+    ],
+    10,
+    "#dec7a4",
+    "#f5e8d2",
+  );
+
+  stroke(ctx, "#3b2416", 7, () => {
+    ctx.moveTo(74, 58);
+    ctx.quadraticCurveTo(128, 42, 182, 58);
+  });
+  for (const gx of [106, 150]) {
+    ellipse(
+      ctx,
+      gx,
+      52,
+      19,
+      14,
+      material(ctx, gx - 16, 38, 32, 28, ["#e5ba6e", "#94652a", "#f2cf8d"]),
+    );
+    ellipse(
+      ctx,
+      gx,
+      52,
+      14,
+      10,
+      material(ctx, gx - 12, 42, 24, 20, ["#52667a", "#23313f", "#172029"]),
+    );
+    stroke(ctx, "#fff3d9aa", 1.8, () => ctx.arc(gx - 2, 50, 8, 3.5, 4.8));
+  }
+
+  ellipse(
+    ctx,
+    128,
+    176,
+    54,
+    16,
+    material(ctx, 74, 160, 108, 32, ["#9b2528", "#681517", "#882022"]),
+  );
+  ellipse(
+    ctx,
+    134,
+    190,
+    58,
+    15,
+    material(ctx, 76, 175, 116, 30, ["#821c1e", "#591113", "#9b282a"]),
+  );
+  furCluster(
+    ctx,
+    [
+      [62, 184, 1.05],
+      [74, 196, 1.1],
+      [182, 196, 1.1],
+      [194, 184, 1.05],
+    ],
+    11,
+    "#d8c09d",
+    "#f0e1c8",
+  );
+
+  ellipse(ctx, 98, 224, 21, 16, "#3d2b20");
+  ellipse(ctx, 158, 224, 21, 16, "#3d2b20");
+  stroke(ctx, gold, 6, () => {
+    ctx.moveTo(68, 244);
+    ctx.quadraticCurveTo(128, 212, 188, 244);
+  });
+}
+
+function drawChimneyForeground(ctx) {
+  ctx.save();
+  ctx.translate(126, 92);
+  ctx.scale(-0.88, 0.88);
+  drawSantaHat(ctx, 0, 0, 1, true);
+  ctx.restore();
+
+  texturedBricks(ctx, 174);
+
+  furCluster(
+    ctx,
+    [
+      [34, 172, 1.2],
+      [54, 170, 1.25],
+      [76, 171, 1.2],
+      [98, 172, 1.22],
+      [120, 171, 1.25],
+      [140, 172, 1.25],
+      [162, 171, 1.2],
+      [184, 170, 1.25],
+      [204, 171, 1.22],
+      [222, 173, 1.15],
+    ],
+    13,
+    "#ded9d1",
+    "#f7f4ee",
+  );
+
+  for (const [mx, dir] of [
+    [82, 1],
+    [174, -1],
+  ]) {
+    ellipse(ctx, mx, 156, 23, 16, "#7e1d1f", dir * 0.18);
+    ellipse(ctx, mx + dir * 15, 161, 10, 8, "#942426", dir * 0.3);
+    snowflakeMotif(ctx, mx - dir * 3, 155, 9, "#f5ead6dd");
+  }
+}
+
+function drawOrnamentForeground(ctx) {
+  stroke(ctx, gold, 2.5, () => {
+    ctx.moveTo(128, 6);
+    ctx.lineTo(128, 48);
+  });
+  polygon(
+    ctx,
+    [
+      [128, 34],
+      [88, 20],
+      [84, 44],
+    ],
+    crimson,
+  );
+  polygon(
+    ctx,
+    [
+      [128, 34],
+      [168, 20],
+      [172, 44],
+    ],
+    crimson,
+  );
+  polygon(
+    ctx,
+    [
+      [122, 36],
+      [90, 56],
+      [104, 62],
+    ],
+    brightRed,
+  );
+  polygon(
+    ctx,
+    [
+      [134, 36],
+      [166, 56],
+      [152, 62],
+    ],
+    brightRed,
+  );
+  ellipse(ctx, 128, 34, 7, 6, "#6b1517");
+
+  fillRect(
+    ctx,
+    114,
+    47,
+    28,
+    16,
+    material(ctx, 114, 47, 28, 0, ["#8d6328", "#f3d48c", "#7d5520"]),
+  );
+
+  const cx = 128;
+  const cy = 142;
+  const r = 79;
+
+  for (let i = 0; i < 14; i++) {
+    const angle = (i / 14) * Math.PI * 2;
+    if (angle > 1.25 && angle < 1.9) continue;
+    const fx = cx + Math.cos(angle) * (r - 10);
+    const fy = cy + Math.sin(angle) * (r - 10);
+    snowflakeMotif(ctx, fx, fy, 7.5, "#fff7e688");
+  }
+
+  stroke(ctx, "#fff9ea99", 5.5, () => {
+    ctx.arc(cx, cy, r - 8, 3.35, 4.18);
+  });
+  stroke(ctx, "#fff9ea55", 2.2, () => {
+    ctx.arc(cx, cy, r - 4, 0.3, 1.25);
+  });
+  stroke(ctx, "#e8cfa0aa", 2.2, () => {
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  });
+}
+
+function drawMedallionFrame(ctx) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, 0, 256, 256);
+  ctx.arc(128, 128, 121, 0, Math.PI * 2, true);
+  ctx.fillStyle = "#0b2822";
+  ctx.fill();
+
+  stroke(ctx, "#160e0888", 4, () => {
+    ctx.arc(128, 128, 119, 0, Math.PI * 2);
+  });
+
+  const goldRing = material(ctx, 20, 20, 216, 216, [
+    "#f3d48b",
+    "#b8893d",
+    "#f7dfa4",
+    "#7c5720",
+    "#dfb464",
+  ]);
+  stroke(ctx, goldRing, 5.5, () => {
+    ctx.arc(128, 128, 121.5, 0, Math.PI * 2);
+  });
+  stroke(ctx, "#fff3cc88", 1.2, () => {
+    ctx.arc(128, 128, 119.2, 0, Math.PI * 2);
+  });
+  ctx.restore();
 }
 
 function drawForeground(ctx, scene, beard) {
   switch (scene.id) {
     case "elf":
-      elfHat(ctx);
-      polygon(
-        ctx,
-        [
-          [56, 187],
-          [126, 220],
-          [200, 187],
-          [190, 227],
-          [72, 227],
-        ],
-        material(ctx, 75, 185, 103, 43, ["#e7d2a0", "#ad8c56", "#ecd3a1"]),
-      );
-      fillRect(ctx, 118, 222, 21, 34, "#255944");
-      ellipse(ctx, 129, 237, 6, 6, gold);
-      for (const [x, y] of [
-        [78, 210],
-        [91, 216],
-        [165, 216],
-        [180, 207],
-      ])
-        star(ctx, x, y, 3, "#fff0cc");
+      drawElfForeground(ctx);
       break;
     case "santa":
-      drawHat(ctx, red, 128, 68);
-      if (beard) {
-        ellipse(ctx, 91, 159, 17, 24, cream);
-        ellipse(ctx, 165, 159, 17, 24, cream);
-        ellipse(ctx, 127, 185, 39, 27, cream);
-        ellipse(ctx, 129, 199, 23, 24, cream);
-      }
-      fillRect(ctx, 122, 217, 14, 39, cream);
+      if (beard) drawSantaBeardAndMoustache(ctx);
+      drawSantaHat(ctx, 126, 70, 1, true);
       break;
     case "sleigh":
-      goggles(ctx);
-      stroke(ctx, "#c79e77", 7, () => {
-        ctx.moveTo(77, 66);
-        ctx.quadraticCurveTo(64, 104, 84, 150);
-        ctx.moveTo(181, 66);
-        ctx.quadraticCurveTo(194, 104, 174, 150);
-      });
-      ellipse(
-        ctx,
-        129,
-        170,
-        59,
-        16,
-        material(ctx, 74, 156, 96, 32, ["#9d3d44", "#651d31", "#bc5c4c"]),
-      );
-      parcel(ctx, 31, 167, 35, 35, "#6b9469");
-      parcel(ctx, 169, 156, 31, 39, "#d1a274");
-      polygon(
-        ctx,
-        [
-          [22, 192],
-          [173, 192],
-          [221, 171],
-          [241, 172],
-          [211, 217],
-          [182, 232],
-          [57, 232],
-          [36, 220],
-        ],
-        material(ctx, 59, 172, 126, 63, ["#db795d", "#a84049", "#5d2031"]),
-      );
-      stroke(ctx, gold, 5, () => {
-        ctx.moveTo(34, 240);
-        ctx.lineTo(181, 240);
-        ctx.quadraticCurveTo(221, 240, 233, 219);
-      });
-      stroke(ctx, "#f6ca83", 2.5, () => {
-        ctx.moveTo(35, 199);
-        ctx.lineTo(172, 199);
-        ctx.quadraticCurveTo(201, 197, 225, 179);
-      });
+      drawAviatorSleighForeground(ctx);
       break;
     case "chimney":
-      bricks(ctx, 176);
-      fillRect(ctx, 0, 173, 256, 11, "#d1a38e");
-      ellipse(ctx, 20, 168, 54, 12, "#f1ded2");
-      ellipse(ctx, 227, 169, 52, 11, "#f1ded2");
-      for (const [x, y] of [
-        [33, 43],
-        [221, 77],
-        [213, 130],
-        [47, 134],
-      ])
-        star(ctx, x, y, 7);
+      drawChimneyForeground(ctx);
       break;
     case "snowglobe":
-      stroke(ctx, "#c9ebedb8", 3, () => ctx.arc(128, 114, 98, 0, Math.PI * 2));
-      stroke(ctx, "#e7fcffe0", 8, () =>
+      stroke(ctx, "#c9ebedb8", 3, () => ctx.arc(128, 114, 96, 0, Math.PI * 2));
+      stroke(ctx, "#e7fcffe0", 7, () =>
         ctx.arc(128, 113, 82, Math.PI * 1.09, Math.PI * 1.33),
       );
-      ellipse(ctx, 128, 201, 91, 18, "#eff3ed");
-      ellipse(ctx, 128, 225, 89, 26, "#875744");
-      ellipse(ctx, 128, 213, 87, 13, "#bf8560");
-      star(ctx, 128, 232, 10, cream);
+      ellipse(ctx, 128, 201, 88, 17, "#eff3ed");
+      ellipse(ctx, 128, 224, 86, 24, "#7a4d3b");
+      ellipse(ctx, 128, 212, 84, 12, "#b37b56");
+      star(ctx, 128, 229, 9, cream);
       break;
-    case "ornament": {
-      stroke(ctx, "#c7a56b", 1.5, () => {
-        ctx.moveTo(128, 0);
-        ctx.lineTo(128, 37);
-      });
-      fillRect(
-        ctx,
-        114,
-        37,
-        28,
-        15,
-        material(ctx, 114, 37, 28, 0, ["#a77439", "#f0d49b", "#9e733d"]),
-      );
-      ellipse(
-        ctx,
-        128,
-        136,
-        89,
-        89,
-        material(ctx, 60, 56, 160, 155, [
-          "#fff1c827",
-          "#a0e1e012",
-          "#f6d5a63b",
-        ]),
-      );
-      stroke(ctx, "#e9d5a1b0", 2.2, () =>
-        ctx.arc(128, 136, 89, 0, Math.PI * 2),
-      );
-      stroke(ctx, "#faf4dbb3", 5, () => ctx.arc(128, 136, 79, 3.59, 4.36));
-      stroke(ctx, "#afd0c995", 2.3, () => ctx.arc(128, 136, 79, 0.42, 1.52));
-      for (const [x, y, size] of [
-        [63, 101, 7],
-        [193, 106, 5],
-        [178, 190, 6],
-        [91, 205, 4],
-      ]) {
-        star(ctx, x, y, size, "#f4e6c0");
-      }
+    case "ornament":
+      drawOrnamentForeground(ctx);
       break;
-    }
     case "gingerbread":
       stroke(ctx, cream, 5, () =>
-        ctx.ellipse(128, 105, 66, 68, 0, 0, Math.PI * 2),
+        ctx.ellipse(128, 108, 65, 67, 0, 0, Math.PI * 2),
       );
       polygon(
         ctx,
@@ -582,13 +1038,12 @@ function drawForeground(ctx, scene, beard) {
           [154, 197],
           [154, 173],
         ],
-        red,
+        crimson,
       );
-      ellipse(ctx, 128, 184, 7, 7, "#d95854");
-      for (const y of [212, 236]) ellipse(ctx, 128, y, 7, 7, cream);
+      ellipse(ctx, 128, 184, 7, 7, brightRed);
+      for (const y of [210, 232]) ellipse(ctx, 128, y, 6.5, 6.5, cream);
       break;
   }
-  snow(ctx, 29, true);
 }
 
 export function drawAvatar(
@@ -602,12 +1057,30 @@ export function drawAvatar(
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext("2d", { alpha: false });
+  ctx.save();
   ctx.scale(size / 256, size / 256);
   ctx.imageSmoothingQuality = "high";
   drawBackground(ctx, chosen);
-  if (portrait)
-    drawFace(ctx, portrait, chosen.face, { zoom, offsetX, offsetY });
+  if (portrait) {
+    drawFace(
+      ctx,
+      portrait,
+      chosen.face,
+      { zoom, offsetX, offsetY },
+      chosen.hatShadow,
+    );
+  }
   drawForeground(ctx, chosen, beard);
+  drawMedallionFrame(ctx);
+  ctx.restore();
+
+  try {
+    const frameData = ctx.getImageData(0, 0, size, size);
+    applyAntiqueMedallionFinish(frameData.data, size, size, 6);
+    ctx.putImageData(frameData, 0, 0);
+  } catch {
+    // Skip grain if canvas readback is restricted
+  }
 }
 
 function toBlob(canvas, type, quality) {
