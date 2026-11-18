@@ -28,6 +28,9 @@ import { api, date, money, statusLabel, activeMember } from "./api.js";
 import { Button, Field, Notice, Modal } from "./ui.jsx";
 import EventEdit from "./EventEdit.jsx";
 import Avatar from "./Avatar.jsx";
+import NameTag from "./NameTag.jsx";
+import { GroupMemberPortraitCard } from "./HolidayPortrait.jsx";
+import { holidayIconMap } from "../shared/holidayPortrait.js";
 import EventTools from "./EventTools.jsx";
 import DrawExplanation from "./DrawExplanation.jsx";
 const Reveal = lazy(() => import("./Reveal.jsx"));
@@ -55,7 +58,9 @@ export default function Event({
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [busy, setBusy] = useState(false),
-    [confirm, setConfirm] = useState(null);
+    [confirm, setConfirm] = useState(null),
+    [renamingGroup, setRenamingGroup] = useState(false),
+    [selectedMemberId, setSelectedMemberId] = useState(null);
   const loadId = useRef(0);
   const isAdmin = data?.event.isAdmin;
   const tab = selectedTab === "admin" && !isAdmin ? "overview" : selectedTab;
@@ -136,9 +141,18 @@ export default function Event({
     <article className="event-page">
       <div className="event-heading">
         <div>
-          {event.groupName && event.groupName !== event.name ? (
-            <span className="eyebrow">{event.groupName}</span>
-          ) : null}
+          <div className="event-heading-title-row">
+            <span className="eyebrow">{event.groupName || event.name}</span>
+            {event.isAdmin ? (
+              <button
+                type="button"
+                className="text-button"
+                onClick={() => setRenamingGroup(true)}
+              >
+                Modifica nome gruppo
+              </button>
+            ) : null}
+          </div>
           <h1>{event.name}</h1>
         </div>
         <span className="status">{statusLabel(event.status)}</span>
@@ -255,7 +269,23 @@ export default function Event({
                   <div className="guest" key={m.id}>
                     <Avatar userId={m.userId} name={m.name} avatar={m.avatar} />
                     <span>
-                      {m.name}
+                      <span className="guest-identity">
+                        <span>{m.name}</span>
+                        {m.nickname && !m.badge ? (
+                          <small className="guest-realname">
+                            @{m.nickname}
+                          </small>
+                        ) : null}
+                        {m.badge ? (
+                          <NameTag
+                            badge={m.badge}
+                            name={m.name}
+                            nickname={m.nickname}
+                            badgeText={m.badgeText}
+                            size="sm"
+                          />
+                        ) : null}
+                      </span>
                       <small>
                         {m.status === "pending"
                           ? "In attesa di conferma"
@@ -263,6 +293,29 @@ export default function Event({
                             ? "Ha lasciato qualche indizio"
                             : "La lettera è ancora da scrivere"}
                       </small>
+                      {m.holidayStatus?.activity ? (
+                        <small>{m.holidayStatus.activity}</small>
+                      ) : null}
+                      {m.holidayStatus?.iconMessage?.length ? (
+                        <small>
+                          {m.holidayStatus.iconMessage
+                            .map((iconId) => holidayIconMap.get(iconId)?.emoji)
+                            .join(" ")}
+                        </small>
+                      ) : null}
+                      {m.portrait ||
+                      m.holidayStatus?.riddle ||
+                      m.holidayStatus?.activity ? (
+                        <button
+                          type="button"
+                          className="text-button guest-portrait-trigger"
+                          onClick={() => setSelectedMemberId(m.userId)}
+                        >
+                          {m.holidayStatus?.riddle
+                            ? "🧩 Indovinello e ritratto di Natale"
+                            : "✨ Ritratto di Natale"}
+                        </button>
+                      ) : null}
                     </span>
                     {m.hasWishlist ? <Mail size={17} /> : null}
                   </div>
@@ -328,7 +381,46 @@ export default function Event({
           setConfirm={setConfirm}
           onOpen={onOpen}
           setError={setError}
+          onRenameGroup={() => setRenamingGroup(true)}
         />
+      ) : null}
+      {renamingGroup && event.isAdmin ? (
+        <GroupRenameModal
+          event={event}
+          busy={busy}
+          onClose={() => setRenamingGroup(false)}
+          onSubmit={async (values) => {
+            const result = await action(
+              "rename",
+              values,
+              "Il nome del gruppo e dello scambio è stato aggiornato.",
+            );
+            if (result) setRenamingGroup(false);
+          }}
+        />
+      ) : null}
+      {selectedMemberId &&
+      members.find((m) => m.userId === selectedMemberId) ? (
+        <Modal
+          title={`Spirito di Natale · ${members.find((m) => m.userId === selectedMemberId).name}`}
+          onClose={() => setSelectedMemberId(null)}
+          wide
+        >
+          <GroupMemberPortraitCard
+            member={members.find((m) => m.userId === selectedMemberId)}
+            currentUserId={user.id}
+            interactions={data.portraitInteractions || []}
+            onInteract={async (payload) => {
+              const res = await api(
+                `/events/${id}/portrait-interact`,
+                "POST",
+                payload,
+              );
+              await load();
+              return res;
+            }}
+          />
+        </Modal>
       ) : null}
       {tab === "competition" &&
       (event.isAdmin || own?.status === "approved") ? (
@@ -540,7 +632,61 @@ function Wishlist({ initial, id, onSaved }) {
   );
 }
 
-function Admin({ data, busy, action, load, setConfirm, onOpen, setError }) {
+function GroupRenameModal({ event, busy, onClose, onSubmit }) {
+  const [groupName, setGroupName] = useState(event.groupName || event.name);
+  const [name, setName] = useState(event.name);
+  return (
+    <Modal title="Modifica nome del gruppo" onClose={onClose}>
+      <p>
+        Puoi aggiornare in qualsiasi momento il nome del gruppo e il titolo di
+        questa edizione dello scambio.
+      </p>
+      <form
+        className="form-stack"
+        onSubmit={(e) => {
+          e.preventDefault();
+          onSubmit({ groupName, name });
+        }}
+      >
+        <Field
+          label="Nome del gruppo"
+          name="groupName"
+          maxLength={100}
+          required
+          value={groupName}
+          onChange={(e) => setGroupName(e.target.value)}
+          hint="Resta associato al gruppo anche nelle prossime edizioni."
+        />
+        <Field
+          label="Nome dello scambio"
+          name="name"
+          maxLength={100}
+          required
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          hint="Il titolo di questa edizione."
+        />
+        <div className="form-actions">
+          <Button type="button" variant="ghost" onClick={onClose}>
+            Torna indietro
+          </Button>
+          <Button busy={busy}>Salva i nomi</Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function Admin({
+  data,
+  busy,
+  action,
+  load,
+  setConfirm,
+  onOpen,
+  setError,
+  onRenameGroup,
+}) {
   const { event, members = [], rules = [], invites = [] } = data;
   const [copied, setCopied] = useState(false),
     [emails, setEmails] = useState(""),
@@ -600,14 +746,19 @@ function Admin({ data, busy, action, load, setConfirm, onOpen, setError }) {
           </h2>
           <p>Puoi cambiare date, budget e messaggio fino all’estrazione.</p>
         </div>
-        <Button
-          variant="outline"
-          disabled={locked}
-          onClick={() => setEditing(true)}
-        >
-          <Settings2 size={16} />
-          Modifica l’evento
-        </Button>
+        <div className="button-row">
+          <Button variant="ghost" type="button" onClick={onRenameGroup}>
+            Rinomina gruppo
+          </Button>
+          <Button
+            variant="outline"
+            disabled={locked}
+            onClick={() => setEditing(true)}
+          >
+            <Settings2 size={16} />
+            Modifica l’evento
+          </Button>
+        </div>
       </section>
       <section>
         <div className="content-heading">
@@ -712,7 +863,21 @@ function Admin({ data, busy, action, load, setConfirm, onOpen, setError }) {
           members.map((m) => (
             <div className="simple-row" key={m.id}>
               <span>
-                <strong>{m.name}</strong>
+                <span className="guest-identity">
+                  <strong>{m.name}</strong>
+                  {m.nickname && !m.badge ? (
+                    <small className="guest-realname">@{m.nickname}</small>
+                  ) : null}
+                  {m.badge ? (
+                    <NameTag
+                      badge={m.badge}
+                      name={m.name}
+                      nickname={m.nickname}
+                      badgeText={m.badgeText}
+                      size="sm"
+                    />
+                  ) : null}
+                </span>
                 <small>{m.email || ""}</small>
               </span>
               <span>

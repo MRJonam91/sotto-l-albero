@@ -13,6 +13,13 @@ import { first, all, run, sendMail } from "./auth.js";
 import { matchParticipants } from "./matching.js";
 import { registrationNotice } from "./notifications.js";
 import { archiveCompetition } from "./competition.js";
+import {
+  checkRiddleGuess,
+  computeHolidayPortrait,
+  holidayIconMap,
+  parseHolidayProfile,
+} from "../shared/holidayPortrait.js";
+import { telegramAvailable, telegramMessage } from "./telegram.js";
 const nowIso = () => new Date().toISOString();
 const stmt = (db, sql, ...args) => db.prepare(sql).bind(...args);
 const audit = (db, eventId, userId, action) =>
@@ -380,7 +387,7 @@ export async function eventRoute(request, env, path, body, user) {
 
     const recipient = await first(
       db,
-      `SELECT u.name,receiver.wishlist FROM assignments a
+      `SELECT u.name,u.nickname,u.badge,u.badge_text AS badgeText,receiver.wishlist FROM assignments a
        JOIN events current ON current.id=a.event_id AND current.version=a.version
        JOIN members giver ON giver.id=a.giver_id AND giver.event_id=current.id AND giver.status='approved'
        JOIN members receiver ON receiver.id=a.receiver_id AND receiver.event_id=current.id AND receiver.status='approved'
@@ -399,6 +406,9 @@ export async function eventRoute(request, env, path, body, user) {
     return json({
       recipient: {
         name: recipient.name,
+        nickname: recipient.nickname || "",
+        badge: recipient.badge || null,
+        badgeText: recipient.badgeText || "nickname",
         wishlist: JSON.parse(recipient.wishlist),
       },
     });
@@ -406,7 +416,14 @@ export async function eventRoute(request, env, path, body, user) {
   if (action === "" && method === "GET") {
     const members = await all(
       db,
-      "SELECT m.id,m.user_id AS userId,u.name,m.status,m.wishlist,av.kind AS avatar_kind,CASE WHEN av.kind='photo' THEN av.revision ELSE av.preset END AS avatar_value FROM members m JOIN users u ON u.id=m.user_id LEFT JOIN user_avatars av ON av.user_id=u.id WHERE m.event_id=? AND m.status!='removed' ORDER BY m.updated_at",
+      `SELECT m.id,m.user_id AS userId,u.name,u.nickname,u.badge,u.badge_text AS badgeText,
+       u.holiday_profile AS holidayProfileRaw,
+       (SELECT COUNT(DISTINCT stamp) FROM user_stamps WHERE user_id=u.id) AS stampsCount,
+       (SELECT COUNT(*) FROM competition_attempts WHERE user_id=u.id AND raw_score IS NOT NULL) +
+       (SELECT COUNT(*) FROM practice_games WHERE user_id=u.id AND done=1) AS gamesPlayed,
+       m.status,m.wishlist,av.kind AS avatar_kind,CASE WHEN av.kind='photo' THEN av.revision ELSE av.preset END AS avatar_value
+       FROM members m JOIN users u ON u.id=m.user_id LEFT JOIN user_avatars av ON av.user_id=u.id
+       WHERE m.event_id=? AND m.status!='removed' ORDER BY m.updated_at`,
       eid,
     );
     const rules =
@@ -431,6 +448,20 @@ export async function eventRoute(request, env, path, body, user) {
             m.userId === user.id ||
             (member?.status === "approved" && m.status === "approved"),
         );
+    const interactions =
+      admin || member?.status === "approved"
+        ? await all(
+            db,
+            `SELECT p.id,p.sender_id AS senderId,s.name AS senderName,s.nickname AS senderNickname,
+             p.receiver_id AS receiverId,r.name AS receiverName,p.kind,p.icon,p.message,p.correct,p.created_at AS createdAt
+             FROM portrait_interactions p
+             JOIN users s ON s.id=p.sender_id
+             JOIN users r ON r.id=p.receiver_id
+             WHERE p.event_id=?
+             ORDER BY p.created_at DESC LIMIT 30`,
+            eid,
+          )
+        : [];
     return json({
       event: outputEvent(
         e,
@@ -438,18 +469,193 @@ export async function eventRoute(request, env, path, body, user) {
         members.filter((x) => x.status === "approved").length,
       ),
       members: visibleMembers.map(
-        ({ wishlist, avatar_kind, avatar_value, ...m }) => ({
-          ...m,
-          hasWishlist: JSON.parse(wishlist).length > 0,
-          ...(avatar_value &&
-          (m.status === "approved" || admin || m.userId === user.id)
-            ? { avatar: { kind: avatar_kind, value: avatar_value } }
-            : {}),
-        }),
+        ({
+          wishlist,
+          avatar_kind,
+          avatar_value,
+          nickname,
+          badge,
+          badgeText,
+          holidayProfileRaw,
+          stampsCount,
+          gamesPlayed,
+          ...m
+        }) => {
+          const canSeePortrait =
+            m.status === "approved" || admin || m.userId === user.id;
+          const hp = parseHolidayProfile(holidayProfileRaw);
+          const computed = canSeePortrait
+            ? computeHolidayPortrait(hp, {
+                name: m.name,
+                nickname,
+                badge,
+                stampsCount: stampsCount || 0,
+                gamesPlayed: gamesPlayed || 0,
+              })
+            : null;
+          return {
+            ...m,
+            nickname: nickname || "",
+            badge: badge || null,
+            badgeText: badgeText || "nickname",
+            hasWishlist: JSON.parse(wishlist).length > 0,
+            ...(avatar_value && canSeePortrait
+              ? { avatar: { kind: avatar_kind, value: avatar_value } }
+              : {}),
+            ...(canSeePortrait
+              ? {
+                  holidayStatus: {
+                    quote: hp.quote,
+                    activity: hp.activity,
+                    iconMessage: hp.iconMessage,
+                    iconCaption: hp.iconCaption,
+                    riddle: hp.riddle,
+                    riddleHint: hp.riddleHint,
+                    hasRiddleAnswer: Boolean(hp.riddleAnswer),
+                    answers: hp.answers,
+                    portraitApproved: hp.portraitApproved,
+                  },
+                  portrait: hp.portraitApproved
+                    ? {
+                        completeness: computed.completeness,
+                        confidenceLevel: computed.confidenceLevel,
+                        confidencePct: computed.confidencePct,
+                        skippedCount: computed.skippedCount,
+                        ignoredToday: computed.ignoredToday,
+                        finalDescription: computed.finalDescription,
+                        tastes: computed.tastes,
+                        characterMatches: computed.characterMatches,
+                        topCharacter: computed.topCharacter,
+                        spiritScene: computed.spiritScene,
+                      }
+                    : null,
+                }
+              : {}),
+          };
+        },
       ),
+      portraitInteractions: interactions.map((item) => ({
+        ...item,
+        correct: !!item.correct,
+        // Mask wrong or unverified riddle guesses for everyone except sender and receiver so solutions aren't spoiled
+        message:
+          item.kind === "riddle_guess" &&
+          item.correct &&
+          item.senderId !== user.id &&
+          item.receiverId !== user.id
+            ? "Ha indovinato la soluzione! 🎉"
+            : item.message,
+      })),
       rules,
       wishlist: member ? JSON.parse(member.wishlist) : [],
       invites,
+    });
+  }
+  if (action === "portrait-interact" && method === "POST") {
+    if (!admin && (!member || member.status !== "approved"))
+      throw new HttpError(
+        "Solo i partecipanti confermati possono interagire nel gruppo.",
+        403,
+      );
+    const targetUserId = safeText(body?.targetUserId, 64, true);
+    const kind = body?.kind === "riddle_guess" ? "riddle_guess" : "icon_note";
+    const message = safeText(body?.message, 240, true);
+    const icon = body?.icon && holidayIconMap.has(body.icon) ? body.icon : "🎄";
+    const targetMember = await first(
+      db,
+      `SELECT u.id,u.name,u.nickname,u.email,u.notify_email,u.notify_telegram,u.telegram_chat_id,u.holiday_profile
+       FROM members m JOIN users u ON u.id=m.user_id
+       WHERE m.event_id=? AND m.user_id=? AND m.status='approved'`,
+      eid,
+      targetUserId,
+    );
+    if (!targetMember)
+      throw new HttpError("Partecipante non trovato nel gruppo.", 404);
+    const targetHp = parseHolidayProfile(targetMember.holiday_profile);
+    const correct =
+      kind === "riddle_guess" && targetHp.riddleAnswer
+        ? checkRiddleGuess(message, targetHp.riddleAnswer)
+        : false;
+    const interactionId = id();
+    const createdAt = nowIso();
+    const batch = [
+      stmt(
+        db,
+        `INSERT INTO portrait_interactions(id,event_id,sender_id,receiver_id,kind,icon,message,correct,created_at)
+         VALUES(?,?,?,?,?,?,?,?,?)`,
+        interactionId,
+        eid,
+        user.id,
+        targetUserId,
+        kind,
+        icon,
+        message,
+        correct ? 1 : 0,
+        createdAt,
+      ),
+    ];
+    if (targetUserId !== user.id && targetMember.notify_email) {
+      const senderLabel = user.nickname || user.name;
+      const subject =
+        kind === "riddle_guess"
+          ? `${senderLabel} ha provato il tuo indovinello in ${e.name}`
+          : `${senderLabel} ti ha mandato un messaggio natalizio in ${e.name}`;
+      const emoji = holidayIconMap.get(icon)?.emoji || "🎄";
+      const html =
+        kind === "riddle_guess"
+          ? `<p><strong>${escapeHtml(senderLabel)}</strong> ha risposto al tuo indovinello del giorno in <strong>${escapeHtml(e.name)}</strong>: “${escapeHtml(message)}” ${correct ? "(Indovinato! 🎉)" : ""}.</p><p><a href="${escapeHtml(env.APP_URL || "")}/events/${eid}">Apri il gruppo</a></p>`
+          : `<p>${emoji} <strong>${escapeHtml(senderLabel)}</strong> ti ha lasciato un pensiero natalizio in <strong>${escapeHtml(e.name)}</strong>: “${escapeHtml(message)}”.</p><p><a href="${escapeHtml(env.APP_URL || "")}/events/${eid}">Apri il gruppo</a></p>`;
+      batch.push(
+        stmt(
+          db,
+          "INSERT OR IGNORE INTO outbox(id,event_id,version,email,subject,html) VALUES(?,?,?,?,?,?)",
+          interactionId,
+          eid,
+          // A portrait mail is deduplicated by interaction ID, not draw/invite
+          // version. NULL avoids colliding with another message's subject.
+          null,
+          targetMember.email,
+          subject,
+          html,
+        ),
+      );
+    }
+    await db.batch(batch);
+    if (
+      targetUserId !== user.id &&
+      targetMember.notify_telegram &&
+      targetMember.telegram_chat_id &&
+      telegramAvailable(env)
+    ) {
+      const senderLabel = user.nickname || user.name;
+      const emoji = holidayIconMap.get(icon)?.emoji || "🎄";
+      const text =
+        kind === "riddle_guess"
+          ? `🎄 ${senderLabel} ha risposto al tuo indovinello in ${e.name}: “${message}”${correct ? " (Indovinato! 🎉)" : ""}`
+          : `${emoji} ${senderLabel} ti ha mandato un pensiero natalizio in ${e.name}: “${message}”`;
+      try {
+        await telegramMessage(env, targetMember.telegram_chat_id, text);
+      } catch {
+        // Non bloccare la risposta se Telegram non è raggiungibile.
+      }
+    }
+    return json({
+      ok: true,
+      correct,
+      hasAnswer: Boolean(targetHp.riddleAnswer),
+      interaction: {
+        id: interactionId,
+        senderId: user.id,
+        senderName: user.name,
+        senderNickname: user.nickname || "",
+        receiverId: targetUserId,
+        receiverName: targetMember.name,
+        kind,
+        icon,
+        message,
+        correct,
+        createdAt,
+      },
     });
   }
   if (action === "wishlist" && method === "PUT") {
@@ -549,6 +755,43 @@ export async function eventRoute(request, env, path, body, user) {
       );
     return json({ ok: true }, 201);
   }
+  if (
+    (action === "rename" && method === "POST") ||
+    (action === "group" && (method === "PUT" || method === "POST"))
+  ) {
+    const hasName =
+      Object.hasOwn(body, "name") && String(body.name ?? "").trim() !== "";
+    const hasGroupName =
+      Object.hasOwn(body, "groupName") &&
+      String(body.groupName ?? "").trim() !== "";
+    if (!hasName && !hasGroupName)
+      throw new HttpError("Indica il nuovo nome del gruppo o dell’evento.");
+    const nextName = hasName ? safeText(body.name, 100, true) : e.name;
+    const nextGroupName = hasGroupName
+      ? safeText(body.groupName, 100, true)
+      : hasName && !Object.hasOwn(body, "groupName") && e.group_name === e.name
+        ? nextName
+        : e.group_name;
+    await db.batch([
+      stmt(
+        db,
+        "UPDATE groups SET name=? WHERE id=?",
+        nextGroupName,
+        e.group_id,
+      ),
+      stmt(db, "UPDATE events SET name=? WHERE id=?", nextName, eid),
+      audit(db, eid, user.id, "rename"),
+    ]);
+    const updated = await first(
+      db,
+      "SELECT e.*,g.name AS group_name,(SELECT COUNT(*) FROM members x WHERE x.event_id=e.id AND x.status='approved') AS member_count FROM events e JOIN groups g ON g.id=e.group_id WHERE e.id=?",
+      eid,
+    );
+    return json({
+      ok: true,
+      event: outputEvent(updated, user, updated.member_count),
+    });
+  }
   if (action === "" && method === "PUT") {
     mutable(e);
     if (!Number.isInteger(body.version) || body.version !== e.version)
@@ -557,6 +800,12 @@ export async function eventRoute(request, env, path, body, user) {
         409,
       );
     const name = safeText(body.name, 100, true),
+      hasGroupName = Object.hasOwn(body, "groupName"),
+      groupName = hasGroupName
+        ? safeText(body.groupName, 100) || name
+        : e.group_name === e.name
+          ? name
+          : e.group_name,
       description = safeText(body.description, 2000),
       budget = Number(body.budget),
       depth = body.historyDepth ?? e.history_depth;
@@ -580,6 +829,14 @@ export async function eventRoute(request, env, path, body, user) {
         claim,
         eid,
         body.version,
+      ),
+      stmt(
+        db,
+        "UPDATE groups SET name=? WHERE id=? AND EXISTS(SELECT 1 FROM events WHERE id=? AND draw_token=?)",
+        groupName,
+        e.group_id,
+        eid,
+        claim,
       ),
       stmt(
         db,
@@ -1008,15 +1265,31 @@ export async function scheduled(env) {
         mail.id,
       );
       if (claim.meta.changes !== 1) continue;
-      if (
-        mail.version >= 0 &&
-        !(await first(
+      const portraitEligible =
+        mail.version !== null ||
+        (await first(
           env.DB,
-          "SELECT 1 FROM events e JOIN members m ON m.event_id=e.id JOIN users u ON u.id=m.user_id WHERE e.id=? AND e.version=? AND e.status='drawn' AND m.status='approved' AND u.email=? AND u.notify_email=1 AND EXISTS(SELECT 1 FROM assignments a WHERE a.event_id=e.id AND a.version=e.version AND a.giver_id=m.id)",
+          `SELECT 1 FROM portrait_interactions p
+         JOIN events e ON e.id=p.event_id
+         JOIN members m ON m.event_id=p.event_id AND m.user_id=p.receiver_id
+         JOIN users u ON u.id=p.receiver_id
+         WHERE p.id=? AND p.event_id=? AND e.status!='archived'
+           AND m.status='approved' AND u.email=? AND u.notify_email=1`,
+          mail.id,
           mail.event_id,
-          mail.version,
           mail.email,
-        ))
+        ));
+      if (
+        !portraitEligible ||
+        (mail.version !== null &&
+          mail.version >= 0 &&
+          !(await first(
+            env.DB,
+            "SELECT 1 FROM events e JOIN members m ON m.event_id=e.id JOIN users u ON u.id=m.user_id WHERE e.id=? AND e.version=? AND e.status='drawn' AND m.status='approved' AND u.email=? AND u.notify_email=1 AND EXISTS(SELECT 1 FROM assignments a WHERE a.event_id=e.id AND a.version=e.version AND a.giver_id=m.id)",
+            mail.event_id,
+            mail.version,
+            mail.email,
+          )))
       ) {
         await run(
           env.DB,

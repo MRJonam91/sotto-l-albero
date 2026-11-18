@@ -10,6 +10,7 @@ import {
   json,
   escapeHtml,
 } from "./security.js";
+import { parseHolidayProfile, romeToday } from "../shared/holidayPortrait.js";
 export const first = (db, sql, ...args) =>
   db
     .prepare(sql)
@@ -63,18 +64,31 @@ export async function currentUser(request, env) {
   return { ...u, organizer: !!u.organizer };
 }
 function publicUser(user) {
-  return (
-    user && {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      phone: user.phone,
-      avatar: user.avatar_value
-        ? { kind: user.avatar_kind, value: user.avatar_value }
-        : null,
-      organizer: !!user.organizer,
-    }
-  );
+  if (!user) return null;
+  const holidayProfile = parseHolidayProfile(user.holiday_profile);
+  const today = romeToday();
+  return {
+    id: user.id,
+    name: user.name,
+    nickname: user.nickname || "",
+    badge: user.badge || null,
+    badgeText: user.badge_text || "nickname",
+    holidayProfile,
+    dailyCheckin: {
+      today,
+      pendingToday: holidayProfile.lastPromptDate !== today,
+      lastPromptDate: holidayProfile.lastPromptDate,
+      lastPromptStatus: holidayProfile.lastPromptStatus,
+      skippedCount: holidayProfile.skippedDates.length,
+      completedCount: holidayProfile.completedDates.length,
+    },
+    email: user.email,
+    phone: user.phone,
+    avatar: user.avatar_value
+      ? { kind: user.avatar_kind, value: user.avatar_value }
+      : null,
+    organizer: !!user.organizer,
+  };
 }
 export async function authRoute(request, env, path, body, user) {
   const local = isLocalRequest(request, env);

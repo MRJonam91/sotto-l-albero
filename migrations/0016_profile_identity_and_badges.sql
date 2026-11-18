@@ -1,0 +1,3 @@
+ALTER TABLE users ADD COLUMN nickname TEXT;
+ALTER TABLE users ADD COLUMN badge TEXT;
+ALTER TABLE users ADD COLUMN badge_text TEXT NOT NULL DEFAULT 'nickname';

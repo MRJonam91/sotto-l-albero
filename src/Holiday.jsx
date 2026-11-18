@@ -23,6 +23,7 @@ import {
 import { isStampAvailable, stamps } from "../shared/stamps.js";
 import HolidayFigure from "./HolidayFigure.jsx";
 import MemoryBoard from "./MemoryBoard.jsx";
+import MovieClueStage from "./MovieClueStage.jsx";
 import { Button, Notice } from "./ui.jsx";
 import { api } from "./api.js";
 import { treasureStories } from "./treasureStories.js";
@@ -399,6 +400,176 @@ function Quiz({ collection }) {
   );
 }
 
+const optionLetters = ["A", "B", "C", "D"];
+
+function FilmQuiz() {
+  const game = usePractice("film");
+  const [next, setNext] = useState(null);
+  const heading = useRef(null);
+  const { state } = game;
+  const question = state?.question,
+    answer = next?.feedback;
+  const timeLimit = state?.timeLimit;
+  const deadline = state?.deadline;
+  const [timeLeft, setTimeLeft] = useState(0);
+  const expire = useEffectEvent(() => game.step({ timeout: true }, setNext));
+
+  useEffect(() => {
+    heading.current?.focus();
+  }, [state?.index]);
+
+  useEffect(() => {
+    if (deadline === undefined || next || game.busy || game.error) return;
+    const tick = () => {
+      const remaining = Math.max(
+        0,
+        Math.ceil((deadline - performance.now()) / 1000),
+      );
+      setTimeLeft(remaining);
+      if (remaining <= 0) {
+        clearInterval(interval);
+        expire();
+      }
+    };
+    const interval = setInterval(tick, 200);
+    tick();
+    return () => clearInterval(interval);
+  }, [deadline, next, game.busy, game.error]);
+
+  return (
+    <div className="holiday-game paper">
+      <PracticeNotice game={game} />
+      {!state ? (
+        <p role="status">Prepariamo la pellicola…</p>
+      ) : question ? (
+        <>
+          <div className="quiz-timer-wrap">
+            <div className="quiz-timer-header">
+              <span className="game-progress">
+                Film {state.index + 1} di {state.total}
+              </span>
+              <span
+                role="timer"
+                className={`quiz-timer-count ${timeLeft <= 5 ? "urgent" : ""}`}
+              >
+                ⏱️ {timeLeft}s
+              </span>
+            </div>
+            <div className="quiz-timer-track" aria-hidden="true">
+              <div
+                className={`quiz-timer-fill ${timeLeft <= 5 ? "urgent" : ""}`}
+                style={{ width: `${(timeLeft / timeLimit) * 100}%` }}
+              />
+            </div>
+          </div>
+          <h2 ref={heading} tabIndex={-1}>
+            {question.title}
+          </h2>
+          <MovieClueStage
+            index={state.index}
+            prompt={question.prompt}
+            icons={question.icons}
+          />
+          <div className="quiz-options movie-options">
+            {question.options.map((label, i) => {
+              const optionState = answer
+                ? answer.answer === i
+                  ? "is-correct"
+                  : answer.choice === i
+                    ? "is-wrong"
+                    : ""
+                : "";
+              return (
+                <button
+                  key={label}
+                  type="button"
+                  className={`movie-option ${optionState}`}
+                  data-letter={optionLetters[i]}
+                  aria-pressed={answer?.choice === i}
+                  aria-disabled={!!next || game.busy}
+                  onClick={() => {
+                    if (!next && !game.busy) game.step({ choice: i }, setNext);
+                  }}
+                >
+                  {label}
+                  {answer?.answer === i && (
+                    <Check size={18} aria-hidden="true" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          {answer ? (
+            <div
+              className="movie-trivia-box"
+              role="status"
+              data-result={
+                answer.correct
+                  ? "correct"
+                  : answer.choice === -1
+                    ? "timeout"
+                    : "wrong"
+              }
+            >
+              <strong className="movie-trivia-status">
+                {answer.correct
+                  ? `Esatto! È proprio ${answer.title} (${answer.year}).`
+                  : answer.choice === -1
+                    ? `Tempo scaduto! Il film era ${answer.title} (${answer.year}).`
+                    : `Risposta esatta: ${answer.title} (${answer.year}).`}
+              </strong>
+              <p>{answer.note}</p>
+            </div>
+          ) : (
+            <p className="game-feedback" role="status">
+              Osserva le icone e scegli uno dei quattro film.
+            </p>
+          )}
+          {next && (
+            <Button
+              type="button"
+              busy={game.busy}
+              onClick={async () => {
+                if (next.done) {
+                  game.setState(next);
+                  setNext(null);
+                } else if (await game.resume()) {
+                  setNext(null);
+                }
+              }}
+            >
+              {next.done ? "Vedi il risultato" : "Prossimo film"}
+            </Button>
+          )}
+        </>
+      ) : (
+        <>
+          <h2 ref={heading} tabIndex={-1}>
+            Partita completata
+          </h2>
+          <div className="movie-score-card">
+            <span className="movie-score-badge">
+              {state.score} / {state.total}
+            </span>
+            <p>
+              Hai indovinato {state.score} film su {state.total} dal catalogo
+              dei 100 film di Natale.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            busy={game.busy}
+            onClick={game.reset}
+          >
+            Rigioca
+          </Button>
+        </>
+      )}
+    </div>
+  );
+}
+
 function Memory({ collection }) {
   const game = usePractice("memory");
   const { state } = game;
@@ -655,17 +826,18 @@ function Games({ collection, onAlbum, onDiscover, onGroups, onCompete }) {
       <div ref={playArea} tabIndex={-1}>
         {game === "quiz" && <Quiz collection={collection} />}
         {game === "memory" && <Memory collection={collection} />}
+        {game === "film" && <FilmQuiz />}
         {game === "curling" && (
           <Suspense fallback={<p role="status">Prepariamo il ghiaccio…</p>}>
             <CurlingGame onClose={() => setGame(null)} />
           </Suspense>
         )}
-        {game && !["quiz", "memory", "curling"].includes(game) && (
+        {game && !["quiz", "memory", "curling", "film"].includes(game) && (
           <PracticeChallenge key={game} gameId={game} />
         )}
         {!game && (
           <p className="quiet">
-            Otto giochi, un solo posto per trovarli. Da dove cominciamo?
+            Nove giochi, un solo posto per trovarli. Da dove cominciamo?
           </p>
         )}
       </div>

@@ -85,12 +85,87 @@ describe("Catalogo allenamento", () => {
     expect(catalog.data.games.map((game) => game.id).sort()).toEqual([
       "addobbi",
       "cartolina",
+      "film",
       "memory",
       "pacchi",
       "quiz",
       "slitta",
       "tris",
     ]);
+    expect(rankedSnapshot()).toEqual(before);
+  });
+
+  it("allena Indovina il film con 10 film a icone, 4 opzioni e timer da 20 secondi senza cambiare la classifica", async () => {
+    let now = Date.now();
+    vi.spyOn(Date, "now").mockImplementation(() => now);
+    const before = rankedSnapshot();
+    let result = await api("film");
+    expect(result.status).toBe(200);
+    expect(result.data).toMatchObject({
+      done: false,
+      index: 0,
+      total: 10,
+      timeLimit: 20,
+      timeRemaining: 20_000,
+    });
+    expect(typeof result.data.question.prompt).toBe("string");
+    expect(result.data.question.prompt.length).toBeGreaterThan(5);
+    expect(result.data.question.icons).toHaveLength(5);
+    expect(result.data.question.options).toHaveLength(4);
+    expect(new Set(result.data.question.options).size).toBe(4);
+    expect(result.data.question).not.toHaveProperty("answer");
+
+    for (let i = 0; i < 10; i++) {
+      const stored = JSON.parse(
+        sql
+          .prepare(
+            "SELECT state FROM practice_games WHERE user_id='learner' AND game='film'",
+          )
+          .get().state,
+      );
+      const question = stored.questions[i];
+      if (i === 9) {
+        now += 21_000;
+        result = await api("film", "step", {
+          revision: result.data.revision,
+          timeout: true,
+        });
+        expect(result.status).toBe(200);
+        expect(result.data.feedback).toMatchObject({
+          choice: -1,
+          correct: false,
+          title: question.options[question.answer],
+          year: question.year,
+          note: question.note,
+        });
+        expect(result.data.feedback.text).toContain("Tempo scaduto!");
+      } else {
+        result = await api("film", "step", {
+          revision: result.data.revision,
+          choice: question.answer,
+        });
+        expect(result.status).toBe(200);
+        expect(result.data.feedback).toMatchObject({
+          choice: question.answer,
+          answer: question.answer,
+          correct: true,
+          title: question.options[question.answer],
+          year: question.year,
+          note: question.note,
+        });
+        expect(result.data.feedback.text).toContain("Esatto!");
+        expect(result.data.feedback.text).toContain(question.note);
+        result = await api("film", "start");
+        expect(result.status).toBe(200);
+        expect(result.data.timeRemaining).toBe(20_000);
+      }
+    }
+    expect(result.data).toMatchObject({
+      done: true,
+      index: 10,
+      total: 10,
+      score: 9,
+    });
     expect(rankedSnapshot()).toEqual(before);
   });
 

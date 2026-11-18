@@ -1,6 +1,7 @@
 import { all, first, run } from "./auth.js";
 import { HttpError, id, json, safeText } from "./security.js";
 import { createMemoryDeck, memoryCardCount } from "../shared/memory.js";
+import { createMovieQuestions } from "../shared/christmasMovies.js";
 import { quizQuestions } from "../shared/quizQuestions.js";
 import {
   officialChallenge,
@@ -18,7 +19,7 @@ import {
 
 const DAY = 86_400_000;
 const QUESTION_TIME = 20_000;
-const isTimed = (game) => game === "quiz" || game === "duel";
+const isTimed = (game) => game === "quiz" || game === "duel" || game === "film";
 const multipliers = [1, 0.95, 0.9];
 const games = {
   ...gameDefinitions,
@@ -94,14 +95,78 @@ function shuffled(values) {
   return copy;
 }
 
+const quizNotesByText = new Map(
+  quizQuestions.map(([text, , , note]) => [text, note ?? ""]),
+);
+
+function parseState(raw) {
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function answerOutcome(entry) {
+  if (!entry) return null;
+  if (entry.timedOut) return "timeout";
+  return entry.correct ? "correct" : "wrong";
+}
+
+function buildQuizReview(state, opponent = null) {
+  const myAnswers = Array.isArray(state.answers) ? state.answers : [];
+  const oppAnswers =
+    opponent && Array.isArray(opponent.state?.answers)
+      ? opponent.state.answers
+      : null;
+  const items = state.questions.map((question, index) => {
+    const mine = myAnswers[index] ?? null;
+    const theirs = oppAnswers?.[index] ?? null;
+    return {
+      text: question.text,
+      ...(question.icons
+        ? { icons: question.icons, prompt: question.prompt }
+        : {}),
+      options: question.options,
+      correctAnswer: question.answer,
+      note: question.note ?? quizNotesByText.get(question.text) ?? "",
+      myChoice: mine ? mine.choice : -1,
+      myOutcome: answerOutcome(mine),
+      ...(opponent
+        ? {
+            opponentChoice: theirs ? theirs.choice : -1,
+            opponentOutcome: answerOutcome(theirs),
+          }
+        : {}),
+    };
+  });
+  return {
+    oneTime: true,
+    correctCount: state.correct,
+    total: state.questions.length,
+    ...(opponent
+      ? {
+          opponent: {
+            name: opponent.name,
+            correctCount: opponent.state?.correct ?? 0,
+            score: opponent.rawScore,
+          },
+        }
+      : {}),
+    items,
+  };
+}
+
 function questionSet() {
   const selected = shuffled(quizQuestions).slice(0, 10);
-  return selected.map(([text, options, answer]) => {
+  return selected.map(([text, options, answer, note]) => {
     const order = shuffled(options.map((_, index) => index));
     return {
       text,
       options: order.map((index) => options[index]),
       answer: order.indexOf(answer),
+      note,
     };
   });
 }
@@ -205,7 +270,14 @@ function publicAttempt(attempt, now) {
     ...result,
     progress: state.index,
     total: state.questions.length,
-    question: done ? null : { text: question.text, options: question.options },
+    question: done
+      ? null
+      : {
+          text: question.text,
+          ...(question.prompt ? { prompt: question.prompt } : {}),
+          options: question.options,
+          ...(question.icons ? { icons: question.icons } : {}),
+        },
     ...(!done && isTimed(attempt.game)
       ? {
           timeLimit: QUESTION_TIME / 1000,
@@ -220,7 +292,8 @@ async function duelList(db, eventId, userId, now) {
     db,
     `
     SELECT d.id,d.sender_id,d.receiver_id,d.expires,s.name AS senderName,r.name AS receiverName,
-      sa.raw_score AS senderScore,ra.raw_score AS receiverScore
+      sa.raw_score AS senderScore,ra.raw_score AS receiverScore,
+      sa.state AS senderState,ra.state AS receiverState
     FROM competition_duels d
     JOIN users s ON s.id=d.sender_id JOIN users r ON r.id=d.receiver_id
     LEFT JOIN competition_attempts sa ON sa.event_id=d.event_id AND sa.duel_id=d.id AND sa.user_id=d.sender_id
@@ -236,6 +309,23 @@ async function duelList(db, eventId, userId, now) {
     const done = row.senderScore !== null && row.receiverScore !== null;
     const expired = row.expires <= now;
     const fromMe = row.sender_id === userId;
+    const myDone = (fromMe ? row.senderScore : row.receiverScore) !== null;
+    const myState = myDone
+      ? parseState(fromMe ? row.senderState : row.receiverState)
+      : null;
+    const theirState = done
+      ? parseState(fromMe ? row.receiverState : row.senderState)
+      : null;
+    const hasOutcomes =
+      myDone &&
+      Array.isArray(myState?.questions) &&
+      Array.isArray(myState?.answers);
+    const roundOutcomes = hasOutcomes
+      ? myState.questions.map((_, index) => ({
+          me: answerOutcome(myState.answers[index]),
+          opponent: done ? answerOutcome(theirState?.answers?.[index]) : null,
+        }))
+      : null;
     return {
       id: row.id,
       fromMe,
@@ -243,7 +333,7 @@ async function duelList(db, eventId, userId, now) {
         userId: fromMe ? row.receiver_id : row.sender_id,
         name: fromMe ? row.receiverName : row.senderName,
       },
-      myDone: (fromMe ? row.senderScore : row.receiverScore) !== null,
+      myDone,
       expired,
       scores:
         done || expired
@@ -252,6 +342,9 @@ async function duelList(db, eventId, userId, now) {
               [row.receiver_id]: row.receiverScore,
             }
           : null,
+      roundOutcomes,
+      reviewAvailable: Boolean(done && hasOutcomes && !myState?.duelReviewSeen),
+      reviewSeen: Boolean(myState?.duelReviewSeen),
     };
   });
 }
@@ -268,6 +361,31 @@ async function board(db, context, userId, now) {
     event.id,
     userId,
   );
+  const quizAttempts = event.approved
+    ? await all(
+        db,
+        `
+        SELECT ordinal,score,state FROM competition_attempts
+        WHERE event_id=? AND user_id=? AND game='quiz' AND duel_id='' AND raw_score IS NOT NULL
+        ORDER BY ordinal
+      `,
+        event.id,
+        userId,
+      )
+    : [];
+  const quizHistory = quizAttempts.map((row) => {
+    const state = parseState(row.state);
+    const questions = Array.isArray(state?.questions) ? state.questions : [];
+    return {
+      ordinal: row.ordinal,
+      score: row.score,
+      correct: state?.correct ?? 0,
+      total: questions.length,
+      outcomes: Array.isArray(state?.answers)
+        ? questions.map((_, index) => answerOutcome(state.answers[index]))
+        : null,
+    };
+  });
   const active =
     event.approved && !closed
       ? await all(
@@ -295,6 +413,9 @@ async function board(db, context, userId, now) {
         limit: multipliers.length,
         attempts: total?.attempts ?? 0,
         best: total?.best ?? null,
+        ...(key === "quiz" && quizHistory.length
+          ? { history: quizHistory }
+          : {}),
       };
     }),
     leaderboard,
@@ -404,9 +525,14 @@ async function startGame(db, context, body, userId, now) {
       ? newRankedMemory()
       : (newInteractiveChallenge(game) ??
         officialChallenge(game) ?? {
-          questions: duel ? JSON.parse(duel.questions) : questionSet(),
+          questions: duel
+            ? JSON.parse(duel.questions)
+            : game === "film"
+              ? createMovieQuestions(10, shuffled)
+              : questionSet(),
           index: 0,
           correct: 0,
+          answers: [],
           ...(isTimed(game) ? { questionDeadline: now + QUESTION_TIME } : {}),
         });
   const expiry = Math.min(duel ? duel.expires : now + DAY, yearEnd(year));
@@ -489,6 +615,12 @@ function turnQuiz(state, game, body, now) {
     }
     if (choice === question.answer) state.correct++;
   }
+  state.answers ??= [];
+  state.answers[state.index] = {
+    choice: expired ? -1 : choice,
+    correct: !expired && choice === question.answer,
+    timedOut: expired,
+  };
   state.index++;
   if (timed) state.questionDeadline = now + QUESTION_TIME;
   const points = game === "duel" ? 100 : games[game].points;
@@ -529,6 +661,31 @@ async function gameAction(db, context, body, userId, now) {
     rawScore === null || attempt.duel_id
       ? null
       : Math.round(rawScore * multipliers[attempt.ordinal - 1]);
+  let review = null;
+  if (rawScore !== null && Array.isArray(state.questions)) {
+    let opponent = null;
+    if (attempt.duel_id) {
+      const oppRow = await first(
+        db,
+        `SELECT a.raw_score,a.state,u.name
+         FROM competition_attempts a
+         JOIN users u ON u.id=a.user_id
+         WHERE a.event_id=? AND a.duel_id=? AND a.user_id<>? AND a.raw_score IS NOT NULL`,
+        event.id,
+        attempt.duel_id,
+        userId,
+      );
+      if (oppRow) {
+        opponent = {
+          name: oppRow.name,
+          rawScore: oppRow.raw_score,
+          state: parseState(oppRow.state),
+        };
+        state.duelReviewSeen = true;
+      }
+    }
+    review = buildQuizReview(state, opponent);
+  }
   const update = stmt(
     db,
     `
@@ -575,7 +732,10 @@ async function gameAction(db, context, body, userId, now) {
     attempt.id,
   );
   return json({
-    attempt: publicAttempt(current, now),
+    attempt: {
+      ...publicAttempt(current, now),
+      ...(review ? { review } : {}),
+    },
     ...(stamp ? { stamp } : {}),
   });
 }
@@ -707,16 +867,91 @@ async function createDuel(db, context, body, senderId, now) {
   return json({ duelId }, 201);
 }
 
+async function openDuelReview(db, context, duelId, userId) {
+  const { event } = context;
+  if (!event.approved)
+    throw new HttpError("Serve un’iscrizione approvata all’evento.", 403);
+  const duel = await first(
+    db,
+    `
+    SELECT d.id,d.sender_id,d.receiver_id,s.name AS senderName,r.name AS receiverName,
+      sa.id AS senderAttemptId,sa.revision AS senderRevision,sa.raw_score AS senderScore,sa.state AS senderState,
+      ra.id AS receiverAttemptId,ra.revision AS receiverRevision,ra.raw_score AS receiverScore,ra.state AS receiverState
+    FROM competition_duels d
+    JOIN users s ON s.id=d.sender_id JOIN users r ON r.id=d.receiver_id
+    LEFT JOIN competition_attempts sa ON sa.event_id=d.event_id AND sa.duel_id=d.id AND sa.user_id=d.sender_id
+    LEFT JOIN competition_attempts ra ON ra.event_id=d.event_id AND ra.duel_id=d.id AND ra.user_id=d.receiver_id
+    WHERE d.id=? AND d.event_id=? AND (d.sender_id=? OR d.receiver_id=?)
+  `,
+    duelId,
+    event.id,
+    userId,
+    userId,
+  );
+  if (!duel) throw new HttpError("Questo duello non esiste.", 404);
+  if (duel.senderScore === null || duel.receiverScore === null) {
+    throw new HttpError(
+      "Il confronto sarà disponibile quando entrambi avrete finito il duello.",
+      409,
+    );
+  }
+  const fromMe = duel.sender_id === userId;
+  const myAttemptId = fromMe ? duel.senderAttemptId : duel.receiverAttemptId;
+  const myRevision = fromMe ? duel.senderRevision : duel.receiverRevision;
+  const myScore = fromMe ? duel.senderScore : duel.receiverScore;
+  const myState = parseState(fromMe ? duel.senderState : duel.receiverState);
+  const theirScore = fromMe ? duel.receiverScore : duel.senderScore;
+  const theirState = parseState(fromMe ? duel.receiverState : duel.senderState);
+  const opponentName = fromMe ? duel.receiverName : duel.senderName;
+  if (!myState?.questions || !Array.isArray(myState.answers)) {
+    throw new HttpError(
+      "Il confronto domanda per domanda non è disponibile per questo duello.",
+      409,
+    );
+  }
+  if (myState.duelReviewSeen) {
+    throw new HttpError(
+      "Hai già consultato il confronto di questo duello.",
+      409,
+    );
+  }
+  const nextState = { ...myState, duelReviewSeen: true };
+  const updated = await run(
+    db,
+    `UPDATE competition_attempts SET state=?,revision=revision+1
+     WHERE id=? AND revision=? AND raw_score IS NOT NULL`,
+    JSON.stringify(nextState),
+    myAttemptId,
+    myRevision,
+  );
+  if (!updated.meta.changes) {
+    throw new HttpError(
+      "Hai già consultato il confronto di questo duello.",
+      409,
+    );
+  }
+  return json({
+    duelId: duel.id,
+    myScore,
+    review: buildQuizReview(myState, {
+      name: opponentName,
+      rawScore: theirScore,
+      state: theirState,
+    }),
+  });
+}
+
 export async function competitionRoute(request, env, path, body, user) {
   const parts = path.match(
-    /^\/api\/competition\/([^/]+)(?:\/([^/]+))?(?:\/([^/]+))?$/,
+    /^\/api\/competition\/([^/]+)(?:\/([^/]+))?(?:\/([^/]+))?(?:\/([^/]+))?$/,
   );
   if (!parts) throw new HttpError("Questa pagina non esiste.", 404);
-  const [, eventId, action, duelId] = parts;
+  const [, eventId, action, duelId, subAction] = parts;
   const db = env.DB,
     now = Date.now();
   const context = await access(db, eventId, user.id);
-  if (action === "tris-duels")
+  if (action === "tris-duels") {
+    if (subAction) throw new HttpError("Questa pagina non esiste.", 404);
     return trisDuelsRoute(
       request,
       db,
@@ -727,7 +962,14 @@ export async function competitionRoute(request, env, path, body, user) {
       now,
       yearEnd(context.year),
     );
-  if (duelId) throw new HttpError("Questa pagina non esiste.", 404);
+  }
+  if (action === "duels" && duelId && subAction === "review") {
+    if (request.method !== "POST")
+      throw new HttpError("Metodo non disponibile.", 405);
+    return openDuelReview(db, context, duelId, user.id);
+  }
+  if (duelId || subAction)
+    throw new HttpError("Questa pagina non esiste.", 404);
   if (request.method === "GET" && !action)
     return board(db, context, user.id, now);
   if (request.method !== "POST")

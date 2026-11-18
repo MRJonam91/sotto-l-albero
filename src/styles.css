@@ -1880,29 +1880,105 @@ input[type="datetime-local"] {
     padding-bottom: 15px;
   }
 }
-.snow-on:before {
-  content: "";
+.ambient-effects-canvas {
   position: fixed;
   inset: 0;
+  width: 100%;
+  height: 100%;
   pointer-events: none;
   z-index: 8;
-  opacity: 0.24;
-  background-image:
-    radial-gradient(1px 1px at 30px 20px, #fff8df 90%, transparent),
-    radial-gradient(1px 1px at 170px 130px, #fff8df 90%, transparent),
-    radial-gradient(1.5px 1.5px at 100px 70px, #fff8df 90%, transparent);
-  background-size:
-    310px 310px,
-    410px 410px,
-    570px 570px;
-  animation: snow-drift 28s linear infinite;
 }
-@keyframes snow-drift {
-  to {
-    background-position:
-      120px 310px,
-      -50px 410px,
-      90px 570px;
+.snow-control {
+  position: relative;
+}
+.snow-control.active {
+  color: var(--gold);
+}
+.snow-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--gold);
+  color: var(--pine);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+}
+.ambient-section {
+  margin-top: 22px;
+}
+.ambient-section h3 {
+  font-size: 21px;
+  margin-bottom: 12px;
+  color: var(--gold);
+}
+.snow-level-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+.effect-toggle-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.ambient-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-height: 44px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: #14322b;
+  color: var(--paper);
+  text-align: left;
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease;
+}
+.ambient-choice:hover {
+  border-color: rgba(214, 186, 123, 0.6);
+  background: #193d34;
+}
+.ambient-choice.selected {
+  border-color: var(--gold);
+  background: #20493d;
+}
+.ambient-choice-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  font-size: 13px;
+}
+.ambient-choice-head svg {
+  color: var(--gold);
+  flex-shrink: 0;
+}
+.ambient-choice-check {
+  margin-left: auto;
+}
+.ambient-choice small {
+  color: #c6d0c5;
+  font-size: 11px;
+  line-height: 1.4;
+}
+.ambient-actions {
+  justify-content: space-between;
+}
+@media (max-width: 620px) {
+  .snow-level-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .effect-toggle-grid {
+    grid-template-columns: 1fr;
   }
 }
 .site-header .icon-button,
@@ -2049,7 +2125,7 @@ input[type="datetime-local"] {
     animation-iteration-count: 1 !important;
     transition: none !important;
   }
-  .snow-on:before {
+  .ambient-effects-canvas {
     display: none;
   }
 }

@@ -50,7 +50,7 @@ function canvasAt(width, height) {
   return canvas;
 }
 
-export async function isolateAvatarFace(image) {
+export async function isolateAvatarFace(image, options = {}) {
   const model = await getSegmenter();
   const scale = Math.min(1, 512 / Math.max(image.width, image.height));
   const source = canvasAt(
@@ -63,7 +63,11 @@ export async function isolateAvatarFace(image) {
   model.segment(source, ({ categoryMask }) => {
     if (!categoryMask) return;
     const { width, height } = categoryMask;
-    const face = faceMask(categoryMask.getAsUint8Array(), width, height);
+    const face = faceMask(categoryMask.getAsUint8Array(), width, height, {
+      includeHair: options.includeHair ?? true,
+      includeNeck: options.includeNeck ?? true,
+      feather: true,
+    });
     if (!face) return;
     const { x, y, width: w, height: h } = face.bounds;
     const mask = canvasAt(w, h);
@@ -97,8 +101,20 @@ export async function isolateAvatarFace(image) {
       result.height,
     );
     ctx.globalCompositeOperation = "destination-in";
-    ctx.filter = "blur(0.65px)";
+    ctx.filter = "blur(1.1px)";
     ctx.drawImage(mask, 0, 0, result.width, result.height);
+    result.landmarks = face.landmarks;
+    result.faceBounds = face.faceBounds;
+    result.traits = face.traits;
+    const fb = face.faceBounds || face.bounds;
+    result.faceBox = {
+      w: result.width * (fb.width / w),
+      h: result.height * (fb.height / h),
+      cx: result.width * ((fb.x + fb.width * 0.5 - x) / w),
+      cy: result.height * ((fb.y + fb.height * 0.5 - y) / h),
+      topY: result.height * ((fb.y - y) / h),
+      chinY: result.height * ((fb.y + fb.height - y) / h),
+    };
   });
   return result ?? null;
 }

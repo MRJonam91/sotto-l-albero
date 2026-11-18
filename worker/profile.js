@@ -7,6 +7,12 @@ import {
   safeText,
   optionalPhone,
 } from "./security.js";
+import { badgeTextModes, holidayBadgeIds } from "../shared/badges.js";
+import {
+  computeHolidayPortrait,
+  parseHolidayProfile,
+  romeToday,
+} from "../shared/holidayPortrait.js";
 import {
   createTelegramLink,
   disconnectTelegram,
@@ -230,12 +236,56 @@ function canSendPrivateCopy(request, env) {
 async function profile(request, env, userId) {
   const row = await first(
     env.DB,
-    `SELECT u.phone,u.notify_email,u.notify_telegram,u.telegram_chat_id,
+    `SELECT u.name,u.nickname,u.badge,u.badge_text,u.holiday_profile,u.phone,u.notify_email,u.notify_telegram,u.telegram_chat_id,
+    (SELECT COUNT(DISTINCT stamp) FROM user_stamps WHERE user_id=u.id) AS stamps_count,
+    (SELECT COUNT(*) FROM competition_attempts WHERE user_id=u.id AND raw_score IS NOT NULL) +
+    (SELECT COUNT(*) FROM practice_games WHERE user_id=u.id AND done=1) AS games_played,
     a.kind,a.preset,a.revision FROM users u LEFT JOIN user_avatars a ON a.user_id=u.id WHERE u.id=?`,
     userId,
   );
   if (!row) throw new HttpError("Accedi per continuare.", 401);
+  const holidayProfile = parseHolidayProfile(row.holiday_profile);
+  const today = romeToday();
+  const portrait = computeHolidayPortrait(holidayProfile, {
+    name: row.name,
+    nickname: row.nickname,
+    badge: row.badge,
+    stampsCount: row.stamps_count || 0,
+    gamesPlayed: row.games_played || 0,
+    today,
+  });
   return json({
+    name: row.name || "",
+    nickname: row.nickname || "",
+    badge: row.badge || null,
+    badgeText: row.badge_text || "nickname",
+    holidayProfile,
+    dailyCheckin: {
+      today,
+      pendingToday: holidayProfile.lastPromptDate !== today,
+      lastPromptDate: holidayProfile.lastPromptDate,
+      lastPromptStatus: holidayProfile.lastPromptStatus,
+      skippedCount: holidayProfile.skippedDates.length,
+      completedCount: holidayProfile.completedDates.length,
+    },
+    stampsCount: row.stamps_count || 0,
+    gamesPlayed: row.games_played || 0,
+    portrait: {
+      completeness: portrait.completeness,
+      answeredCount: portrait.answeredCount,
+      totalQuestions: portrait.totalQuestions,
+      confidenceLevel: portrait.confidenceLevel,
+      confidencePct: portrait.confidencePct,
+      skippedCount: portrait.skippedCount,
+      completedCount: portrait.completedCount,
+      ignoredToday: portrait.ignoredToday,
+      tastes: portrait.tastes,
+      characterMatches: portrait.characterMatches,
+      topCharacter: portrait.topCharacter,
+      generatedDescription: portrait.generatedDescription,
+      finalDescription: portrait.finalDescription,
+      spiritScene: portrait.spiritScene,
+    },
     phone: row.phone || "",
     notifyEmail: !!row.notify_email,
     emailAvailable: !!(env.RESEND_API_KEY && env.MAIL_FROM),
@@ -254,12 +304,136 @@ async function profile(request, env, userId) {
   });
 }
 
+function sanitizeHolidayProfile(input, existingRaw = null, action = null) {
+  const existing = parseHolidayProfile(existingRaw);
+  const parsed = parseHolidayProfile(
+    input && typeof input === "object" ? input : existing,
+  );
+  const today = romeToday();
+  let lastPromptDate = existing.lastPromptDate;
+  let lastPromptStatus = existing.lastPromptStatus;
+  const skipped = new Set(existing.skippedDates);
+  const completed = new Set(existing.completedDates);
+
+  if (action === "complete") {
+    lastPromptDate = today;
+    lastPromptStatus = "completed";
+    skipped.delete(today);
+    completed.add(today);
+  } else if (action === "skip") {
+    lastPromptDate = today;
+    if (!completed.has(today)) {
+      lastPromptStatus = "skipped";
+      skipped.add(today);
+    }
+  }
+
+  return {
+    quote: safeText(parsed.quote, 160, false),
+    activity: safeText(parsed.activity, 120, false),
+    iconMessage: parsed.iconMessage,
+    iconCaption: safeText(parsed.iconCaption, 120, false),
+    riddle: safeText(parsed.riddle, 240, false),
+    riddleHint: safeText(parsed.riddleHint, 160, false),
+    riddleAnswer: safeText(parsed.riddleAnswer, 120, false),
+    answers: parsed.answers,
+    customDescription: safeText(parsed.customDescription, 1200, false),
+    portraitApproved: parsed.portraitApproved,
+    lastPromptDate,
+    lastPromptStatus,
+    skippedDates: [...skipped].sort().slice(-60),
+    completedDates: [...completed].sort().slice(-60),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+async function saveDailyCheckin(env, userId, body) {
+  const action = body?.action;
+  if (action !== "skip" && action !== "complete") {
+    throw new HttpError("Scegli se completare o ignorare per oggi.");
+  }
+  const existing = await first(
+    env.DB,
+    "SELECT holiday_profile FROM users WHERE id=?",
+    userId,
+  );
+  if (!existing) throw new HttpError("Accedi per continuare.", 401);
+  const source =
+    action === "complete" &&
+    body?.holidayProfile &&
+    typeof body.holidayProfile === "object"
+      ? body.holidayProfile
+      : existing.holiday_profile;
+  const nextHolidayProfile = JSON.stringify(
+    sanitizeHolidayProfile(source, existing.holiday_profile, action),
+  );
+  await run(
+    env.DB,
+    "UPDATE users SET holiday_profile=? WHERE id=?",
+    nextHolidayProfile,
+    userId,
+  );
+}
+
 async function updateProfile(env, userId, body) {
   if (!body || typeof body !== "object" || Array.isArray(body))
     throw new HttpError("Controlla i dati del profilo.");
   for (const key of ["notifyEmail", "notifyTelegram"]) {
     if (Object.hasOwn(body, key) && typeof body[key] !== "boolean")
       throw new HttpError("Scegli come ricevere gli avvisi.");
+  }
+  const hasName = Object.hasOwn(body, "name");
+  const nextName = hasName ? safeText(body.name, 80, true) : null;
+  const hasNickname = Object.hasOwn(body, "nickname");
+  const nextNickname = hasNickname
+    ? safeText(body.nickname, 40, false) || null
+    : null;
+  const hasBadge = Object.hasOwn(body, "badge");
+  let nextBadge = null;
+  if (hasBadge) {
+    if (body.badge === null || body.badge === "" || body.badge === "none") {
+      nextBadge = null;
+    } else if (
+      typeof body.badge === "string" &&
+      holidayBadgeIds.has(body.badge)
+    ) {
+      nextBadge = body.badge;
+    } else {
+      throw new HttpError("Scegli una targhettina natalizia valida.");
+    }
+  }
+  const hasBadgeText = Object.hasOwn(body, "badgeText");
+  let nextBadgeText = null;
+  if (hasBadgeText) {
+    if (
+      typeof body.badgeText === "string" &&
+      badgeTextModes.has(body.badgeText)
+    ) {
+      nextBadgeText = body.badgeText;
+    } else {
+      throw new HttpError("Scegli come mostrare il nome sulla targhettina.");
+    }
+  }
+  const hasHolidayProfile = Object.hasOwn(body, "holidayProfile");
+  let nextHolidayProfile = null;
+  if (hasHolidayProfile) {
+    const existing = await first(
+      env.DB,
+      "SELECT holiday_profile FROM users WHERE id=?",
+      userId,
+    );
+    const checkinAction =
+      body.dailyCheckinAction === "complete" ||
+      body.dailyCheckinAction === "skip"
+        ? body.dailyCheckinAction
+        : null;
+    nextHolidayProfile = JSON.stringify(
+      sanitizeHolidayProfile(
+        body.holidayProfile,
+        existing?.holiday_profile,
+        checkinAction,
+      ),
+    );
   }
   const hasPhone = Object.hasOwn(body, "phone");
   const telegram =
@@ -268,9 +442,26 @@ async function updateProfile(env, userId, body) {
     throw new HttpError("Telegram non è ancora disponibile.", 503);
   const result = await run(
     env.DB,
-    `UPDATE users SET phone=CASE WHEN ? THEN ? ELSE phone END,
-    notify_email=COALESCE(?,notify_email),notify_telegram=COALESCE(?,notify_telegram)
+    `UPDATE users SET
+      name=CASE WHEN ? THEN ? ELSE name END,
+      nickname=CASE WHEN ? THEN ? ELSE nickname END,
+      badge=CASE WHEN ? THEN ? ELSE badge END,
+      badge_text=CASE WHEN ? THEN ? ELSE badge_text END,
+      holiday_profile=CASE WHEN ? THEN ? ELSE holiday_profile END,
+      phone=CASE WHEN ? THEN ? ELSE phone END,
+      notify_email=COALESCE(?,notify_email),
+      notify_telegram=COALESCE(?,notify_telegram)
     WHERE id=? AND (COALESCE(?,0)=0 OR telegram_chat_id IS NOT NULL)`,
+    Number(hasName),
+    nextName,
+    Number(hasNickname),
+    nextNickname,
+    Number(hasBadge),
+    nextBadge,
+    Number(hasBadgeText),
+    nextBadgeText,
+    Number(hasHolidayProfile),
+    nextHolidayProfile,
     Number(hasPhone),
     hasPhone ? optionalPhone(body.phone) : null,
     body.notifyEmail === undefined ? null : Number(body.notifyEmail),
@@ -451,6 +642,14 @@ export async function profileRoute(request, env, path, body, user) {
     }
     if (path === "/api/profile/avatar") {
       await saveAvatar(env, user.id, body);
+      return profile(request, env, user.id);
+    }
+    if (path === "/api/profile/identity") {
+      await updateProfile(env, user.id, body);
+      return profile(request, env, user.id);
+    }
+    if (path === "/api/profile/daily-checkin") {
+      await saveDailyCheckin(env, user.id, body);
       return profile(request, env, user.id);
     }
   }

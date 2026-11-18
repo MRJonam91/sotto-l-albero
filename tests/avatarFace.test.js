@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { faceMask } from "../src/avatarFaceMask.js";
+import {
+  applyAntiqueMedallionFinish,
+  applyVintagePortraitGrade,
+} from "../src/avatarVintageFilter.js";
 
 function scene() {
   const width = 40;
@@ -28,6 +32,29 @@ describe("avatar face mask", () => {
     expect(result.alpha[3 * width + 31]).toBe(0);
   });
 
+  it("includes side hair halo, neck skin, and soft feathering when enabled", () => {
+    const { width, height, categories, paint } = scene();
+    paint(10, 7, 16, 18, 3); // face skin
+    paint(7, 9, 3, 12, 1); // left hair locks framing cheek
+    paint(26, 9, 3, 12, 1); // right hair locks framing cheek
+    paint(14, 25, 8, 5, 2); // neck skin below chin
+
+    const result = faceMask(categories, width, height, {
+      includeHair: true,
+      includeNeck: true,
+      feather: true,
+    });
+    expect(result).not.toBeNull();
+    expect(result.bounds.x).toBeLessThan(10);
+    expect(result.bounds.width).toBeGreaterThan(16);
+    expect(result.bounds.height).toBeGreaterThan(18);
+    expect(result.alpha[12 * width + 8]).toBeGreaterThan(100);
+    expect(result.alpha[27 * width + 18]).toBeGreaterThan(100);
+    expect(result.landmarks.mouthCenterY).toBeGreaterThan(
+      result.landmarks.eyeLineY,
+    );
+  });
+
   it("does not use a missing or ambiguous face as a cutout", () => {
     const { width, height, categories, paint } = scene();
     paint(7, 16, 27, 20, 4);
@@ -35,5 +62,23 @@ describe("avatar face mask", () => {
     paint(3, 4, 12, 13, 3);
     paint(23, 5, 12, 13, 3);
     expect(faceMask(categories, width, height)).toBeNull();
+  });
+
+  it("applies warm vintage portrait grading and antique medallion grain on CPU", () => {
+    const w = 16;
+    const h = 16;
+    const data = new Uint8ClampedArray(w * h * 4);
+    for (let i = 0; i < w * h; i++) {
+      data[i * 4] = 135;
+      data[i * 4 + 1] = 140;
+      data[i * 4 + 2] = 155;
+      data[i * 4 + 3] = 255;
+    }
+    applyVintagePortraitGrade(data, w, h, { strength: 0.9, smoothing: true });
+    const mid = (8 * w + 8) * 4;
+    expect(data[mid]).toBeGreaterThan(data[mid + 2]);
+
+    applyAntiqueMedallionFinish(data, w, h, 6);
+    expect(data[mid + 3]).toBe(255);
   });
 });

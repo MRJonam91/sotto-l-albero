@@ -7,16 +7,20 @@ import {
   ImagePlus,
   Mail,
   Send,
+  Sparkles,
   Trash2,
   UserRound,
 } from "lucide-react";
 import Avatar, { avatarPresets } from "./Avatar.jsx";
 import AvatarCamera from "./AvatarCamera.jsx";
+import { HolidayGuidedWizard } from "./HolidayPortrait.jsx";
+import NameTag, { holidayBadges } from "./NameTag.jsx";
 import {
-  avatarScenes,
+  avatarStyles,
   downloadAvatar,
   drawAvatar,
   makeAvatarThumbnail,
+  scenesForStyle,
 } from "./avatarCanvas.js";
 import { api } from "./api.js";
 import { Button, Field, Notice } from "./ui.jsx";
@@ -24,8 +28,24 @@ import { Button, Field, Notice } from "./ui.jsx";
 const photoTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 const originalLimit = 25 * 1024 * 1024;
 
-function settingsFrom(profile) {
+function settingsFrom(profile, fallbackName = "") {
   return {
+    name: profile.name || fallbackName || "",
+    nickname: profile.nickname || "",
+    badge: profile.badge || null,
+    badgeText: profile.badgeText || "nickname",
+    holidayProfile: profile.holidayProfile || {
+      quote: "",
+      activity: "",
+      iconMessage: [],
+      iconCaption: "",
+      riddle: "",
+      riddleHint: "",
+      riddleAnswer: "",
+      answers: {},
+      customDescription: "",
+      portraitApproved: true,
+    },
     phone: profile.phone || "",
     notifyEmail: profile.notifyEmail ?? true,
     notifyTelegram: profile.notifyTelegram ?? false,
@@ -60,6 +80,7 @@ export default function ProfileSettings({ user, onChange }) {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [portraitNotice, setPortraitNotice] = useState("");
   const [telegramLink, setTelegramLink] = useState(null);
   const [mode, setMode] = useState("preset");
   const [preset, setPreset] = useState(null);
@@ -73,7 +94,7 @@ export default function ProfileSettings({ user, onChange }) {
       const result = await api("/profile");
       setProfile(result);
       if (reset) {
-        setForm(settingsFrom(result));
+        setForm(settingsFrom(result, user.name));
         setPreset(
           result.avatar?.kind === "preset" ? result.avatar.value : null,
         );
@@ -82,7 +103,7 @@ export default function ProfileSettings({ user, onChange }) {
       if (notify) updateCallback.current?.(result);
       return result;
     },
-    [],
+    [user.name],
   );
 
   useEffect(() => {
@@ -127,6 +148,7 @@ export default function ProfileSettings({ user, onChange }) {
     setBusy(key);
     setError("");
     setNotice("");
+    setPortraitNotice("");
     try {
       await operation();
     } catch (failure) {
@@ -159,25 +181,245 @@ export default function ProfileSettings({ user, onChange }) {
     mode === "preset" && preset
       ? { kind: "preset", value: preset }
       : currentAvatar;
+  const activeName = form.name.trim() || profile.name || user.name;
+  const activeNickname = form.nickname.trim();
 
   return (
     <section className="profile-settings">
       <div className="profile-intro">
         <Avatar
           userId={user.id}
-          name={user.name}
+          name={activeName}
           avatar={currentAvatar}
           size={78}
         />
-        <div>
+        <div className="profile-intro-copy">
           <p className="profile-identity">
             <strong>Il tuo profilo</strong>
           </p>
           <p>
-            {user.name} <span aria-hidden="true">·</span> {user.email}
+            {profile.name || user.name}
+            {profile.nickname ? (
+              <>
+                {" "}
+                <span aria-hidden="true">·</span>{" "}
+                <span className="profile-handle">@{profile.nickname}</span>
+              </>
+            ) : null}{" "}
+            <span aria-hidden="true">·</span> {user.email}
           </p>
+          {profile.badge ? (
+            <div className="profile-intro-tag">
+              <NameTag
+                badge={profile.badge}
+                name={profile.name || user.name}
+                nickname={profile.nickname}
+                badgeText={profile.badgeText}
+                size="md"
+              />
+            </div>
+          ) : null}
         </div>
       </div>
+
+      <section
+        className="profile-panel"
+        aria-labelledby="profile-identity-title"
+      >
+        <div className="profile-heading">
+          <Sparkles size={23} aria-hidden="true" />
+          <div>
+            <h2 id="profile-identity-title">
+              Nome, soprannome e targhettina natalizia
+            </h2>
+            <p>
+              Scegli come farti chiamare nei gruppi e personalizza la tua
+              targhettina tra 10 stili natalizi.
+            </p>
+          </div>
+        </div>
+        <form
+          className="profile-identity-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            act("identity", async () => {
+              await api("/profile", "PUT", form);
+              await refresh({ reset: true, notify: true });
+              setNotice("Profilo e targhettina salvati.");
+            });
+          }}
+        >
+          <div className="form-grid">
+            <Field
+              label="Il tuo nome"
+              name="profileName"
+              maxLength={80}
+              required
+              value={form.name}
+              onChange={(event) =>
+                setForm({ ...form, name: event.target.value })
+              }
+              hint="Il nome principale con cui partecipi agli scambi."
+            />
+            <Field
+              label="Soprannome o username (facoltativo)"
+              name="nickname"
+              maxLength={40}
+              placeholder="Es. Elfo Curioso, renna_veloce…"
+              value={form.nickname}
+              onChange={(event) =>
+                setForm({ ...form, nickname: event.target.value })
+              }
+              hint="Un soprannome o username festivo per farti riconoscere."
+            />
+          </div>
+
+          <Field
+            label="Cosa mostrare sulla targhettina natalizia"
+            hint="Se scegli il soprannome ma lo lasci vuoto, useremo il tuo nome."
+          >
+            <select
+              name="badgeText"
+              value={form.badgeText}
+              disabled={!!busy}
+              onChange={(event) =>
+                setForm({ ...form, badgeText: event.target.value })
+              }
+            >
+              <option value="nickname">Soprannome / username</option>
+              <option value="name">Il tuo nome</option>
+            </select>
+          </Field>
+
+          <div className="profile-badge-section">
+            <div className="profile-badge-header">
+              <div>
+                <h3>Scegli la tua targhettina (10 opzioni)</h3>
+                <p className="profile-footnote">
+                  Tocca un’opzione per vedere l’anteprima dal vivo con il tuo
+                  nome o soprannome.
+                </p>
+              </div>
+              {form.badge ? (
+                <button
+                  type="button"
+                  className="text-button"
+                  disabled={!!busy}
+                  onClick={() => setForm({ ...form, badge: null })}
+                >
+                  <Trash2 size={14} aria-hidden="true" />
+                  Senza targhettina
+                </button>
+              ) : null}
+            </div>
+
+            <div
+              className="profile-badge-grid"
+              role="group"
+              aria-label="Targhettine natalizie disponibili"
+            >
+              {holidayBadges.map(({ id, name, subtitle }) => {
+                const selected = form.badge === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    className="profile-badge-option"
+                    aria-pressed={selected}
+                    disabled={!!busy}
+                    onClick={() => setForm({ ...form, badge: id })}
+                  >
+                    <NameTag
+                      badge={id}
+                      name={activeName}
+                      nickname={activeNickname}
+                      badgeText={form.badgeText}
+                      size="sm"
+                    />
+                    <span className="profile-badge-option-title">{name}</span>
+                    <small className="profile-badge-option-sub">
+                      {subtitle}
+                    </small>
+                    {selected ? (
+                      <Check
+                        size={15}
+                        className="profile-preset-check"
+                        aria-hidden="true"
+                      />
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div
+            className="profile-badge-live-preview"
+            aria-label="Anteprima nel gruppo"
+          >
+            <Avatar
+              userId={user.id}
+              name={activeName}
+              avatar={displayedAvatar}
+              size={44}
+            />
+            <div className="profile-badge-live-copy">
+              <span className="profile-footnote">Anteprima nel gruppo:</span>
+              <div className="profile-badge-live-row">
+                {form.badge ? (
+                  <NameTag
+                    badge={form.badge}
+                    name={activeName}
+                    nickname={activeNickname}
+                    badgeText={form.badgeText}
+                    size="md"
+                  />
+                ) : (
+                  <strong>{activeNickname || activeName}</strong>
+                )}
+                {activeNickname ? (
+                  <span className="profile-preview-secondary">
+                    ({activeName})
+                  </span>
+                ) : null}
+              </div>
+            </div>
+          </div>
+
+          <div className="form-actions">
+            <Button busy={busy === "identity"} disabled={!!busy}>
+              Salva profilo e targhettina
+            </Button>
+          </div>
+        </form>
+      </section>
+
+      <HolidayGuidedWizard
+        mode="profile"
+        user={user}
+        today={profile.dailyCheckin?.today}
+        dailyCheckin={profile.dailyCheckin}
+        profile={{
+          ...profile,
+          name: activeName,
+          nickname: activeNickname,
+          badge: form.badge,
+        }}
+        value={form.holidayProfile}
+        busy={busy === "portrait" || !!busy}
+        onChange={(holidayProfile) => setForm({ ...form, holidayProfile })}
+        onSave={() =>
+          act("portrait", async () => {
+            await api("/profile", "PUT", {
+              ...form,
+              dailyCheckinAction: "complete",
+            });
+            await refresh({ reset: true, notify: true });
+            setPortraitNotice("Spirito di Natale e ritratto salvati.");
+          })
+        }
+      />
+      <Notice>{portraitNotice}</Notice>
 
       <section className="profile-panel" aria-labelledby="profile-avatar-title">
         <div className="profile-heading">
@@ -244,11 +486,11 @@ export default function ProfileSettings({ user, onChange }) {
               <div className="profile-mini-preview">
                 <Avatar
                   userId={user.id}
-                  name={user.name}
+                  name={activeName}
                   avatar={displayedAvatar}
                 />
                 <span>
-                  Nel gruppo <strong>{user.name}</strong>
+                  Nel gruppo <strong>{activeName}</strong>
                 </span>
               </div>
               <Button
@@ -268,7 +510,7 @@ export default function ProfileSettings({ user, onChange }) {
         ) : (
           <PhotoEditor
             profile={profile}
-            name={user.name}
+            name={activeName}
             disabled={!!busy}
             onSave={saveAvatar}
           />
@@ -484,11 +726,12 @@ function PhotoEditor({ profile, name, disabled, onSave }) {
   const [cropping, setCropping] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [settings, setSettings] = useState({
+    style: "illustrated",
     scene: "elf",
     zoom: 1.15,
     offsetX: 0,
     offsetY: 0,
-    beard: true,
+    beard: false,
   });
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
@@ -595,6 +838,17 @@ function PhotoEditor({ profile, name, disabled, onSave }) {
   }
 
   const isDisabled = disabled || !!busy;
+  const availableScenes = scenesForStyle(settings.style);
+  const setStyle = (nextStyle) => {
+    const nextList = scenesForStyle(nextStyle);
+    setSettings((current) => ({
+      ...current,
+      style: nextStyle,
+      scene: nextList.some((item) => item.id === current.scene)
+        ? current.scene
+        : nextList[0].id,
+    }));
+  };
   const setValue = (key, value) => {
     if (key === "zoom" || key === "offsetX" || key === "offsetY")
       useManualCrop();
@@ -658,24 +912,81 @@ function PhotoEditor({ profile, name, disabled, onSave }) {
                 ? "Sto ritagliando il volto. Puoi già usare il ritaglio manuale."
                 : cropNotice}
           </p>
+          <Field label="Stile ritratto">
+            <select
+              value={settings.style}
+              onChange={(event) => setStyle(event.target.value)}
+              disabled={isDisabled}
+            >
+              {avatarStyles.map((item) => (
+                <option value={item.id} key={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+          </Field>
           <Field label="Scena natalizia">
             <select
               value={settings.scene}
               onChange={(event) => setValue("scene", event.target.value)}
               disabled={isDisabled}
             >
-              {avatarScenes.map((scene) => (
+              {availableScenes.map((scene) => (
                 <option value={scene.id} key={scene.id}>
                   {scene.name}
                 </option>
               ))}
             </select>
           </Field>
+          <div
+            className="photo-scene-pills"
+            role="group"
+            aria-label="Scelta rapida dell’ambientazione"
+          >
+            {availableScenes.map((scene) => (
+              <button
+                key={scene.id}
+                type="button"
+                className="photo-scene-pill"
+                aria-pressed={settings.scene === scene.id}
+                disabled={isDisabled}
+                onClick={() => setValue("scene", scene.id)}
+              >
+                {scene.name}
+              </button>
+            ))}
+          </div>
           <fieldset
             className="photo-range-controls"
             disabled={!portrait || isDisabled}
           >
             <legend>Sistema il ritaglio</legend>
+            <div className="photo-range-header">
+              <small className="profile-footnote">
+                {portrait?.isolated
+                  ? "Volto allineato automaticamente"
+                  : "Ritaglio manuale"}
+              </small>
+              {(settings.offsetX !== 0 ||
+                settings.offsetY !== 0 ||
+                settings.zoom !== (portrait?.isolated ? 1 : 1.15)) && (
+                <button
+                  type="button"
+                  className="text-button"
+                  disabled={!portrait || isDisabled}
+                  onClick={() =>
+                    setSettings((current) => ({
+                      ...current,
+                      zoom: portrait?.isolated ? 1 : 1.15,
+                      offsetX: 0,
+                      offsetY: 0,
+                    }))
+                  }
+                >
+                  Centra volto
+                </button>
+              )}
+            </div>
             <label>
               Ingrandimento <output>{Math.round(settings.zoom * 100)}%</output>
               <input

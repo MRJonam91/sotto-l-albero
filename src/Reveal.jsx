@@ -11,6 +11,7 @@ import {
 import { date } from "./api.js";
 import { Button, Notice } from "./ui.jsx";
 import DrawExplanation from "./DrawExplanation.jsx";
+import NameTag from "./NameTag.jsx";
 import "./reveal.css";
 
 const ceremonyDuration = 3400;
@@ -241,6 +242,19 @@ export default function Reveal({
             <h2 ref={resultHeading} tabIndex={-1}>
               {recipient.name}
             </h2>
+            {recipient.badge ? (
+              <div className="recipient-tag">
+                <NameTag
+                  badge={recipient.badge}
+                  name={recipient.name}
+                  nickname={recipient.nickname}
+                  badgeText={recipient.badgeText}
+                  size="md"
+                />
+              </div>
+            ) : recipient.nickname ? (
+              <p className="quiet">@{recipient.nickname}</p>
+            ) : null}
             <Star size={26} className="recipient-star" />
             <p>Scegli il regalo con cura e tieni il nome per te.</p>
             <Button onClick={() => setWishes(true)}>
