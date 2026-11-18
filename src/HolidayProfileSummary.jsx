@@ -6,6 +6,7 @@ import {
 } from "../shared/holidayPortrait.js";
 import {
   HolidaySpiritImage,
+  FestiveProgressBadge,
   MovieCharacterComparison,
   TasteRadarChart,
 } from "./HolidayPortrait.jsx";
@@ -90,6 +91,12 @@ export default function HolidayProfileSummary({ profile, user, onEditMood }) {
       )}
       <div className="holiday-summary-portrait">
         <h3>Il tuo ritratto</h3>
+        <FestiveProgressBadge
+          progress={
+            portrait.festiveProgress ||
+            portrait.matchingExplanation?.festiveProgress
+          }
+        />
         <HolidaySpiritImage
           name={profile.name || user.name}
           nickname={profile.nickname}

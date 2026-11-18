@@ -33,6 +33,10 @@
   align-self: flex-start;
   margin-top: auto;
 }
+.game-catalog-item .game-participation-note {
+  margin: 0 0 12px;
+  color: var(--muted);
+}
 .practice-challenge > .button:last-child {
   margin-top: 20px;
 }

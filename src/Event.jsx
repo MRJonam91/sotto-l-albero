@@ -33,6 +33,7 @@ import { GroupMemberPortraitCard } from "./HolidayPortrait.jsx";
 import { holidayIconMap } from "../shared/holidayPortrait.js";
 import EventTools from "./EventTools.jsx";
 import DrawExplanation from "./DrawExplanation.jsx";
+import GiftBrowser from "./GiftBrowser.jsx";
 import {
   hasAmazonAffiliateTag,
   isAmazonUrl,
@@ -343,6 +344,7 @@ export default function Event({
           <Wishlist
             initial={data.wishlist || []}
             id={id}
+            budget={event.budget}
             onSaved={() => {
               load();
               setNotice(
@@ -483,7 +485,7 @@ export default function Event({
   );
 }
 
-function Wishlist({ initial, id, onSaved }) {
+function Wishlist({ initial, id, budget, onSaved }) {
   const [items, setItems] = useState(() =>
       initial.map((item) => ({ ...item })),
     ),
@@ -559,8 +561,33 @@ function Wishlist({ initial, id, onSaved }) {
           Aggiungi un desiderio
         </Button>
       </div>
-      <section className="wish-shopping paper" aria-label="Cerca un prodotto">
-        <h3>Cerca un’idea regalo</h3>
+      <GiftBrowser
+        eventId={id}
+        budget={budget}
+        selectedUrls={items.map((item) => item.url)}
+        disabled={busy || items.length >= 30}
+        onAdd={(product) => {
+          if (
+            items.length >= 30 ||
+            items.some((item) => item.url === product.url)
+          )
+            return false;
+          setItems((all) => [
+            ...all,
+            {
+              type: "object",
+              title: product.title,
+              url: product.url,
+              description: "",
+              hint: "",
+              answer: "",
+            },
+          ]);
+          return true;
+        }}
+      />
+      <details className="wish-shopping paper">
+        <summary>Hai già un link o vuoi cercare in altri negozi?</summary>
         <form
           onSubmit={(event) => {
             event.preventDefault();
@@ -679,7 +706,7 @@ function Wishlist({ initial, id, onSaved }) {
             </p>
           </form>
         </details>
-      </section>
+      </details>
       <form onSubmit={save}>
         {items.length ? (
           items.map((item, i) => (

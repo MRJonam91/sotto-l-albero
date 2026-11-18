@@ -1,5 +1,6 @@
 import { gameCatalog } from "./gameCatalog.js";
 import { holidayCharacters } from "./holidayCharacters.js";
+import { computeFestiveProgress } from "./festiveProgress.js";
 export { holidayCharacters } from "./holidayCharacters.js";
 
 export const holidayIcons = [
@@ -672,13 +673,6 @@ export function computeHolidayPortrait(rawProfile, context = {}) {
   const toolSignals = [
     ["wishlistItemsCount", 5, [62, 72, 90, 48, 58], "desideri salvati", 0.25],
     [
-      "participatingEventsCount",
-      3,
-      [82, 62, 86, 54, 62],
-      "eventi con iscrizione approvata",
-      0.25,
-    ],
-    [
       "organizedEventsCount",
       3,
       [72, 84, 78, 48, 72],
@@ -844,6 +838,13 @@ export function computeHolidayPortrait(rawProfile, context = {}) {
     label,
     value: Math.round(combined[id]),
   }));
+  const festiveProgress = computeFestiveProgress(
+    {
+      ...context.activity,
+      stampsCount: context.activity?.stampsCount ?? context.stampsCount,
+    },
+    profile,
+  );
   const characterMatches = holidayCharacters
     .map((character) => {
       const distance = Math.sqrt(
@@ -853,9 +854,17 @@ export function computeHolidayPortrait(rawProfile, context = {}) {
           0,
         ) / tasteAxes.length,
       );
+      const personalSimilarity = (1 - distance) * 100;
+      const stageSimilarity =
+        100 - Math.abs(festiveProgress.score - character.festiveReadiness);
       return {
         ...character,
-        affinity: Math.round(Math.max(0, Math.min(100, (1 - distance) * 100))),
+        affinity: Math.round(
+          Math.max(
+            0,
+            Math.min(100, personalSimilarity * 0.65 + stageSimilarity * 0.35),
+          ),
+        ),
       };
     })
     .sort((a, b) => b.affinity - a.affinity || a.id.localeCompare(b.id))
@@ -867,17 +876,29 @@ export function computeHolidayPortrait(rawProfile, context = {}) {
   const matchingExplanation = {
     weights,
     signals,
+    festiveProgress,
+    components: [
+      { id: "personal", label: "Somiglianza dei tratti", weight: 65 },
+      { id: "festive", label: "Coinvolgimento natalizio", weight: 35 },
+    ],
     method:
-      "Media dei cinque assi per le fonti disponibili. Affinità = 100 × (1 − distanza quadratica media normalizzata) dal profilo di ciascun personaggio. Ogni percentuale è indipendente: non è una probabilità né una valutazione psicologica. Le ripetizioni dello stesso gioco contano al massimo tre volte; i quiz indicano attività e conoscenze, non gusti personali.",
+      "Affinità = 65% somiglianza dei cinque tratti + 35% vicinanza fra coinvolgimento e fase natalizia del personaggio. I tratti usano la media delle fonti disponibili; il coinvolgimento cresce con attività diverse e conserva il massimo raggiunto. L’iscrizione da sola non conta. Senza attività il confronto parte dai personaggi scettici: non significa che tu lo sia. Ogni percentuale è indipendente, non è una probabilità né una valutazione psicologica. Le ripetizioni di ogni gioco contano al massimo tre volte; i quiz indicano attività e conoscenze, non gusti personali.",
     provisional,
   };
   const parts = [];
-  if (!availableWeight) {
+  if (!availableWeight && festiveProgress.score > 0) {
     parts.push(
-      "Questo è un ritratto provvisorio: non ci sono ancora attività o scelte da confrontare.",
+      `Il coinvolgimento conserva il livello “${festiveProgress.level.label}” già raggiunto.`,
     );
     parts.push(
-      "Le affinità iniziali sono un punto di partenza e si aggiornano usando i giochi e le scelte salvate.",
+      "Il confronto usa tratti neutri e la partecipazione registrata in precedenza; le domande restano facoltative.",
+    );
+  } else if (!availableWeight) {
+    parts.push(
+      "Questo è un ritratto provvisorio: il percorso parte dai personaggi scettici del Natale, senza attribuirti il loro carattere.",
+    );
+    parts.push(
+      "I tratti restano neutri; il coinvolgimento cresce con giochi, timbri e attività salvate, anche senza domande.",
     );
   } else {
     if (activityEntries.length)
@@ -919,6 +940,7 @@ export function computeHolidayPortrait(rawProfile, context = {}) {
     characterMatches,
     topCharacter,
     matchingExplanation,
+    festiveProgress,
     generatedDescription,
     finalDescription: profile.customDescription.trim() || generatedDescription,
     spiritScene: {

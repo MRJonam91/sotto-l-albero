@@ -28,7 +28,7 @@ import MovieClueStage from "./MovieClueStage.jsx";
 import { Button, Notice } from "./ui.jsx";
 import { api } from "./api.js";
 import { treasureStories } from "./treasureStories.js";
-import { gameCatalog } from "../shared/gameCatalog.js";
+import { gameCatalog, gameModeLabels } from "../shared/gameCatalog.js";
 import "./holiday.css";
 import "./game-catalog.css";
 const PracticeGameChallenge = lazy(() => import("./CompetitionChallenge.jsx"));
@@ -820,10 +820,18 @@ function PracticeChallenge({ gameId }) {
 }
 
 function Games({ collection, onAlbum, onDiscover, onGroups, onCompete }) {
-  const [game, setGame] = useState(null);
+  const [game, setGame] = useState(() => {
+    const requested = new URLSearchParams(location.search).get("game");
+    return gameCatalog.some((entry) => entry.id === requested)
+      ? requested
+      : null;
+  });
   const playArea = useRef(null);
   useEffect(() => {
-    if (game) playArea.current?.focus({ preventScroll: true });
+    if (game) {
+      playArea.current?.focus({ preventScroll: true });
+      playArea.current?.scrollIntoView({ block: "start", behavior: "instant" });
+    }
   }, [game]);
   return (
     <section className="holiday-page" aria-labelledby="games-heading">
@@ -831,9 +839,9 @@ function Games({ collection, onAlbum, onDiscover, onGroups, onCompete }) {
         <div>
           <h1 id="games-heading">Giochi di Natale</h1>
           <p>
-            Scegli un gioco per allenarti liberamente. Per i punti, apri le
-            sfide del tuo gruppo: gli allenamenti non consumano i tre tentativi
-            dell’edizione.
+            Gli stessi nove giochi che trovi nel gruppo. Scegli l’allenamento,
+            il computer o una modalità con gli amici. Le sfide a punti hanno tre
+            tentativi per gioco; gli allenamenti non li consumano.
           </p>
         </div>
         <Button type="button" variant="outline" onClick={onAlbum}>
@@ -848,6 +856,7 @@ function Games({ collection, onAlbum, onDiscover, onGroups, onCompete }) {
           <article
             className="game-catalog-item"
             key={entry.id}
+            data-game-id={entry.id}
             aria-label={entry.name}
           >
             <Button
@@ -860,41 +869,36 @@ function Games({ collection, onAlbum, onDiscover, onGroups, onCompete }) {
             </Button>
             <p>{entry.description}</p>
             <small>
-              {entry.ranked === false
-                ? "Allenamento contro il computer · duello tra amici"
-                : `Allenamento libero · fino a ${entry.points} punti nelle sfide`}
+              {entry.modes.map((mode) => gameModeLabels[mode]).join(" · ")}
+              {entry.ranked === false ? " · senza classifica" : ""}
             </small>
-            <Button
-              type="button"
-              variant="ghost"
-              aria-label={
-                entry.ranked === false
-                  ? "Sfida un amico a Tris sulla neve"
-                  : `Gioca per punti: ${entry.name}`
-              }
-              onClick={() => (onCompete || onGroups)(entry.id)}
-            >
-              {entry.ranked === false ? "Sfida un amico" : "Gioca per punti"}
-            </Button>
+            {entry.id === "curling" && (
+              <p className="game-participation-note">
+                La partita conclusa contribuisce al ritratto, senza punti.
+              </p>
+            )}
+            {entry.ranked && (
+              <Button
+                type="button"
+                variant="ghost"
+                aria-label={`Gioca per punti: ${entry.name}`}
+                onClick={() => (onCompete || onGroups)(entry.id)}
+              >
+                Sfida a punti
+              </Button>
+            )}
+            {entry.modes.includes("friends") && (
+              <Button
+                type="button"
+                variant="ghost"
+                aria-label={`Sfida un amico a ${entry.name}`}
+                onClick={() => (onCompete || onGroups)(entry.id, "friends")}
+              >
+                Con un amico
+              </Button>
+            )}
           </article>
         ))}
-        <article className="game-catalog-item" aria-label="Curling dei regali">
-          <Button
-            type="button"
-            variant="outline"
-            aria-pressed={game === "curling"}
-            onClick={() => setGame("curling")}
-          >
-            Curling dei regali
-          </Button>
-          <p>
-            Fai scivolare i regali vicino alla lanterna. Gli urti possono
-            cambiare la partita.
-          </p>
-          <small>
-            Contro il computer · contribuisce al ritratto · senza classifica
-          </small>
-        </article>
         <TimedTreasures
           section="games"
           collection={collection}

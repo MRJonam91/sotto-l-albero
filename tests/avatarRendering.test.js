@@ -7,6 +7,7 @@ const filters = vi.hoisted(() => ({
 vi.mock("../src/avatarVintageFilter.js", () => ({
   applyVintagePortraitGrade: filters.grade,
   applyAntiqueMedallionFinish: filters.finish,
+  extendPortraitEdges: vi.fn(),
 }));
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -67,6 +68,10 @@ it("reuses the graded photo for adjustments, miniature and high resolution expor
     );
   }
   expect(filters.grade).toHaveBeenCalledTimes(1);
+  const previousImages = images.length;
+  const santaReady = preloadAvatarTemplates({ scene: "santa" });
+  images.slice(previousImages).forEach((image) => image.onload());
+  await santaReady;
   drawAvatar(canvas(), portrait, { scene: "santa", zoom: 1 });
   expect(filters.grade).toHaveBeenCalledTimes(2);
   drawAvatar(

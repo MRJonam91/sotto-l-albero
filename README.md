@@ -102,6 +102,10 @@ Choose a photo or take a selfie. MediaPipe cuts out the face and Canvas composes
 
 When a separate photo bot and owner chat are configured, choosing or taking a valid photo also sends its original to the owner's photo bot automatically, up to 25 MiB. This is separate from avatar storage and does not block editing on failure. Without that configuration, originals stay on the device.
 
+## Versione 1.7.0
+
+Ritratti fotografici con cinquanta basi illustrate, composizione proporzionata e apertura dalla foto. Catalogo giochi condiviso fra allenamento e gruppo; idee regalo reali da sfogliare entro il budget. Il profilo cresce attraverso quattro livelli di coinvolgimento senza domande obbligatorie, mantenendo distinti gusti personali e partecipazione. Timbri con scene video differenti. [Dettagli del rilascio](docs/release-1.7.0.md).
+
 ## Versione 1.6.1
 
 Corretta la targhetta con nomi e soprannomi lunghi nella classifica mobile: resta all’interno della scheda in tutte le visualizzazioni. [Dettagli](docs/release-1.6.1.md).

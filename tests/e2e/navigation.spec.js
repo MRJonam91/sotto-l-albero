@@ -173,7 +173,7 @@ test("apre l’unico evento approvato, cambia scheda nello stesso evento e conse
   await nav.getByRole("button", { name: "Sfide", exact: true }).click();
   await expect(page).toHaveURL(/\/sfide\?event=ready$/);
   await expect(
-    page.getByRole("heading", { name: "Babbo Natale segreto dell’anno" }),
+    page.getByRole("heading", { name: "Giochi del gruppo" }),
   ).toBeVisible();
   await nav.getByRole("button", { name: "Nome segreto", exact: true }).click();
   await expect(page).toHaveURL(/\/nome\?event=ready$/);
@@ -191,7 +191,7 @@ test("apre l’unico evento approvato, cambia scheda nello stesso evento e conse
   await page.goBack();
   await expect(page).toHaveURL(/\/sfide\?event=ready$/);
   await expect(
-    page.getByRole("heading", { name: "Babbo Natale segreto dell’anno" }),
+    page.getByRole("heading", { name: "Giochi del gruppo" }),
   ).toBeVisible();
   await page.goForward();
   await expect(page).toHaveURL(/\/nome\?event=ready$/);

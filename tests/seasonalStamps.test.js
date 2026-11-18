@@ -79,6 +79,29 @@ describe("i dieci nuovi oggetti natalizi", () => {
     }
   });
 
+  it("apre video YouTube diretti e distingue scene, raccolte e trailer", () => {
+    for (const [id, scene] of Object.entries(treasureStories)) {
+      const url = new URL(scene.link);
+      expect(url.origin, id).toBe("https://www.youtube.com");
+      expect(url.pathname, id).toBe("/watch");
+      expect(url.searchParams.get("v"), id).toMatch(/^[\w-]{11}$/);
+      expect(["scene", "collection", "trailer"], id).toContain(scene.linkType);
+      if (scene.linkType === "trailer")
+        expect(scene.linkLabel).toMatch(/trailer/i);
+      if (scene.linkType === "collection")
+        expect(scene.linkLabel).toMatch(/raccolta/i);
+      expect(scene.linkLabel).not.toMatch(
+        /ascolta|scheda|comunicato|intervista/i,
+      );
+    }
+    // Two objects from the same episode should open their own relevant extract.
+    expect(treasureStories.teapot.linkType).toBe("scene");
+    expect(treasureStories.office_ipod.linkType).toBe("scene");
+    expect(treasureStories.teapot.link).not.toBe(
+      treasureStories.office_ipod.link,
+    );
+  });
+
   it("rende dieci icone vettoriali distinte, decorative e senza contenuti remoti", () => {
     const icons = seasonalIds.map((id) =>
       renderToStaticMarkup(createElement(SeasonalStampIcon, { id, size: 35 })),

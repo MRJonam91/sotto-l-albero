@@ -48,6 +48,7 @@ test("Giochi mostra tutto il catalogo e l’allenamento non consuma tentativi a 
     "La cartolina scomparsa",
     "Prendi i pacchi",
     "Tris sulla neve",
+    "Curling dei regali",
   ]) {
     await expect(page.getByRole("button", { name, exact: true })).toBeVisible();
   }
@@ -73,6 +74,8 @@ test("Giochi mostra tutto il catalogo e l’allenamento non consuma tentativi a 
     })
     .tap();
   await expect(page).toHaveURL(/\/sfide\?event=/);
+  await expect(page).toHaveURL(/game=pacchi/);
+  await expect(page.locator("#game-pacchi")).toBeFocused();
   await expect(
     page.getByRole("heading", { name: "Classifica di gruppo" }),
   ).toBeVisible();
@@ -149,7 +152,10 @@ test("Indovina il film: icone, 4 opzioni con lettere, curiosità, accessibilità
     .tap();
   await expect(page).toHaveURL(/\/sfide\?event=/);
   await page
-    .getByRole("button", { name: "Gioca: Indovina il film", exact: true })
+    .getByRole("button", {
+      name: "Sfida a punti: Indovina il film",
+      exact: true,
+    })
     .click();
   const play = page.locator(".competition-play");
   await expect(play.getByText("Film 1 di 10")).toBeVisible();

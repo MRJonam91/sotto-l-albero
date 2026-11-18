@@ -1,6 +1,9 @@
 .photo-editor {
   min-width: 0;
 }
+.photo-editor .photo-editor-title {
+  margin: 0 0 12px;
+}
 .photo-editor .photo-acquisition {
   display: flex;
   align-items: center;
@@ -14,7 +17,7 @@
 }
 .photo-scene-selectors {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
   margin-bottom: 14px;
 }
@@ -33,6 +36,55 @@
   align-items: center;
   gap: 18px;
   margin-bottom: 12px;
+}
+.photo-preparing {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 100px;
+  margin: 12px 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+}
+.photo-preparing p {
+  margin: 0;
+}
+.photo-preparing .text-button {
+  min-height: 44px;
+}
+.photo-portrait-tools {
+  min-width: 0;
+}
+.photo-atmosphere-name {
+  margin: 0 0 8px;
+  font-weight: 700;
+}
+.photo-result-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.photo-result-choices .button {
+  flex: 1 1 auto;
+  padding-inline: 10px;
+  font-size: 0.82rem;
+}
+.photo-adjustments summary {
+  min-height: 44px;
+  padding: 10px 0;
+  cursor: pointer;
+  color: var(--gold);
+  font-size: 0.85rem;
+}
+.photo-adjustments > .field {
+  margin: 12px 0 0;
+}
+.photo-adjustments select {
+  width: 100%;
 }
 .photo-editor .photo-preview {
   gap: 6px;
@@ -128,7 +180,10 @@
     gap: 8px;
   }
   .photo-editor .photo-preview > canvas {
-    width: min(100%, 200px, 28svh);
+    width: min(100%, 240px, 32svh);
+  }
+  .photo-framing-stage:has(.photo-adjustments[open]) .photo-preview > canvas {
+    width: min(100%, 240px, 28svh);
   }
   .photo-editor .photo-preview .profile-mini-preview {
     max-width: min(100%, 240px);

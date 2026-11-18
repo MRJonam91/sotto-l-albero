@@ -18,12 +18,51 @@ test.use({
   reducedMotion: "reduce",
 });
 
-test("ritratti del gruppo e prodotti di negozi diversi, con ritiro esplicito", async ({
+test("ritratti del gruppo, prodotti nel budget e ricerca esterna secondaria con ritiro esplicito", async ({
   page,
   browser,
   baseURL,
 }) => {
   const unique = Date.now();
+  const catalogRequests = [];
+  const products = [
+    {
+      id: "qa-cup",
+      title: "Tazza artigianale blu",
+      merchant: "Bottega QA",
+      price: 12.5,
+      image: "/hero.webp",
+      url: "https://www.etsy.com/listing/123456789/tazza-blu",
+      category: "home",
+    },
+    {
+      id: "qa-puzzle",
+      title: "Puzzle di Natale",
+      merchant: "Giochi QA",
+      price: 8,
+      image: "/hero.webp",
+      url: "https://www.etsy.com/listing/123456790/puzzle-natale",
+      category: "games",
+    },
+  ];
+  await page.route("**/api/gifts?*", async (route) => {
+    const params = new URL(route.request().url()).searchParams;
+    catalogRequests.push(Object.fromEntries(params));
+    await route.fulfill({
+      json: {
+        products: products.filter(
+          (product) =>
+            product.price <= Number(params.get("max")) &&
+            product.price >= Number(params.get("min")) &&
+            (params.get("category") === "all" ||
+              params.get("category") === product.category),
+        ),
+        cursor: "",
+        hasMore: false,
+        checkedAt: new Date().toISOString(),
+      },
+    });
+  });
   await signIn(page.request, `group-owner-${unique}@example.test`, "Ada");
   const future = (days) =>
     new Date(Date.now() + days * 86_400_000).toISOString();
@@ -91,7 +130,59 @@ test("ritratti del gruppo e prodotti di negozi diversi, con ritiro esplicito", a
     await page.keyboard.press("Escape");
 
     await page.goto(`/events/${event.id}?tab=wishlist`);
-    const shop = page.getByRole("region", { name: "Cerca un prodotto" });
+    const catalog = page.getByRole("region", {
+      name: "Quale regalo ti piacerebbe?",
+    });
+    await expect(catalog.locator(".gift-product")).toHaveCount(2);
+    await expect(catalog.locator(".gift-budget")).toContainText("20");
+    await expect(
+      catalog.getByRole("heading", { name: "Tazza artigianale blu" }),
+    ).toBeVisible();
+    await expect(catalog.locator(".gift-product-price").first()).toContainText(
+      "12,5",
+    );
+    expect(catalogRequests[0]).toMatchObject({
+      eventId: event.id,
+      category: "all",
+      min: "0",
+      max: "20",
+    });
+    const external = page.locator("details.wish-shopping");
+    await expect(external).not.toHaveAttribute("open", "");
+    await expect(external.getByLabel("Cosa cerchi?")).not.toBeVisible();
+    await catalog
+      .getByRole("button", { name: "Sotto i 10 €", exact: true })
+      .tap();
+    await expect(catalog.locator(".gift-product")).toHaveCount(1);
+    await expect(
+      catalog.getByRole("heading", { name: "Puzzle di Natale" }),
+    ).toBeVisible();
+    await catalog.getByRole("button", { name: "Giochi", exact: true }).tap();
+    await expect(
+      catalog.getByRole("button", { name: "Giochi", exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await expect
+      .poll(() => catalogRequests.at(-1))
+      .toMatchObject({ category: "games", max: "10" });
+    await catalog
+      .getByRole("button", {
+        name: "Aggiungi Puzzle di Natale alla lettera",
+        exact: true,
+      })
+      .tap();
+    await expect(
+      catalog.getByRole("button", {
+        name: "Puzzle di Natale già nella lettera",
+        exact: true,
+      }),
+    ).toBeDisabled();
+    await expect(page.locator(".wish-editor")).toHaveCount(1);
+    await external
+      .getByText("Hai già un link o vuoi cercare in altri negozi?", {
+        exact: true,
+      })
+      .tap();
+    const shop = external;
     await shop.getByLabel("Cosa cerchi?").fill("Tazza blu");
     await shop.getByLabel("Dove cercare").selectOption("local");
     await expect(shop.getByRole("button", { name: "Cerca ↗" })).toBeDisabled();
@@ -106,7 +197,7 @@ test("ritratti del gruppo e prodotti di negozi diversi, con ritiro esplicito", a
       .getByLabel("Link del prodotto o del negozio")
       .fill("https://www.etsy.com/it/search?q=tazza");
     await shop.getByRole("button", { name: "Aggiungi alla lettera" }).click();
-    const wish = page.locator(".wish-editor");
+    const wish = page.locator(".wish-editor").last();
     await wish
       .getByText("Ritiro in negozio (facoltativo)", { exact: true })
       .click();
@@ -120,14 +211,20 @@ test("ritratti del gruppo e prodotti di negozi diversi, con ritiro esplicito", a
     const saved = await page.request
       .get(`/api/events/${event.id}`)
       .then((r) => r.json());
+    expect(saved.wishlist).toHaveLength(2);
     expect(saved.wishlist[0]).toMatchObject({
+      title: "Puzzle di Natale",
+      url: products[1].url,
+    });
+    expect(saved.wishlist[1]).toMatchObject({
       title: "Una tazza artigianale",
       fulfillment: "pickup",
       pickupCity: "Torino",
     });
-    expect(saved.wishlist[0].url).not.toContain("tag=");
+    expect(saved.wishlist[1].url).not.toContain("tag=");
     const a11y = await new AxeBuilder({ page })
       .include(".wish-shopping")
+      .include(".gift-browser")
       .include(".wish-editor")
       .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
       .analyze();

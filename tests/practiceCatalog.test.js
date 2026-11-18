@@ -77,7 +77,7 @@ afterEach(() => {
 });
 
 describe("Catalogo allenamento", () => {
-  it("offre gli stessi sei giochi ufficiali e il tris senza assegnare punti", async () => {
+  it("offre gli otto allenamenti server, lasciando il curling al motore locale, senza punti", async () => {
     const before = rankedSnapshot();
     const catalog = await api("catalog");
     expect(catalog.status).toBe(200);
@@ -93,6 +93,7 @@ describe("Catalogo allenamento", () => {
       "tris",
     ]);
     expect(rankedSnapshot()).toEqual(before);
+    expect((await api("curling")).status).toBe(404);
   });
 
   it("allena Indovina il film con 10 film a icone, 4 opzioni e timer da 20 secondi senza cambiare la classifica", async () => {

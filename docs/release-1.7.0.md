@@ -1,0 +1,15 @@
+# Versione 1.7.0 · Ritratti, giochi e idee regalo
+
+Il ritratto fotografico parte dalla foto e mostra direttamente la composizione. Dieci atmosfere hanno cinque illustrazioni ciascuna, selezionate anche in base alla posa del volto. Rilevamento di occhi e lineamenti, scala uniforme, correzione dell’inclinazione e colore preservano i tratti della persona; le regolazioni restano vicine all’anteprima mobile, in una sezione richiudibile. Le fotografie vengono composte nel browser. Le cinquanta basi sono state generate con lo strumento immagini integrato, senza fotografie degli utenti: [prompt](avatar-generation-prompts.json), [asset](../public/avatar-templates/v2/manifest.json). Pose estreme o foto poco illuminate possono richiedere una regolazione manuale.
+
+Giochi e giochi del gruppo condividono catalogo, ordine, nomi e modalità. Le azioni aprono il gioco selezionato anche dopo la scelta del gruppo. Curling resta contro il computer; Tris permette computer o amici. Lo storico delle sfide rimane disponibile negli scambi archiviati.
+
+Le idee regalo sono prodotti reali sfogliabili entro il budget del gruppo, con immagine, prezzo, negozio e aggiunta alla bozza della lettera. Il catalogo usa l’interfaccia ufficiale Shopify, senza copiare cataloghi o conservare prodotti nel database. Le ricerche esterne e i link manuali restano disponibili nei dettagli. Prezzi e disponibilità richiedono conferma nel negozio e le schede scadono dopo dieci minuti. [Fonte e contratto](gift-catalog.md).
+
+Il profilo distingue i gusti dal coinvolgimento: quattro livelli crescono usando giochi e strumento, senza questionario obbligatorio. All’inizio emergono personaggi scettici; progredendo cambiano le affinità. I cinque tratti pesano il 65% e il livello il 35%; le tre percentuali non devono sommare cento. Il livello acquisito resta dopo reset o rimozione dei desideri. Nel gruppo compare soltanto il nome del livello. [Formula e conservazione](festive-progress.md).
+
+I timbri mantengono opere e scene differenti; i collegamenti video della teiera e dell’iPod sono distinti. Le raccolte o i trailer sono indicati esplicitamente quando non è disponibile una scena verificata. [Fonti](stamp-content-sources.md).
+
+La migrazione additiva `0021_festive_progress.sql` introduce soltanto il massimo di coinvolgimento acquisito. Dati dimostrativi, fotografie di prova e sessioni locali restano esclusi dal rilascio.
+
+Verifiche locali: 320/320 test unitari; tutti i 48 scenari browser verificati fra la suite generale e le riesecuzioni mirate dopo gli ultimi aggiustamenti. Confermati assenza di overflow, anteprima e slider nello stesso schermo a 320×740, storico dei quiz, prodotti entro budget e cataloghi coerenti. Verifica visiva di trenta composizioni con tre foto locali e dieci atmosfere. Build riuscita e audit dipendenze senza vulnerabilità. Revisione indipendente del backend e dell’interfaccia completata; corretti conservazione del livello e nomi accessibili dei pulsanti.

@@ -325,6 +325,34 @@ export function TasteRadarChart({ tastes = [] }) {
   );
 }
 
+export function FestiveProgressBadge({ progress, compact = false }) {
+  if (!progress?.level) return null;
+  if (compact)
+    return (
+      <p className="profile-footnote">
+        Coinvolgimento natalizio: <strong>{progress.level.label}</strong>
+      </p>
+    );
+  return (
+    <div className="festive-progress">
+      <div className="holiday-summary-heading">
+        <strong>{progress.level.label}</strong>
+        <span className="quiet">{progress.score}/100</span>
+      </div>
+      <progress
+        aria-label="Coinvolgimento natalizio"
+        max={100}
+        value={progress.score}
+        style={{ width: "100%", accentColor: "var(--green, #275b46)" }}
+      />
+      <p className="profile-footnote">
+        Giochi diversi, timbri e desideri salvati fanno avanzare il percorso. Le
+        domande sono facoltative; il livello raggiunto si conserva.
+      </p>
+    </div>
+  );
+}
+
 export function MovieCharacterComparison({
   characterMatches = [],
   matchingExplanation,
@@ -379,7 +407,7 @@ export function MovieCharacterComparison({
         {matchingExplanation?.provisional && (
           <>
             {isInitial
-              ? "Affinità iniziali da tratti neutri; si aggiornano con le attività. "
+              ? "Affinità iniziali da tratti neutri; il coinvolgimento parte dai personaggi scettici. "
               : "Prime affinità, ancora in aggiornamento. "}
           </>
         )}
@@ -410,10 +438,12 @@ export function MovieCharacterComparison({
             del giorno non dà penalità.
           </p>
           <p>
-            Confrontiamo i cinque tratti con quelli di ogni personaggio.
-            L’affinità parte da 100 e diminuisce con la distanza tra i tratti,
-            poi viene arrotondata. Non è una probabilità né una misura
-            psicologica.
+            Ogni affinità combina 65% tratti e 35% coinvolgimento natalizio. Il
+            primo confronto usa i cinque tratti; il secondo avvicina il livello
+            raggiunto alla fase natalizia del personaggio. All’inizio compaiono
+            gli scettici del Natale: è una tappa del gioco, senza attribuirti il
+            loro carattere. Non è una probabilità né una misura psicologica.
+            L’iscrizione a un gruppo da sola non conta.
           </p>
           {matchingExplanation.signals?.length > 0 && (
             <ul>
@@ -1202,6 +1232,13 @@ export function GroupMemberPortraitCard({
               )}
             </div>
             <p>{portrait.finalDescription}</p>
+            <FestiveProgressBadge
+              progress={
+                portrait.festiveProgress ||
+                portrait.matchingExplanation?.festiveProgress
+              }
+              compact
+            />
           </div>
 
           <HolidaySpiritImage

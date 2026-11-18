@@ -136,7 +136,9 @@ test("Quiz e film: risultati riapribili dopo reload e archivio, con ritorno alla
     ).toBeTruthy();
     await openCompetition(page, event.id);
     await expect(page.getByText(/Edizione .*Conclusa/)).toBeVisible();
-    await expect(page.getByRole("button", { name: /^Gioca:/ })).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: /^Sfida a punti:/ }),
+    ).toHaveCount(0);
     await page
       .getByRole("button", {
         name: "Vedi risposte: tentativo 1 di Quiz di Natale",

@@ -1,0 +1,2161 @@
+{
+  "version": 2,
+  "pipelineVersion": 1,
+  "coordinateSize": 256,
+  "imageSize": 512,
+  "expectedCount": 50,
+  "complete": true,
+  "templates": [
+    {
+      "id": "elf-front",
+      "sceneId": "elf",
+      "variantId": "front",
+      "overlay": "/avatar-templates/v2/elf-front.webp",
+      "coordinateSize": 256,
+      "openingBounds": {
+        "x": 89.5,
+        "y": 74,
+        "width": 74.5,
+        "height": 101
+      },
+      "faceBounds": {
+        "x": 89.5,
+        "y": 74,
+        "width": 74.5,
+        "height": 70.5
+      },
+      "face": [126.5, 109.25, 37.25, 35.25],
+      "anchors": {
+        "imageLeftEye": [109.5, 102.5],
+        "imageRightEye": [143.5, 102],
+        "noseTip": [126.5, 118.5],
+        "mouthCenter": [127, 129],
+        "chin": [127, 140.5]
+      },
+      "pose": {
+        "yaw": 0,
+        "pitch": 0,
+        "roll": -0.51
+      },
+      "lighting": {
+        "temperature": 0.3,
+        "direction": [-0.65, -0.45],
+        "strength": 0.22
+      },
+      "collarY": 175,
+      "featherPx": 1.5,
+      "calibrationVersion": 2,
+      "sourceSha256": "1ead9106bc937f989c0ba1745c80d8d8d51cf7176f4b624de750e1ae743fd68f",
+      "bytes": 107354,
+      "transparentOpeningPixels": 21055
+    },
+    {
+      "id": "elf-left",
+      "sceneId": "elf",
+      "variantId": "left",
+      "overlay": "/avatar-templates/v2/elf-left.webp",
+      "coordinateSize": 256,
+      "openingBounds": {
+        "x": 88.5,
+        "y": 69,
+        "width": 67.5,
+        "height": 96
+      },
+      "faceBounds": {
+        "x": 88.5,
+        "y": 69,
+        "width": 67.5,
+        "height": 69.5
+      },
+      "face": [122, 103.75, 33.75, 34.75],
+      "anchors": {
+        "imageLeftEye": [106.5, 98],
+        "imageRightEye": [137.5, 96],
+        "noseTip": [120.5, 113],
+        "mouthCenter": [121.5, 123],
+        "chin": [124, 134.5]
+      },
+      "pose": {
+        "yaw": -10,
+        "pitch": 0,
+        "roll": -3.6
+      },
+      "lighting": {
+        "temperature": 0.3,
+        "direction": [-0.65, -0.45],
+        "strength": 0.22
+      },
+      "collarY": 165,
+      "featherPx": 1.5,
+      "calibrationVersion": 2,
+      "sourceSha256": "7e72fcf4ccc86338b10e6f17321f7d96d5e9fcc0b112f05ac5963be4ab6505c6",
+      "bytes": 109494,
+      "transparentOpeningPixels": 18489
+    },
+    {
+      "id": "elf-right",
+      "sceneId": "elf",
+      "variantId": "right",
+      "overlay": "/avatar-templates/v2/elf-right.webp",
+      "coordinateSize": 256,
+      "openingBounds": {
+        "x": 93,
+        "y": 68.5,
+        "width": 70.5,
+        "height": 100
+      },
+      "faceBounds": {
+        "x": 93,
+        "y": 68.5,
+        "width": 70.5,
+        "height": 70
+      },
+      "face": [128.5, 103.5, 35.25, 35],
+      "anchors": {
+        "imageLeftEye": [112.5, 95],
+        "imageRightEye": [144.5, 98],
+        "noseTip": [129.5, 112.5],
+        "mouthCenter": [128.5, 123],
+        "chin": [128, 134.5]
+      },
+      "pose": {
+        "yaw": 10,
+        "pitch": 0,
+        "roll": 6.12
+      },
+      "lighting": {
+        "temperature": 0.3,
+        "direction": [-0.65, -0.45],
+        "strength": 0.22
+      },
+      "collarY": 168.5,
+      "featherPx": 1.5,
+      "calibrationVersion": 2,
+      "sourceSha256": "a269909e146134426992dd2c32e84a66ab968eaa308769115e54d2fcb35fd84a",
+      "bytes": 110416,
+      "transparentOpeningPixels": 19587
+    },
+    {
+      "id": "elf-tilt-left",
+      "sceneId": "elf",
+      "variantId": "tilt-left",
+      "overlay": "/avatar-templates/v2/elf-tilt-left.webp",
+      "coordinateSize": 256,
+      "openingBounds": {
+        "x": 78,
+        "y": 72,
+        "width": 75.5,
+        "height": 99
+      },
+      "faceBounds": {
+        "x": 78,
+        "y": 72,
+        "width": 75.5,
+        "height": 68.5
+      },
+      "face": [115.75, 106.25, 37.75, 34.25],
+      "anchors": {
+        "imageLeftEye": [98.5, 101.5],
+        "imageRightEye": [133, 97.5],
+        "noseTip": [117, 115],
+        "mouthCenter": [118, 125.5],
+        "chin": [119.5, 136.5]
+      },
+      "pose": {
+        "yaw": 0,
+        "pitch": 0,
+        "roll": -6.25
+      },
+      "lighting": {
+        "temperature": 0.3,
+        "direction": [-0.65, -0.45],
+        "strength": 0.22
+      },
+      "collarY": 171,
+      "featherPx": 1.5,
+      "calibrationVersion": 2,
+      "sourceSha256": "cbde1ae268970a66c3b5d1f3eba272b32bd4bb2dee0dda68e1b729cc59c2d325",
+      "bytes": 112352,
+      "transparentOpeningPixels": 21223
+    },
+    {
+      "id": "elf-tilt-right",
+      "sceneId": "elf",
+      "variantId": "tilt-right",
+      "overlay": "/avatar-templates/v2/elf-tilt-right.webp",
+      "coordinateSize": 256,
+      "openingBounds": {
+        "x": 91,
+        "y": 66.5,
+        "width": 74,
+        "height": 104
+      },
+      "faceBounds": {
+        "x": 91,
+        "y": 66.5,
+        "width": 74,
+        "height": 69
+      },
+      "face": [128, 101, 37, 34.5],
+      "anchors": {
+        "imageLeftEye": [111, 93],
+        "imageRightEye": [145, 95.5],
+        "noseTip": [126.5, 110],
+        "mouthCenter": [126, 120.5],
+        "chin": [125.5, 131.5]
+      },
+      "pose": {
+        "yaw": 0,
+        "pitch": 0,
+        "roll": 4.14
+      },
+      "lighting": {
+        "temperature": 0.3,
+        "direction": [-0.65, -0.45],
+        "strength": 0.22
+      },
+      "collarY": 170.5,
+      "featherPx": 1.5,
+      "calibrationVersion": 2,
+      "sourceSha256": "032fb3435bd49bddceaf7b9944adb878015837ff53b7fdbba96611d20abd31cd",
+      "bytes": 110884,
+      "transparentOpeningPixels": 21246
+    },
+    {
+      "id": "santa-front",
+      "sceneId": "santa",
+      "variantId": "front",
+      "overlay": "/avatar-templates/v2/santa-front.webp",
+      "coordinateSize": 256,
+      "openingBounds": {
+        "x": 87,
+        "y": 64.5,
+        "width": 77,
+        "height": 109.5
+      },
+      "faceBounds": {
+        "x": 87,
+        "y": 64.5,
+        "width": 77,
+        "height": 73
+      },
+      "face": [125.25, 101, 38.5, 36.5],
+      "anchors": {
+        "imageLeftEye": [107.5, 93.5],
+        "imageRightEye": [143, 93.5],
+        "noseTip": [125.5, 110.5],
+        "mouthCenter": [125.5, 121.5],
+        "chin": [125.5, 133]
+      },
+      "pose": {
+        "yaw": 0,
+        "pitch": 0,
+        "roll": 0
+      },
+      "lighting": {
+        "temperature": 0.3,
+        "direction": [-0.65, -0.45],
+        "strength": 0.22
+      },
+      "collarY": 174,
+      "featherPx": 1.5,
+      "calibrationVersion": 2,
+      "sourceSha256": "5151b41398eb028a3ad5ab8dfe16532dd0c6f0c82a0ee17314e69870c359a6f2",
+      "bytes": 118272,
+      "transparentOpeningPixels": 23608
+    },
+    {
+      "id": "santa-left",
+      "sceneId": "santa",
+      "variantId": "left",
+      "overlay": "/avatar-templates/v2/santa-left.webp",
+      "coordinateSize": 256,
+      "openingBounds": {
+        "x": 80,
+        "y": 70,
+        "width": 69.5,
+        "height": 98.5
+      },
+      "faceBounds": {
+        "x": 80,
+        "y": 70,
+        "width": 69.5,
+        "height": 71
+      },
+      "face": [114.5, 105.5, 34.75, 35.5],
+      "anchors": {
+        "imageLeftEye": [98.5, 99],
+        "imageRightEye": [130.5, 98],
+        "noseTip": [112, 114.5],
+        "mouthCenter": [113.5, 125.5],
+        "chin": [117, 136.5]
+      },
+      "pose": {
+        "yaw": -10,
+        "pitch": 0,
+        "roll": -1.51
+      },
+      "lighting": {
+        "temperature": 0.3,
+        "direction": [-0.65, -0.45],
+        "strength": 0.22
+      },
+      "collarY": 168.5,
+      "featherPx": 1.5,
+      "calibrationVersion": 2,
+      "sourceSha256": "3673b4818fbb83eb64169ccaecfa6625d42b7cdba5aa8e5230a7cc4d0214491a",
+      "bytes": 113838,
+      "transparentOpeningPixels": 18711
+    },
+    {
+      "id": "santa-right",
+      "sceneId": "santa",
+      "variantId": "right",
+      "overlay": "/avatar-templates/v2/santa-right.webp",
+      "coordinateSize": 256,
+      "openingBounds": {
+        "x": 87.5,
+        "y": 68,
+        "width": 70,
+        "height": 102.5
+      },
+      "faceBounds": {
+        "x": 87.5,
+        "y": 68,
+        "width": 70,
+        "height": 77
+      },
+      "face": [122.5, 106.5, 35, 38.5],
+      "anchors": {
+        "imageLeftEye": [106.5, 99.5],
+        "imageRightEye": [138.5, 98],
+        "noseTip": [126, 116.5],
+        "mouthCenter": [124, 128],
+        "chin": [118, 140.5]
+      },
+      "pose": {
+        "yaw": 10,
+        "pitch": 0,
+        "roll": -2.32
+      },
+      "lighting": {
+        "temperature": 0.3,
+        "direction": [-0.65, -0.45],
+        "strength": 0.22
+      },
+      "collarY": 170.5,
+      "featherPx": 1.5,
+      "calibrationVersion": 2,
+      "sourceSha256": "ab907701bb1d52cfbfd7984b4fd682f05e059f47e7a4b9524a0de922196e179b",
+      "bytes": 114058,
+      "transparentOpeningPixels": 20102
+    },
+    {
+      "id": "santa-tilt-left",
+      "sceneId": "santa",
+      "variantId": "tilt-left",
+      "overlay": "/avatar-templates/v2/santa-tilt-left.webp",
+      "coordinateSize": 256,
+      "openingBounds": {
+        "x": 76,
+        "y": 65.5,
+        "width": 76.5,
+        "height": 103.5
+      },
+      "faceBounds": {
+        "x": 76,
+        "y": 65.5,
+        "width": 76.5,
+        "height": 68
+      },
+      "face": [113.75, 99.5, 38.25, 34],
+      "anchors": {
+        "imageLeftEye": [96, 95.5],
+        "imageRightEye": [131.5, 90],
+        "noseTip": [116, 108.5],
+        "mouthCenter": [117.5, 118.5],
+        "chin": [120, 129.5]
+      },
+      "pose": {
+        "yaw": 0,
+        "pitch": 0,
+        "roll": -8.88
+      },
+      "lighting": {
+        "temperature": 0.3,
+        "direction": [-0.65, -0.45],
+        "strength": 0.22
+      },
+      "collarY": 169,
+      "featherPx": 1.5,
+      "calibrationVersion": 2,
+      "sourceSha256": "dbba8df27fd97f7812d5acebe7df15f41ff73f556f9800b7a17f833e424c127d",
+      "bytes": 115492,
+      "transparentOpeningPixels": 21878
+    },
+    {
+      "id": "santa-tilt-right",
+      "sceneId": "santa",
+      "variantId": "tilt-right",
+      "overlay": "/avatar-templates/v2/santa-tilt-right.webp",
+      "coordinateSize": 256,
+      "openingBounds": {
+        "x": 86.5,
+        "y": 69,
+        "width": 76.5,
+        "height": 102
+      },
+      "faceBounds": {
+        "x": 86.5,
+        "y": 69,
+        "width": 76.5,
+        "height": 74.5
+      },
+      "face": [125, 106.25, 38.25, 37.25],
+      "anchors": {
+        "imageLeftEye": [107.5, 97],
+        "imageRightEye": [142.5, 100.5],
+        "noseTip": [123.5, 116],
+        "mouthCenter": [123, 127],
+        "chin": [122, 139]
+      },
+      "pose": {
+        "yaw": 0,
+        "pitch": 0,
+        "roll": 5.27
+      },
+      "lighting": {
+        "temperature": 0.3,
+        "direction": [-0.65, -0.45],
+        "strength": 0.22
+      },
+      "collarY": 171,
+      "featherPx": 1.5,
+      "calibrationVersion": 2,
+      "sourceSha256": "3d1a8fcfc6a2ebe915f3fe7102eab3c426df9503170a68b1f3b9a9578300d03a",
+      "bytes": 114990,
+      "transparentOpeningPixels": 22532
+    },
+    {
+      "id": "sleigh-front",
+      "sceneId": "sleigh",
+      "variantId": "front",
+      "overlay": "/avatar-templates/v2/sleigh-front.webp",
+      "coordinateSize": 256,
+      "openingBounds": {
+        "x": 89.5,
+        "y": 69,
+        "width": 74.5,
+        "height": 92.5
+      },
+      "faceBounds": {
+        "x": 89.5,
+        "y": 69,
+        "width": 74.5,
+        "height": 72
+      },
+      "face": [126.75, 105, 37.25, 36],
+      "anchors": {
+        "imageLeftEye": [109.5, 98],
+        "imageRightEye": [144, 98],
+        "noseTip": [126.5, 114.5],
+        "mouthCenter": [127, 125],
+        "chin": [126.5, 136.5]
+      },
+      "pose": {
+        "yaw": 0,
+        "pitch": 0,
+        "roll": 0
+      },
+      "lighting": {
+        "temperature": 0.3,
+        "direction": [-0.65, -0.45],
+        "strength": 0.22
+      },
+      "collarY": 161.5,
+      "featherPx": 1.5,
+      "calibrationVersion": 2,
+      "sourceSha256": "e19fd5ef72441c003745c5261a9a014f6f1d7afd9d19ff9a9831c552869d4609",
+      "bytes": 119908,
+      "transparentOpeningPixels": 21519
+    },
+    {
+      "id": "sleigh-left",
+      "sceneId": "sleigh",
+      "variantId": "left",
+      "overlay": "/avatar-templates/v2/sleigh-left.webp",
+      "coordinateSize": 256,
+      "openingBounds": {
+        "x": 88,
+        "y": 65,
+        "width": 62.5,
+        "height": 88
+      },
+      "faceBounds": {
+        "x": 88,
+        "y": 65,
+        "width": 62.5,
+        "height": 76.5
+      },
+      "face": [118.5, 103.25, 31.25, 38.25],
+      "anchors": {
+        "imageLeftEye": [104, 96],
+        "imageRightEye": [133, 95],
+        "noseTip": [117.5, 113],
+        "mouthCenter": [120.5, 124.5],
+        "chin": [128, 137]
+      },
+      "pose": {
+        "yaw": -10,
+        "pitch": 0,
+        "roll": -2.34
+      },
+      "lighting": {
+        "temperature": 0.3,
+        "direction": [-0.65, -0.45],
+        "strength": 0.22
+      },
+      "collarY": 153,
+      "featherPx": 1.5,
+      "calibrationVersion": 2,
+      "sourceSha256": "54278de1b69f13c7baf0feba811f862d41ee8a9fccceb54dce97919791012c31",
+      "bytes": 120186,
+      "transparentOpeningPixels": 16838
+    },
+    {
+      "id": "sleigh-right",
+      "sceneId": "sleigh",
+      "variantId": "right",
+      "overlay": "/avatar-templates/v2/sleigh-right.webp",
+      "coordinateSize": 256,
+      "openingBounds": {
+        "x": 101,
+        "y": 65.5,
+        "width": 69,
+        "height": 92
+      },
+      "faceBounds": {
+        "x": 101,
+        "y": 65.5,
+        "width": 69,
+        "height": 74
+      },
+      "face": [135, 102.5, 34.5, 37],
+      "anchors": {
+        "imageLeftEye": [119, 94],
+        "imageRightEye": [151, 96.5],
+        "noseTip": [136, 112],
+        "mouthCenter": [134, 123],
+        "chin": [128.5, 135]
+      },
+      "pose": {
+        "yaw": 10,
+        "pitch": 0,
+        "roll": 4.83
+      },
+      "lighting": {
+        "temperature": 0.3,
+        "direction": [-0.65, -0.45],
+        "strength": 0.22
+      },
+      "collarY": 157.5,
+      "featherPx": 1.5,
+      "calibrationVersion": 2,
+      "sourceSha256": "e97736812db0e3302f5af7d7323c5791f480348d6b43ed35df808440a99e12ea",
+      "bytes": 118960,
+      "transparentOpeningPixels": 19027
+    },
+    {
+      "id": "sleigh-tilt-left",
+      "sceneId": "sleigh",
+      "variantId": "tilt-left",
+      "overlay": "/avatar-templates/v2/sleigh-tilt-left.webp",
+      "coordinateSize": 256,
+      "openingBounds": {
+        "x": 77.5,
+        "y": 64.5,
+        "width": 76.5,
+        "height": 91
+      },
+      "faceBounds": {
+        "x": 77.5,
+        "y": 64.5,
+        "width": 76.5,
+        "height": 76.5
+      },
+      "face": [116.5, 102.75, 38.25, 38.25],
+      "anchors": {
+        "imageLeftEye": [99, 98.5],
+        "imageRightEye": [134, 92],
+        "noseTip": [118.5, 112.5],
+        "mouthCenter": [119.5, 124],
+        "chin": [126.5, 136.5]
+      },
+      "pose": {
+        "yaw": 0,
+        "pitch": 0,
+        "roll": -10.19
+      },
+      "lighting": {
+        "temperature": 0.3,
+        "direction": [-0.65, -0.45],
+        "strength": 0.22
+      },
+      "collarY": 155.5,
+      "featherPx": 1.5,
+      "calibrationVersion": 2,
+      "sourceSha256": "f1f7ba6ab78b3037060542b03308f7db811ed20d145643b9b9cd49580947c17c",
+      "bytes": 117272,
+      "transparentOpeningPixels": 20739
+    },
+    {
+      "id": "sleigh-tilt-right",
+      "sceneId": "sleigh",
+      "variantId": "tilt-right",
+      "overlay": "/avatar-templates/v2/sleigh-tilt-right.webp",
+      "coordinateSize": 256,
+      "openingBounds": {
+        "x": 96.5,
+        "y": 60,
+        "width": 75,
+        "height": 89.5
+      },
+      "faceBounds": {
+        "x": 96.5,
+        "y": 60,
+        "width": 75,
+        "height": 78
+      },
+      "face": [133, 99, 37.5, 39],
+      "anchors": {
+        "imageLeftEye": [116, 87],
+        "imageRightEye": [150.5, 95.5],
+        "noseTip": [130, 109],
+        "mouthCenter": [128.5, 121],
+        "chin": [123, 133.5]
+      },
+      "pose": {
+        "yaw": 0,
+        "pitch": 0,
+        "roll": 13.95
+      },
+      "lighting": {
+        "temperature": 0.3,
+        "direction": [-0.65, -0.45],
+        "strength": 0.22
+      },
+      "collarY": 149.5,
+      "featherPx": 1.5,
+      "calibrationVersion": 2,
+      "sourceSha256": "897917d23b64452a7a076e0079ae6009b38bc559c247c9b7553422a37fdfc9d3",
+      "bytes": 122398,
+      "transparentOpeningPixels": 20406
+    },
+    {
+      "id": "cozy-front",
+      "sceneId": "cozy",
+      "variantId": "front",
+      "overlay": "/avatar-templates/v2/cozy-front.webp",
+      "coordinateSize": 256,
+      "openingBounds": {
+        "x": 89,
+        "y": 64,
+        "width": 76,
+        "height": 122.5
+      },
+      "faceBounds": {
+        "x": 89,
+        "y": 64,
+        "width": 76,
+        "height": 77
+      },
+      "face": [126.5, 102.5, 38, 38.5],
+      "anchors": {
+        "imageLeftEye": [109, 95],
+        "imageRightEye": [144, 95],
+        "noseTip": [127, 112.5],
+        "mouthCenter": [127, 124],
+        "chin": [127, 136.5]
+      },
+      "pose": {
+        "yaw": 0,
+        "pitch": 0,
+        "roll": 0
+      },
+      "lighting": {
+        "temperature": 0.3,
+        "direction": [-0.65, -0.45],
+        "strength": 0.22
+      },
+      "collarY": 186.5,
+      "featherPx": 1.5,
+      "calibrationVersion": 2,
+      "sourceSha256": "c46f37726e7df0f4637e2267aa8b55f8eb9417f5236baa478f49a22975304f98",
+      "bytes": 113164,
+      "transparentOpeningPixels": 25349
+    },
+    {
+      "id": "cozy-left",
+      "sceneId": "cozy",
+      "variantId": "left",
+      "overlay": "/avatar-templates/v2/cozy-left.webp",
+      "coordinateSize": 256,
+      "openingBounds": {
+        "x": 92.5,
+        "y": 62,
+        "width": 67,
+        "height": 116
+      },
+      "faceBounds": {
+        "x": 92.5,
+        "y": 62,
+        "width": 67,
+        "height": 79.5
+      },
+      "face": [126.25, 101.75, 33.5, 39.75],
+      "anchors": {
+        "imageLeftEye": [111, 92.5],
+        "imageRightEye": [141.5, 95],
+        "noseTip": [122.5, 112],
+        "mouthCenter": [122, 124],
+        "chin": [125.5, 136.5]
+      },
+      "pose": {
+        "yaw": -10,
+        "pitch": 0,
+        "roll": 4.5
+      },
+      "lighting": {
+        "temperature": 0.3,
+        "direction": [-0.65, -0.45],
+        "strength": 0.22
+      },
+      "collarY": 178,
+      "featherPx": 1.5,
+      "calibrationVersion": 2,
+      "sourceSha256": "27dc42ee7380eb3622569e4ab8f65976f3c50ce45e5a28c38a1ef27b1c6cd592",
+      "bytes": 114372,
+      "transparentOpeningPixels": 21420
+    },
+    {
+      "id": "cozy-right",
+      "sceneId": "cozy",
+      "variantId": "right",
+      "overlay": "/avatar-templates/v2/cozy-right.webp",
+      "coordinateSize": 256,
+      "openingBounds": {
+        "x": 91,
+        "y": 61.5,
+        "width": 72.5,
+        "height": 128
+      },
+      "faceBounds": {
+        "x": 91,
+        "y": 61.5,
+        "width": 72.5,
+        "height": 84.5
+      },
+      "face": [127, 103.75, 36.25, 42.25],
+      "anchors": {
+        "imageLeftEye": [110.5, 95.5],
+        "imageRightEye": [143.5, 95],
+        "noseTip": [129, 114.5],
+        "mouthCenter": [129.5, 127.5],
+        "chin": [126.5, 141]
+      },
+      "pose": {
+        "yaw": 10,
+        "pitch": 0,
+        "roll": -0.42
+      },
+      "lighting": {
+        "temperature": 0.3,
+        "direction": [-0.65, -0.45],
+        "strength": 0.22
+      },
+      "collarY": 189.5,
+      "featherPx": 1.5,
+      "calibrationVersion": 2,
+      "sourceSha256": "b645d71335b71405f1ed2806515caf9f6c0a97e6320f348d7f827af3e8a40203",
+      "bytes": 115704,
+      "transparentOpeningPixels": 25834
+    },
+    {
+      "id": "cozy-tilt-left",
+      "sceneId": "cozy",
+      "variantId": "tilt-left",
+      "overlay": "/avatar-templates/v2/cozy-tilt-left.webp",
+      "coordinateSize": 256,
+      "openingBounds": {
+        "x": 80.5,
+        "y": 66.5,
+        "width": 70.5,
+        "height": 118
+      },
+      "faceBounds": {
+        "x": 80.5,
+        "y": 66.5,
+        "width": 70.5,
+        "height": 74.5
+      },
+      "face": [115, 103.75, 35.25, 37.25],
+      "anchors": {
+        "imageLeftEye": [99, 97.5],
+        "imageRightEye": [131, 95],
+        "noseTip": [116.5, 113.5],
+        "mouthCenter": [117.5, 124.5],
+        "chin": [119, 136.5]
+      },
+      "pose": {
+        "yaw": 0,
+        "pitch": 0,
+        "roll": -4.32
+      },
+      "lighting": {
+        "temperature": 0.3,
+        "direction": [-0.65, -0.45],
+        "strength": 0.22
+      },
+      "collarY": 184.5,
+      "featherPx": 1.5,
+      "calibrationVersion": 2,
+      "sourceSha256": "46cd1ab11fbabcf9cdd73cf356ef2d6a27c5957d6595e1984c5f1df60a4d2499",
+      "bytes": 112916,
+      "transparentOpeningPixels": 22502
+    },
+    {
+      "id": "cozy-tilt-right",
+      "sceneId": "cozy",
+      "variantId": "tilt-right",
+      "overlay": "/avatar-templates/v2/cozy-tilt-right.webp",
+      "coordinateSize": 256,
+      "openingBounds": {
+        "x": 91,
+        "y": 62,
+        "width": 79.5,
+        "height": 128.5
+      },
+      "faceBounds": {
+        "x": 91,
+        "y": 62,
+        "width": 79.5,
+        "height": 80.5
+      },
+      "face": [131.5, 102.25, 39.75, 40.25],
+      "anchors": {
+        "imageLeftEye": [113, 92],
+        "imageRightEye": [150, 96.5],
+        "noseTip": [130, 112.5],
+        "mouthCenter": [129, 125],
+        "chin": [128.5, 137.5]
+      },
+      "pose": {
+        "yaw": 0,
+        "pitch": 0,
+        "roll": 6.64
+      },
+      "lighting": {
+        "temperature": 0.3,
+        "direction": [-0.65, -0.45],
+        "strength": 0.22
+      },
+      "collarY": 190.5,
+      "featherPx": 1.5,
+      "calibrationVersion": 2,
+      "sourceSha256": "29e145e4a058764b21a0871b2e2a3cd4f488dc98c4e13f39c2f266c5d9ef107b",
+      "bytes": 116218,
+      "transparentOpeningPixels": 27085
+    },
+    {
+      "id": "nutcracker-front",
+      "sceneId": "nutcracker",
+      "variantId": "front",
+      "overlay": "/avatar-templates/v2/nutcracker-front.webp",
+      "coordinateSize": 256,
+      "openingBounds": {
+        "x": 91,
+        "y": 80,
+        "width": 71,
+        "height": 93.5
+      },
+      "faceBounds": {
+        "x": 91,
+        "y": 80,
+        "width": 71,
+        "height": 62.5
+      },
+      "face": [126.25, 111.25, 35.5, 31.25],
+      "anchors": {
+        "imageLeftEye": [110, 105],
+        "imageRightEye": [142.5, 105],
+        "noseTip": [126.5, 119.5],
+        "mouthCenter": [126.5, 129],
+        "chin": [126.5, 139]
+      },
+      "pose": {
+        "yaw": 0,
+        "pitch": 0,
+        "roll": 0
+      },
+      "lighting": {
+        "temperature": 0.3,
+        "direction": [-0.65, -0.45],
+        "strength": 0.22
+      },
+      "collarY": 173.5,
+      "featherPx": 1.5,
+      "calibrationVersion": 2,
+      "sourceSha256": "ff7d4e17de3c3eecd18ce6eb02c2f1d9a64a1c25285d0fdb2a5648f96c5e73e7",
+      "bytes": 108146,
+      "transparentOpeningPixels": 18752
+    },
+    {
+      "id": "nutcracker-left",
+      "sceneId": "nutcracker",
+      "variantId": "left",
+      "overlay": "/avatar-templates/v2/nutcracker-left.webp",
+      "coordinateSize": 256,
+      "openingBounds": {
+        "x": 88,
+        "y": 80,
+        "width": 69,
+        "height": 85.5
+      },
+      "faceBounds": {
+        "x": 88,
+        "y": 80,
+        "width": 69,
+        "height": 63
+      },
+      "face": [122.75, 111.5, 34.5, 31.5],
+      "anchors": {
+        "imageLeftEye": [107, 104.5],
+        "imageRightEye": [138.5, 106],
+        "noseTip": [120, 119.5],
+        "mouthCenter": [120, 129],
+        "chin": [123, 139]
+      },
+      "pose": {
+        "yaw": -10,
+        "pitch": 0,
+        "roll": 3.41
+      },
+      "lighting": {
+        "temperature": 0.3,
+        "direction": [-0.65, -0.45],
+        "strength": 0.22
+      },
+      "collarY": 165.5,
+      "featherPx": 1.5,
+      "calibrationVersion": 2,
+      "sourceSha256": "af7caab762501f9559bb3f2024b421e721bee1c1841d1527a722dc37a6a846f0",
+      "bytes": 108838,
+      "transparentOpeningPixels": 16470
+    },
+    {
+      "id": "nutcracker-right",
+      "sceneId": "nutcracker",
+      "variantId": "right",
+      "overlay": "/avatar-templates/v2/nutcracker-right.webp",
+      "coordinateSize": 256,
+      "openingBounds": {
+        "x": 93.5,
+        "y": 77,
+        "width": 70.5,
+        "height": 94.5
+      },
+      "faceBounds": {
+        "x": 93.5,
+        "y": 77,
+        "width": 70.5,
+        "height": 70.5
+      },
+      "face": [128.25, 112.25, 35.25, 35.25],
+      "anchors": {
+        "imageLeftEye": [112, 105.5],
+        "imageRightEye": [144.5, 105],
+        "noseTip": [130.5, 121.5],
+        "mouthCenter": [129.5, 132],
+        "chin": [125.5, 143.5]
+      },
+      "pose": {
+        "yaw": 10,
+        "pitch": 0,
+        "roll": -1.02
+      },
+      "lighting": {
+        "temperature": 0.3,
+        "direction": [-0.65, -0.45],
+        "strength": 0.22
+      },
+      "collarY": 171.5,
+      "featherPx": 1.5,
+      "calibrationVersion": 2,
+      "sourceSha256": "91994fa1e890a888c370d7b3f0f4ac72dc184899aad2db354e3cfc7aa42679d7",
+      "bytes": 110050,
+      "transparentOpeningPixels": 19026
+    },
+    {
+      "id": "nutcracker-tilt-left",
+      "sceneId": "nutcracker",
+      "variantId": "tilt-left",
+      "overlay": "/avatar-templates/v2/nutcracker-tilt-left.webp",
+      "coordinateSize": 256,
+      "openingBounds": {
+        "x": 80,
+        "y": 79,
+        "width": 71.5,
+        "height": 87
+      },
+      "faceBounds": {
+        "x": 80,
+        "y": 79,
+        "width": 71.5,
+        "height": 71.5
+      },
+      "face": [116, 114.75, 35.75, 35.75],
+      "anchors": {
+        "imageLeftEye": [99.5, 109],
+        "imageRightEye": [132.5, 106.5],
+        "noseTip": [117, 124],
+        "mouthCenter": [118.5, 135],
+        "chin": [123.5, 146]
+      },
+      "pose": {
+        "yaw": 0,
+        "pitch": 0,
+        "roll": -4
+      },
+      "lighting": {
+        "temperature": 0.3,
+        "direction": [-0.65, -0.45],
+        "strength": 0.22
+      },
+      "collarY": 166,
+      "featherPx": 1.5,
+      "calibrationVersion": 2,
+      "sourceSha256": "9f0ad47ff31ad58f9aadb45625e9982d59a8fd396a7e2e3b8ebcd37596db9e7f",
+      "bytes": 110250,
+      "transparentOpeningPixels": 18331
+    },
+    {
+      "id": "nutcracker-tilt-right",
+      "sceneId": "nutcracker",
+      "variantId": "tilt-right",
+      "overlay": "/avatar-templates/v2/nutcracker-tilt-right.webp",
+      "coordinateSize": 256,
+      "openingBounds": {
+        "x": 96,
+        "y": 81.5,
+        "width": 68,
+        "height": 97.5
+      },
+      "faceBounds": {
+        "x": 96,
+        "y": 81.5,
+        "width": 68,
+        "height": 72.5
+      },
+      "face": [129.25, 117.75, 34, 36.25],
+      "anchors": {
+        "imageLeftEye": [113.5, 108.5],
+        "imageRightEye": [145, 112.5],
+        "noseTip": [127.5, 127],
+        "mouthCenter": [125.5, 138],
+        "chin": [121.5, 149.5]
+      },
+      "pose": {
+        "yaw": 0,
+        "pitch": 0,
+        "roll": 7.85
+      },
+      "lighting": {
+        "temperature": 0.3,
+        "direction": [-0.65, -0.45],
+        "strength": 0.22
+      },
+      "collarY": 179,
+      "featherPx": 1.5,
+      "calibrationVersion": 2,
+      "sourceSha256": "840f744ffe72170645830750c89be318f794873118a38e2f2481e867fd50270b",
+      "bytes": 117384,
+      "transparentOpeningPixels": 17574
+    },
+    {
+      "id": "victorian-front",
+      "sceneId": "victorian",
+      "variantId": "front",
+      "overlay": "/avatar-templates/v2/victorian-front.webp",
+      "coordinateSize": 256,
+      "openingBounds": {
+        "x": 84.5,
+        "y": 63.5,
+        "width": 82.5,
+        "height": 101.5
+      },
+      "faceBounds": {
+        "x": 84.5,
+        "y": 63.5,
+        "width": 82.5,
+        "height": 79.5
+      },
+      "face": [125.75, 103.25, 41.25, 39.75],
+      "anchors": {
+        "imageLeftEye": [107, 95],
+        "imageRightEye": [144.5, 95.5],
+        "noseTip": [126, 113.5],
+        "mouthCenter": [125.5, 125.5],
+        "chin": [125.5, 138]
+      },
+      "pose": {
+        "yaw": 0,
+        "pitch": 0,
+        "roll": 0.45
+      },
+      "lighting": {
+        "temperature": 0.3,
+        "direction": [-0.65, -0.45],
+        "strength": 0.22
+      },
+      "collarY": 165,
+      "featherPx": 1.5,
+      "calibrationVersion": 2,
+      "sourceSha256": "73978522537155614bad30a000933ef5b33a02efddc711a36746ec887192afb5",
+      "bytes": 115242,
+      "transparentOpeningPixels": 25087
+    },
+    {
+      "id": "victorian-left",
+      "sceneId": "victorian",
+      "variantId": "left",
+      "overlay": "/avatar-templates/v2/victorian-left.webp",
+      "coordinateSize": 256,
+      "openingBounds": {
+        "x": 91.5,
+        "y": 67,
+        "width": 67.5,
+        "height": 87
+      },
+      "faceBounds": {
+        "x": 91.5,
+        "y": 67,
+        "width": 67.5,
+        "height": 71.5
+      },
+      "face": [125.5, 102.75, 33.75, 35.75],
+      "anchors": {
+        "imageLeftEye": [110, 96],
+        "imageRightEye": [141, 95.5],
+        "noseTip": [123.5, 112],
+        "mouthCenter": [124, 123],
+        "chin": [127, 134]
+      },
+      "pose": {
+        "yaw": -10,
+        "pitch": 0,
+        "roll": -1
+      },
+      "lighting": {
+        "temperature": 0.3,
+        "direction": [-0.65, -0.45],
+        "strength": 0.22
+      },
+      "collarY": 154,
+      "featherPx": 1.5,
+      "calibrationVersion": 2,
+      "sourceSha256": "cc6454ed89c5ed32a95ff6f8c29e722d780e228e42c15e08d3c798afb74cbd84",
+      "bytes": 113652,
+      "transparentOpeningPixels": 18118
+    },
+    {
+      "id": "victorian-right",
+      "sceneId": "victorian",
+      "variantId": "right",
+      "overlay": "/avatar-templates/v2/victorian-right.webp",
+      "coordinateSize": 256,
+      "openingBounds": {
+        "x": 90.5,
+        "y": 65,
+        "width": 68.5,
+        "height": 93
+      },
+      "faceBounds": {
+        "x": 90.5,
+        "y": 65,
+        "width": 68.5,
+        "height": 70.5
+      },
+      "face": [124.25, 100.25, 34.25, 35.25],
+      "anchors": {
+        "imageLeftEye": [108.5, 93],
+        "imageRightEye": [140, 93.5],
+        "noseTip": [126.5, 109.5],
+        "mouthCenter": [127.5, 120],
+        "chin": [125.5, 131.5]
+      },
+      "pose": {
+        "yaw": 10,
+        "pitch": 0,
+        "roll": 1.52
+      },
+      "lighting": {
+        "temperature": 0.3,
+        "direction": [-0.65, -0.45],
+        "strength": 0.22
+      },
+      "collarY": 158,
+      "featherPx": 1.5,
+      "calibrationVersion": 2,
+      "sourceSha256": "9a7dcdc793e924cc0ccc6a6ddf0ab7291d7176d8f71e9d159416ae709fc12741",
+      "bytes": 114268,
+      "transparentOpeningPixels": 17919
+    },
+    {
+      "id": "victorian-tilt-left",
+      "sceneId": "victorian",
+      "variantId": "tilt-left",
+      "overlay": "/avatar-templates/v2/victorian-tilt-left.webp",
+      "coordinateSize": 256,
+      "openingBounds": {
+        "x": 80.5,
+        "y": 67.5,
+        "width": 78,
+        "height": 102
+      },
+      "faceBounds": {
+        "x": 80.5,
+        "y": 67.5,
+        "width": 78,
+        "height": 71
+      },
+      "face": [119.25, 103, 39, 35.5],
+      "anchors": {
+        "imageLeftEye": [101.5, 96.5],
+        "imageRightEye": [137, 95.5],
+        "noseTip": [120, 112],
+        "mouthCenter": [120.5, 123],
+        "chin": [122.5, 134]
+      },
+      "pose": {
+        "yaw": 0,
+        "pitch": 0,
+        "roll": -1.51
+      },
+      "lighting": {
+        "temperature": 0.3,
+        "direction": [-0.65, -0.45],
+        "strength": 0.22
+      },
+      "collarY": 169.5,
+      "featherPx": 1.5,
+      "calibrationVersion": 2,
+      "sourceSha256": "55e0a377d4ff8185766d6b58110d75c20070251a143eadff2cf276c04b3847e4",
+      "bytes": 116762,
+      "transparentOpeningPixels": 22440
+    },
+    {
+      "id": "victorian-tilt-right",
+      "sceneId": "victorian",
+      "variantId": "tilt-right",
+      "overlay": "/avatar-templates/v2/victorian-tilt-right.webp",
+      "coordinateSize": 256,
+      "openingBounds": {
+        "x": 90,
+        "y": 64,
+        "width": 77.5,
+        "height": 99.5
+      },
+      "faceBounds": {
+        "x": 90,
+        "y": 64,
+        "width": 77.5,
+        "height": 72.5
+      },
+      "face": [127.75, 100.25, 38.75, 36.25],
+      "anchors": {
+        "imageLeftEye": [110, 91.5],
+        "imageRightEye": [145.5, 94.5],
+        "noseTip": [127.5, 109.5],
+        "mouthCenter": [125.5, 120.5],
+        "chin": [124.5, 132]
+      },
+      "pose": {
+        "yaw": 0,
+        "pitch": 0,
+        "roll": 4.93
+      },
+      "lighting": {
+        "temperature": 0.3,
+        "direction": [-0.65, -0.45],
+        "strength": 0.22
+      },
+      "collarY": 163.5,
+      "featherPx": 1.5,
+      "calibrationVersion": 2,
+      "sourceSha256": "ef21c63aa5e7c19439f535153f9d1bd36a9c3f9f6dc4d7f33c13d4c1c044a2b3",
+      "bytes": 115844,
+      "transparentOpeningPixels": 21847
+    },
+    {
+      "id": "reindeer-front",
+      "sceneId": "reindeer",
+      "variantId": "front",
+      "overlay": "/avatar-templates/v2/reindeer-front.webp",
+      "coordinateSize": 256,
+      "openingBounds": {
+        "x": 87.5,
+        "y": 66,
+        "width": 75.5,
+        "height": 95.5
+      },
+      "faceBounds": {
+        "x": 87.5,
+        "y": 66,
+        "width": 75.5,
+        "height": 74
+      },
+      "face": [125.25, 103, 37.75, 37],
+      "anchors": {
+        "imageLeftEye": [108, 95],
+        "imageRightEye": [142.5, 96],
+        "noseTip": [125, 112.5],
+        "mouthCenter": [125, 123.5],
+        "chin": [125, 135.5]
+      },
+      "pose": {
+        "yaw": 0,
+        "pitch": 0,
+        "roll": 1.45
+      },
+      "lighting": {
+        "temperature": 0.12,
+        "direction": [-0.65, -0.45],
+        "strength": 0.22
+      },
+      "collarY": 161.5,
+      "featherPx": 1.5,
+      "calibrationVersion": 2,
+      "sourceSha256": "225669a73ec55209dfe3c8abc79f56c6dc3d0832c7e7864e2facc8a65cbb1cf7",
+      "bytes": 123704,
+      "transparentOpeningPixels": 22060
+    },
+    {
+      "id": "reindeer-left",
+      "sceneId": "reindeer",
+      "variantId": "left",
+      "overlay": "/avatar-templates/v2/reindeer-left.webp",
+      "coordinateSize": 256,
+      "openingBounds": {
+        "x": 81,
+        "y": 72,
+        "width": 64.5,
+        "height": 92.5
+      },
+      "faceBounds": {
+        "x": 81,
+        "y": 72,
+        "width": 64.5,
+        "height": 74.5
+      },
+      "face": [112.25, 109.25, 32.25, 37.25],
+      "anchors": {
+        "imageLeftEye": [97.5, 104.5],
+        "imageRightEye": [127, 99],
+        "noseTip": [112, 119],
+        "mouthCenter": [114.5, 130],
+        "chin": [116.5, 142]
+      },
+      "pose": {
+        "yaw": -10,
+        "pitch": 0,
+        "roll": -9.99
+      },
+      "lighting": {
+        "temperature": 0.12,
+        "direction": [-0.65, -0.45],
+        "strength": 0.22
+      },
+      "collarY": 164.5,
+      "featherPx": 1.5,
+      "calibrationVersion": 2,
+      "sourceSha256": "88083fc4fd82b53d559618d45772aed72f09d9252f8745ec1af985131a2585e3",
+      "bytes": 125716,
+      "transparentOpeningPixels": 17784
+    },
+    {
+      "id": "reindeer-right",
+      "sceneId": "reindeer",
+      "variantId": "right",
+      "overlay": "/avatar-templates/v2/reindeer-right.webp",
+      "coordinateSize": 256,
+      "openingBounds": {
+        "x": 99.5,
+        "y": 71.5,
+        "width": 66,
+        "height": 88.5
+      },
+      "faceBounds": {
+        "x": 99.5,
+        "y": 71.5,
+        "width": 66,
+        "height": 76
+      },
+      "face": [132.75, 109.5, 33, 38],
+      "anchors": {
+        "imageLeftEye": [117.5, 101.5],
+        "imageRightEye": [148, 102.5],
+        "noseTip": [133.5, 119.5],
+        "mouthCenter": [133, 131],
+        "chin": [130, 143]
+      },
+      "pose": {
+        "yaw": 10,
+        "pitch": 0,
+        "roll": 1.88
+      },
+      "lighting": {
+        "temperature": 0.12,
+        "direction": [-0.65, -0.45],
+        "strength": 0.22
+      },
+      "collarY": 160,
+      "featherPx": 1.5,
+      "calibrationVersion": 2,
+      "sourceSha256": "50ac95b12b3cb1c6ac77edffec831a009d343c9d326923270752d05974d50d93",
+      "bytes": 127976,
+      "transparentOpeningPixels": 18011
+    },
+    {
+      "id": "reindeer-tilt-left",
+      "sceneId": "reindeer",
+      "variantId": "tilt-left",
+      "overlay": "/avatar-templates/v2/reindeer-tilt-left.webp",
+      "coordinateSize": 256,
+      "openingBounds": {
+        "x": 81,
+        "y": 70,
+        "width": 73.5,
+        "height": 90
+      },
+      "faceBounds": {
+        "x": 81,
+        "y": 70,
+        "width": 73.5,
+        "height": 69.5
+      },
+      "face": [117, 104.75, 36.75, 34.75],
+      "anchors": {
+        "imageLeftEye": [100, 99],
+        "imageRightEye": [134, 96.5],
+        "noseTip": [118, 114],
+        "mouthCenter": [119.5, 124],
+        "chin": [121, 135.5]
+      },
+      "pose": {
+        "yaw": 0,
+        "pitch": 0,
+        "roll": -4.11
+      },
+      "lighting": {
+        "temperature": 0.12,
+        "direction": [-0.65, -0.45],
+        "strength": 0.22
+      },
+      "collarY": 160,
+      "featherPx": 1.5,
+      "calibrationVersion": 2,
+      "sourceSha256": "e1a7d1d13bf8dbee27a175cc7deff1df33e478f98cae2e377d680785d3e0204c",
+      "bytes": 123818,
+      "transparentOpeningPixels": 20016
+    },
+    {
+      "id": "reindeer-tilt-right",
+      "sceneId": "reindeer",
+      "variantId": "tilt-right",
+      "overlay": "/avatar-templates/v2/reindeer-tilt-right.webp",
+      "coordinateSize": 256,
+      "openingBounds": {
+        "x": 88.5,
+        "y": 66,
+        "width": 79.5,
+        "height": 93
+      },
+      "faceBounds": {
+        "x": 88.5,
+        "y": 66,
+        "width": 79.5,
+        "height": 78.5
+      },
+      "face": [128.25, 105.25, 39.75, 39.25],
+      "anchors": {
+        "imageLeftEye": [110, 94.5],
+        "imageRightEye": [146.5, 100],
+        "noseTip": [126.5, 115.5],
+        "mouthCenter": [125, 127],
+        "chin": [122, 140]
+      },
+      "pose": {
+        "yaw": 0,
+        "pitch": 0,
+        "roll": 8.6
+      },
+      "lighting": {
+        "temperature": 0.12,
+        "direction": [-0.65, -0.45],
+        "strength": 0.22
+      },
+      "collarY": 159,
+      "featherPx": 1.5,
+      "calibrationVersion": 2,
+      "sourceSha256": "ceaa97d1867ab86a7fe3e8e3eca7f09fb6d6991fd507dd8adbd3918713dc0631",
+      "bytes": 122038,
+      "transparentOpeningPixels": 22178
+    },
+    {
+      "id": "chimney-front",
+      "sceneId": "chimney",
+      "variantId": "front",
+      "overlay": "/avatar-templates/v2/chimney-front.webp",
+      "coordinateSize": 256,
+      "openingBounds": {
+        "x": 88,
+        "y": 65,
+        "width": 75,
+        "height": 102
+      },
+      "faceBounds": {
+        "x": 88,
+        "y": 65,
+        "width": 75,
+        "height": 67.5
+      },
+      "face": [125.25, 98.75, 37.5, 33.75],
+      "anchors": {
+        "imageLeftEye": [108, 92],
+        "imageRightEye": [142.5, 92],
+        "noseTip": [125.5, 107.5],
+        "mouthCenter": [125.5, 117.5],
+        "chin": [125.5, 128.5]
+      },
+      "pose": {
+        "yaw": 0,
+        "pitch": 0,
+        "roll": 0
+      },
+      "lighting": {
+        "temperature": 0.3,
+        "direction": [-0.65, -0.45],
+        "strength": 0.35
+      },
+      "collarY": 167,
+      "featherPx": 1.5,
+      "calibrationVersion": 2,
+      "sourceSha256": "c0d59b20a999e418f2e44c3b239f36a3f862df059346d37b904ecbaa4f0d9f4a",
+      "bytes": 127420,
+      "transparentOpeningPixels": 21295
+    },
+    {
+      "id": "chimney-left",
+      "sceneId": "chimney",
+      "variantId": "left",
+      "overlay": "/avatar-templates/v2/chimney-left.webp",
+      "coordinateSize": 256,
+      "openingBounds": {
+        "x": 86,
+        "y": 68,
+        "width": 70,
+        "height": 99.5
+      },
+      "faceBounds": {
+        "x": 86,
+        "y": 68,
+        "width": 70,
+        "height": 73
+      },
+      "face": [121, 104.5, 35, 36.5],
+      "anchors": {
+        "imageLeftEye": [105, 98],
+        "imageRightEye": [137, 96.5],
+        "noseTip": [118.5, 114],
+        "mouthCenter": [118, 125],
+        "chin": [121.5, 136.5]
+      },
+      "pose": {
+        "yaw": -10,
+        "pitch": 0,
+        "roll": -2.94
+      },
+      "lighting": {
+        "temperature": 0.3,
+        "direction": [-0.65, -0.45],
+        "strength": 0.35
+      },
+      "collarY": 167.5,
+      "featherPx": 1.5,
+      "calibrationVersion": 2,
+      "sourceSha256": "7591ce4b75e5fe6b1c560193cad06992f34a69c5f541e9870819f5538af462ab",
+      "bytes": 122276,
+      "transparentOpeningPixels": 19371
+    },
+    {
+      "id": "chimney-right",
+      "sceneId": "chimney",
+      "variantId": "right",
+      "overlay": "/avatar-templates/v2/chimney-right.webp",
+      "coordinateSize": 256,
+      "openingBounds": {
+        "x": 95.5,
+        "y": 64,
+        "width": 67,
+        "height": 90
+      },
+      "faceBounds": {
+        "x": 95.5,
+        "y": 64,
+        "width": 67,
+        "height": 70
+      },
+      "face": [129, 99, 33.5, 35],
+      "anchors": {
+        "imageLeftEye": [113.5, 91],
+        "imageRightEye": [144.5, 93],
+        "noseTip": [129.5, 108],
+        "mouthCenter": [128.5, 118.5],
+        "chin": [132, 130]
+      },
+      "pose": {
+        "yaw": 10,
+        "pitch": 0,
+        "roll": 3.07
+      },
+      "lighting": {
+        "temperature": 0.3,
+        "direction": [-0.65, -0.45],
+        "strength": 0.35
+      },
+      "collarY": 154,
+      "featherPx": 1.5,
+      "calibrationVersion": 2,
+      "sourceSha256": "af98e3061d730f6e287a6c7f729c3ffb05c0a7c95078730224955793da85bddd",
+      "bytes": 124794,
+      "transparentOpeningPixels": 17783
+    },
+    {
+      "id": "chimney-tilt-left",
+      "sceneId": "chimney",
+      "variantId": "tilt-left",
+      "overlay": "/avatar-templates/v2/chimney-tilt-left.webp",
+      "coordinateSize": 256,
+      "openingBounds": {
+        "x": 78,
+        "y": 70.5,
+        "width": 75.5,
+        "height": 98.5
+      },
+      "faceBounds": {
+        "x": 78,
+        "y": 70.5,
+        "width": 75.5,
+        "height": 69
+      },
+      "face": [115.25, 105, 37.75, 34.5],
+      "anchors": {
+        "imageLeftEye": [98, 100],
+        "imageRightEye": [132.5, 96],
+        "noseTip": [117, 114],
+        "mouthCenter": [118.5, 124.5],
+        "chin": [120, 135.5]
+      },
+      "pose": {
+        "yaw": 0,
+        "pitch": 0,
+        "roll": -6.2
+      },
+      "lighting": {
+        "temperature": 0.3,
+        "direction": [-0.65, -0.45],
+        "strength": 0.35
+      },
+      "collarY": 169,
+      "featherPx": 1.5,
+      "calibrationVersion": 2,
+      "sourceSha256": "5548b959ab3def6108c32d351b7f951c914094084c7186b4c9d2e74dd809d319",
+      "bytes": 128352,
+      "transparentOpeningPixels": 20625
+    },
+    {
+      "id": "chimney-tilt-right",
+      "sceneId": "chimney",
+      "variantId": "tilt-right",
+      "overlay": "/avatar-templates/v2/chimney-tilt-right.webp",
+      "coordinateSize": 256,
+      "openingBounds": {
+        "x": 88.5,
+        "y": 66.5,
+        "width": 74.5,
+        "height": 99.5
+      },
+      "faceBounds": {
+        "x": 88.5,
+        "y": 66.5,
+        "width": 74.5,
+        "height": 71
+      },
+      "face": [125.75, 102, 37.25, 35.5],
+      "anchors": {
+        "imageLeftEye": [108.5, 94.5],
+        "imageRightEye": [143, 95.5],
+        "noseTip": [125.5, 111],
+        "mouthCenter": [125, 122],
+        "chin": [124.5, 133]
+      },
+      "pose": {
+        "yaw": 0,
+        "pitch": 0,
+        "roll": 2.02
+      },
+      "lighting": {
+        "temperature": 0.3,
+        "direction": [-0.65, -0.45],
+        "strength": 0.35
+      },
+      "collarY": 166,
+      "featherPx": 1.5,
+      "calibrationVersion": 2,
+      "sourceSha256": "ea9764fa5cbb075d594eeb068c16934ddf032911b9db1b72ec4e34e94c2650ec",
+      "bytes": 124450,
+      "transparentOpeningPixels": 21171
+    },
+    {
+      "id": "ornament-front",
+      "sceneId": "ornament",
+      "variantId": "front",
+      "overlay": "/avatar-templates/v2/ornament-front.webp",
+      "coordinateSize": 256,
+      "openingBounds": {
+        "x": 82,
+        "y": 63,
+        "width": 89.5,
+        "height": 122
+      },
+      "faceBounds": {
+        "x": 82,
+        "y": 63,
+        "width": 89.5,
+        "height": 86
+      },
+      "face": [126.75, 106, 44.75, 43],
+      "anchors": {
+        "imageLeftEye": [106, 97.5],
+        "imageRightEye": [147.5, 97.5],
+        "noseTip": [126.5, 117],
+        "mouthCenter": [126.5, 130],
+        "chin": [127, 144]
+      },
+      "pose": {
+        "yaw": 0,
+        "pitch": 0,
+        "roll": 0.42
+      },
+      "lighting": {
+        "temperature": 0.3,
+        "direction": [-0.65, -0.45],
+        "strength": 0.22
+      },
+      "collarY": 185,
+      "featherPx": 1.5,
+      "calibrationVersion": 2,
+      "sourceSha256": "513e20764ef5f86054bb05fb2ca1fe7a51b33cefff79ba6bfc9d4b5c270dd55d",
+      "bytes": 111158,
+      "transparentOpeningPixels": 32487
+    },
+    {
+      "id": "ornament-left",
+      "sceneId": "ornament",
+      "variantId": "left",
+      "overlay": "/avatar-templates/v2/ornament-left.webp",
+      "coordinateSize": 256,
+      "openingBounds": {
+        "x": 88,
+        "y": 70.5,
+        "width": 74,
+        "height": 120.5
+      },
+      "faceBounds": {
+        "x": 88,
+        "y": 70.5,
+        "width": 74,
+        "height": 77.5
+      },
+      "face": [125, 109.25, 37, 38.75],
+      "anchors": {
+        "imageLeftEye": [108, 100.5],
+        "imageRightEye": [142, 102.5],
+        "noseTip": [122, 119.5],
+        "mouthCenter": [122, 131],
+        "chin": [122.5, 143.5]
+      },
+      "pose": {
+        "yaw": -10,
+        "pitch": 0,
+        "roll": 2.77
+      },
+      "lighting": {
+        "temperature": 0.3,
+        "direction": [-0.65, -0.45],
+        "strength": 0.22
+      },
+      "collarY": 191,
+      "featherPx": 1.5,
+      "calibrationVersion": 2,
+      "sourceSha256": "62f30ee8ad2df52919ce56af62843a5e118306b6fd4de7cb077ce9ba8c320952",
+      "bytes": 112760,
+      "transparentOpeningPixels": 24622
+    },
+    {
+      "id": "ornament-right",
+      "sceneId": "ornament",
+      "variantId": "right",
+      "overlay": "/avatar-templates/v2/ornament-right.webp",
+      "coordinateSize": 256,
+      "openingBounds": {
+        "x": 92,
+        "y": 73,
+        "width": 70.5,
+        "height": 119.5
+      },
+      "faceBounds": {
+        "x": 92,
+        "y": 73,
+        "width": 70.5,
+        "height": 82
+      },
+      "face": [127.25, 114, 35.25, 41],
+      "anchors": {
+        "imageLeftEye": [111, 106.5],
+        "imageRightEye": [143.5, 105],
+        "noseTip": [130, 124.5],
+        "mouthCenter": [131.5, 137],
+        "chin": [129.5, 150]
+      },
+      "pose": {
+        "yaw": 10,
+        "pitch": 0,
+        "roll": -2.62
+      },
+      "lighting": {
+        "temperature": 0.3,
+        "direction": [-0.65, -0.45],
+        "strength": 0.22
+      },
+      "collarY": 192.5,
+      "featherPx": 1.5,
+      "calibrationVersion": 2,
+      "sourceSha256": "2164223f40e07af2269662fc6c552e79e469570ccef841f3476a4246eef683fa",
+      "bytes": 113092,
+      "transparentOpeningPixels": 23163
+    },
+    {
+      "id": "ornament-tilt-left",
+      "sceneId": "ornament",
+      "variantId": "tilt-left",
+      "overlay": "/avatar-templates/v2/ornament-tilt-left.webp",
+      "coordinateSize": 256,
+      "openingBounds": {
+        "x": 84,
+        "y": 68,
+        "width": 72.5,
+        "height": 112.5
+      },
+      "faceBounds": {
+        "x": 84,
+        "y": 68,
+        "width": 72.5,
+        "height": 75
+      },
+      "face": [119.75, 105.5, 36.25, 37.5],
+      "anchors": {
+        "imageLeftEye": [103, 98.5],
+        "imageRightEye": [136.5, 97.5],
+        "noseTip": [120.5, 115.5],
+        "mouthCenter": [121, 126.5],
+        "chin": [122, 138.5]
+      },
+      "pose": {
+        "yaw": 0,
+        "pitch": 0,
+        "roll": -1.43
+      },
+      "lighting": {
+        "temperature": 0.3,
+        "direction": [-0.65, -0.45],
+        "strength": 0.22
+      },
+      "collarY": 180.5,
+      "featherPx": 1.5,
+      "calibrationVersion": 2,
+      "sourceSha256": "41e3cae13e5fcf97d48a547b2e378934e1434ec210a296d63278cd0c33fd7818",
+      "bytes": 116240,
+      "transparentOpeningPixels": 23044
+    },
+    {
+      "id": "ornament-tilt-right",
+      "sceneId": "ornament",
+      "variantId": "tilt-right",
+      "overlay": "/avatar-templates/v2/ornament-tilt-right.webp",
+      "coordinateSize": 256,
+      "openingBounds": {
+        "x": 98,
+        "y": 70,
+        "width": 70,
+        "height": 105
+      },
+      "faceBounds": {
+        "x": 98,
+        "y": 70,
+        "width": 70,
+        "height": 76
+      },
+      "face": [133.25, 108, 35, 38],
+      "anchors": {
+        "imageLeftEye": [117, 99],
+        "imageRightEye": [149.5, 102],
+        "noseTip": [132, 118],
+        "mouthCenter": [131, 129.5],
+        "chin": [129, 141.5]
+      },
+      "pose": {
+        "yaw": 0,
+        "pitch": 0,
+        "roll": 5.17
+      },
+      "lighting": {
+        "temperature": 0.3,
+        "direction": [-0.65, -0.45],
+        "strength": 0.22
+      },
+      "collarY": 175,
+      "featherPx": 1.5,
+      "calibrationVersion": 2,
+      "sourceSha256": "5daf422250d927cf56c6204d78ee3dcd3161298a7200a4faca44d82f6dac6b38",
+      "bytes": 116634,
+      "transparentOpeningPixels": 21736
+    },
+    {
+      "id": "snowglobe-front",
+      "sceneId": "snowglobe",
+      "variantId": "front",
+      "overlay": "/avatar-templates/v2/snowglobe-front.webp",
+      "coordinateSize": 256,
+      "openingBounds": {
+        "x": 89.5,
+        "y": 52,
+        "width": 73.5,
+        "height": 106.5
+      },
+      "faceBounds": {
+        "x": 89.5,
+        "y": 52,
+        "width": 73.5,
+        "height": 74.5
+      },
+      "face": [126, 89.25, 36.75, 37.25],
+      "anchors": {
+        "imageLeftEye": [109, 81.5],
+        "imageRightEye": [143, 82],
+        "noseTip": [126, 99],
+        "mouthCenter": [126, 110],
+        "chin": [126, 122]
+      },
+      "pose": {
+        "yaw": 0,
+        "pitch": 0,
+        "roll": 0.48
+      },
+      "lighting": {
+        "temperature": 0.12,
+        "direction": [-0.65, -0.45],
+        "strength": 0.22
+      },
+      "collarY": 158.5,
+      "featherPx": 1.5,
+      "calibrationVersion": 2,
+      "sourceSha256": "8747a3d11f7761e29f3dfb1883d1869230b70d668a95103025d8d10bb50fbc87",
+      "bytes": 108166,
+      "transparentOpeningPixels": 22451
+    },
+    {
+      "id": "snowglobe-left",
+      "sceneId": "snowglobe",
+      "variantId": "left",
+      "overlay": "/avatar-templates/v2/snowglobe-left.webp",
+      "coordinateSize": 256,
+      "openingBounds": {
+        "x": 88.5,
+        "y": 69.5,
+        "width": 62.5,
+        "height": 94
+      },
+      "faceBounds": {
+        "x": 88.5,
+        "y": 69.5,
+        "width": 62.5,
+        "height": 63.5
+      },
+      "face": [119.25, 101.25, 31.25, 31.75],
+      "anchors": {
+        "imageLeftEye": [105, 95.5],
+        "imageRightEye": [133.5, 94.5],
+        "noseTip": [118, 109.5],
+        "mouthCenter": [118, 119],
+        "chin": [120.5, 129]
+      },
+      "pose": {
+        "yaw": -10,
+        "pitch": 0,
+        "roll": -2.25
+      },
+      "lighting": {
+        "temperature": 0.12,
+        "direction": [-0.65, -0.45],
+        "strength": 0.22
+      },
+      "collarY": 163.5,
+      "featherPx": 1.5,
+      "calibrationVersion": 2,
+      "sourceSha256": "ae8b0fc98aadf96322f4b1c4027df5d22ec1cd04505ccf4aa5c38fa32174c8d4",
+      "bytes": 109506,
+      "transparentOpeningPixels": 17403
+    },
+    {
+      "id": "snowglobe-right",
+      "sceneId": "snowglobe",
+      "variantId": "right",
+      "overlay": "/avatar-templates/v2/snowglobe-right.webp",
+      "coordinateSize": 256,
+      "openingBounds": {
+        "x": 94.5,
+        "y": 55.5,
+        "width": 68,
+        "height": 101
+      },
+      "faceBounds": {
+        "x": 94.5,
+        "y": 55.5,
+        "width": 68,
+        "height": 79.5
+      },
+      "face": [128.25, 95.25, 34, 39.75],
+      "anchors": {
+        "imageLeftEye": [112.5, 87.5],
+        "imageRightEye": [144, 87],
+        "noseTip": [131, 105.5],
+        "mouthCenter": [131.5, 117.5],
+        "chin": [129.5, 130]
+      },
+      "pose": {
+        "yaw": 10,
+        "pitch": 0,
+        "roll": -1.35
+      },
+      "lighting": {
+        "temperature": 0.12,
+        "direction": [-0.65, -0.45],
+        "strength": 0.22
+      },
+      "collarY": 156.5,
+      "featherPx": 1.5,
+      "calibrationVersion": 2,
+      "sourceSha256": "b07927703e04aa2e9bb483263af252c47e1a326b25bffc65dfad70dc9447bdbe",
+      "bytes": 118278,
+      "transparentOpeningPixels": 20925
+    },
+    {
+      "id": "snowglobe-tilt-left",
+      "sceneId": "snowglobe",
+      "variantId": "tilt-left",
+      "overlay": "/avatar-templates/v2/snowglobe-tilt-left.webp",
+      "coordinateSize": 256,
+      "openingBounds": {
+        "x": 80.5,
+        "y": 54,
+        "width": 71,
+        "height": 107
+      },
+      "faceBounds": {
+        "x": 80.5,
+        "y": 54,
+        "width": 71,
+        "height": 73.5
+      },
+      "face": [115.25, 90.75, 35.5, 36.75],
+      "anchors": {
+        "imageLeftEye": [99, 84.5],
+        "imageRightEye": [131.5, 82.5],
+        "noseTip": [116.5, 100.5],
+        "mouthCenter": [117.5, 111.5],
+        "chin": [119, 123]
+      },
+      "pose": {
+        "yaw": 0,
+        "pitch": 0,
+        "roll": -3.41
+      },
+      "lighting": {
+        "temperature": 0.12,
+        "direction": [-0.65, -0.45],
+        "strength": 0.22
+      },
+      "collarY": 161,
+      "featherPx": 1.5,
+      "calibrationVersion": 2,
+      "sourceSha256": "713ea1e9579b85a5fae57e01d4712d9ecce8be7dac1b7a98c4633eee54f6a10b",
+      "bytes": 111562,
+      "transparentOpeningPixels": 21664
+    },
+    {
+      "id": "snowglobe-tilt-right",
+      "sceneId": "snowglobe",
+      "variantId": "tilt-right",
+      "overlay": "/avatar-templates/v2/snowglobe-tilt-right.webp",
+      "coordinateSize": 256,
+      "openingBounds": {
+        "x": 93,
+        "y": 62,
+        "width": 75,
+        "height": 113
+      },
+      "faceBounds": {
+        "x": 93,
+        "y": 62,
+        "width": 75,
+        "height": 86.5
+      },
+      "face": [130.25, 105.25, 37.5, 43.25],
+      "anchors": {
+        "imageLeftEye": [113, 95],
+        "imageRightEye": [147.5, 98],
+        "noseTip": [128.5, 116.5],
+        "mouthCenter": [128, 129.5],
+        "chin": [123.5, 143.5]
+      },
+      "pose": {
+        "yaw": 0,
+        "pitch": 0,
+        "roll": 4.96
+      },
+      "lighting": {
+        "temperature": 0.12,
+        "direction": [-0.65, -0.45],
+        "strength": 0.22
+      },
+      "collarY": 175,
+      "featherPx": 1.5,
+      "calibrationVersion": 2,
+      "sourceSha256": "8a608f1af5c497982838e59eb685819ca176f5316103ad0bb1cc712e12288b8d",
+      "bytes": 117680,
+      "transparentOpeningPixels": 23974
+    }
+  ],
+  "errors": []
+}

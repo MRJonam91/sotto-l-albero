@@ -110,6 +110,11 @@ test.describe("Profilo e caccia su schermo tattile", () => {
     await expect(page.locator(".profile .avatar-art")).toBeVisible();
     await page.getByRole("button", { name: "Usa una foto" }).click();
     await expect(page.locator(".photo-editor")).not.toContainText(/telegram/i);
+    await expect(
+      page.getByRole("button", { name: "Cambia atmosfera" }),
+    ).toHaveCount(0);
+    await expect(page.getByLabel("Atmosfera natalizia")).toHaveCount(0);
+    await page.route("**/avatar-models/*.tflite", (route) => route.abort());
     const originalRequests = [];
     page.on("request", (request) => {
       if (/\/photo-(original|backup)$/.test(request.url()))
@@ -136,7 +141,18 @@ test.describe("Profilo e caccia su schermo tattile", () => {
       mimeType: "image/png",
       buffer: Buffer.from(png, "base64"),
     });
-    await page.getByLabel("Scena natalizia").selectOption("chimney");
+    await expect(page.locator(".photo-framing-stage")).toBeVisible();
+    await expect(page.locator(".photo-adjustments")).not.toHaveAttribute(
+      "open",
+      "",
+    );
+    await page
+      .getByRole("button", { name: "Cambia atmosfera", exact: true })
+      .tap();
+    await page.getByLabel("Atmosfera natalizia").selectOption("chimney");
+    await expect(page.locator(".photo-atmosphere-name")).toHaveText(
+      "Dentro il camino",
+    );
     const download = page.waitForEvent("download");
     await page
       .getByRole("button", { name: "Scarica il ritratto in alta risoluzione" })

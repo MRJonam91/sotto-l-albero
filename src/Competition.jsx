@@ -19,6 +19,7 @@ import QuizReview, {
 } from "./QuizReview.jsx";
 import MovieClueStage from "./MovieClueStage.jsx";
 import SnowDuelPanel from "./SnowDuelPanel.jsx";
+import { gameCatalog, gameModeLabels } from "../shared/gameCatalog.js";
 import { Button, Field, Modal, Notice } from "./ui.jsx";
 import "./competition.css";
 
@@ -367,6 +368,7 @@ export default function Competition({ event, user, members = [], onStamp }) {
   const [notice, setNotice] = useState("");
   const inFlight = useRef(false);
   const reviewOpener = useRef(null);
+  const selectedGameFocused = useRef(false);
   const path = `/competition/${event.id}`;
   useEffect(() => {
     let live = true;
@@ -391,6 +393,29 @@ export default function Competition({ event, user, members = [], onStamp }) {
       if (opener.isConnected) opener.focus({ preventScroll: true });
     }
   }, [attempt]);
+  useEffect(() => {
+    if (!board || selectedGameFocused.current) return;
+    const search = new URLSearchParams(location.search);
+    const game = gameCatalog.find((entry) => entry.id === search.get("game"));
+    if (!game) return;
+    const friends =
+      search.get("mode") === "friends" && game.modes.includes("friends");
+    const target = document.getElementById(
+      `${friends ? "friends" : "game"}-${game.id}`,
+    );
+    if (!target) return;
+    selectedGameFocused.current = true;
+    const frame = requestAnimationFrame(() => {
+      target.focus({ preventScroll: true });
+      target.scrollIntoView({ block: "start", behavior: "instant" });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [board]);
+  function focusFriends(gameId) {
+    const target = document.getElementById(`friends-${gameId}`);
+    target?.focus({ preventScroll: true });
+    target?.scrollIntoView({ block: "start", behavior: "instant" });
+  }
   async function refresh() {
     setBoard(await api(path));
   }
@@ -483,7 +508,7 @@ export default function Competition({ event, user, members = [], onStamp }) {
       <div className="competition-header">
         <Medal aria-hidden="true" size={30} />
         <div>
-          <h2 id={headingId}>Babbo Natale segreto dell’anno</h2>
+          <h2 id={headingId}>Giochi del gruppo</h2>
           {board && (
             <p>
               Edizione {board.year} ·{" "}
@@ -509,36 +534,12 @@ export default function Competition({ event, user, members = [], onStamp }) {
       )}
       {board && (
         <>
-          {board.canPlay && (!attempt || attempt.reviewView) && (
-            <SnowDuelPanel
-              key={`${user.id}:${event.id}`}
-              eventId={event.id}
-              userId={user.id}
-              opponents={opponents}
-              closed={board.closed}
-            />
-          )}
           {!board.canPlay && !board.closed && (
             <p>
               Puoi consultare la classifica. Per giocare, devi avere
               un’iscrizione approvata all’evento.
             </p>
           )}
-          {board.canPlay &&
-            !board.closed &&
-            (!attempt || attempt.reviewView) && (
-              <DuelInvitation
-                opponents={opponents}
-                busy={busy}
-                onInvite={(userId) =>
-                  perform(async () => {
-                    await api(`${path}/duels`, "POST", { userId });
-                    await refresh();
-                    setNotice("Duello lanciato.");
-                  })
-                }
-              />
-            )}
           <FestivalLeaderboard
             rows={board.leaderboard}
             memberById={memberById}
@@ -566,17 +567,24 @@ export default function Competition({ event, user, members = [], onStamp }) {
             board.canPlay && (
               <div className="competition-section">
                 <h3>
-                  {board.closed
-                    ? "Risultati delle sfide"
-                    : "Giochi e mini sfide"}
+                  {board.closed ? "Risultati delle sfide" : "Scegli il gioco"}
                 </h3>
                 <p>
                   {board.closed
                     ? "Questa edizione è conclusa. Puoi rileggere i risultati delle tue partite."
-                    : "Ogni prova ha tre tentativi. Il primo vale per intero, il secondo al 95% e il terzo al 90%. In classifica resta il migliore."}
+                    : "Gli stessi nove giochi della pagina Giochi di Natale. Scegli la modalità: allenamento, computer, sfida a punti o con un amico. Solo le sfide a punti consumano i tre tentativi del gruppo: 100%, 95%, 90%. In classifica resta il migliore."}
                 </p>
                 <ul className="competition-games">
-                  {board.games
+                  {(board.closed
+                    ? board.games.map((game) => ({
+                        ...gameCatalog.find((entry) => entry.id === game.id),
+                        ...game,
+                      }))
+                    : gameCatalog.map((entry) => ({
+                        ...entry,
+                        ...board.games.find((game) => game.id === entry.id),
+                      }))
+                  )
                     .filter((game) => !board.closed || game.history?.length)
                     .map((game) => {
                       const active = board.active.find(
@@ -590,8 +598,8 @@ export default function Competition({ event, user, members = [], onStamp }) {
                       const playLabel = legacy
                         ? "Gioca la nuova prova"
                         : active
-                          ? "Riprendi"
-                          : "Gioca";
+                          ? "Riprendi la sfida"
+                          : "Sfida a punti";
                       const remaining = game.limit - game.attempts;
                       const Icon =
                         game.id === "quiz"
@@ -602,15 +610,33 @@ export default function Competition({ event, user, members = [], onStamp }) {
                               ? Clapperboard
                               : Gift;
                       return (
-                        <li key={game.id} className="competition-game paper">
+                        <li
+                          key={game.id}
+                          id={`game-${game.id}`}
+                          tabIndex={-1}
+                          className="competition-game paper"
+                        >
                           <Icon size={22} aria-hidden="true" />
                           <h4>{game.name}</h4>
-                          <p>
-                            {game.best === null
-                              ? `Fino a ${game.points} punti`
-                              : `Miglior risultato: ${game.best} punti`}
-                          </p>
+                          <p className="game-description">{game.description}</p>
                           {!board.closed && (
+                            <small className="game-modes">
+                              {game.modes
+                                .map((mode) => gameModeLabels[mode])
+                                .join(" · ")}
+                              {game.ranked === false
+                                ? " · senza classifica"
+                                : ""}
+                            </small>
+                          )}
+                          {game.ranked !== false && (
+                            <p>
+                              {game.best === null
+                                ? `Fino a ${game.points} punti`
+                                : `Miglior risultato: ${game.best} punti`}
+                            </p>
+                          )}
+                          {game.ranked !== false && !board.closed && (
                             <p>
                               {remaining === 1
                                 ? "1 tentativo nuovo"
@@ -625,7 +651,7 @@ export default function Competition({ event, user, members = [], onStamp }) {
                               busy={busy}
                             />
                           )}
-                          {!board.closed && (
+                          {game.ranked !== false && !board.closed && (
                             <Button
                               type="button"
                               variant="outline"
@@ -642,7 +668,34 @@ export default function Competition({ event, user, members = [], onStamp }) {
                               {playLabel}
                             </Button>
                           )}
-                          {legacy && (
+                          {!board.closed && (
+                            <a
+                              className="button outline"
+                              href={`/giochi?game=${game.id}`}
+                              aria-label={`${game.modes.includes("computer") ? "Contro il computer" : "Allenamento libero"}: ${game.name}`}
+                            >
+                              {game.modes.includes("computer")
+                                ? "Contro il computer"
+                                : "Allenamento libero"}
+                            </a>
+                          )}
+                          {!board.closed && game.modes.includes("friends") && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              aria-label={`Con un amico: ${game.name}`}
+                              onClick={() => focusFriends(game.id)}
+                            >
+                              Con un amico
+                            </Button>
+                          )}
+                          {!board.closed && game.id === "curling" && (
+                            <small>
+                              La partita conclusa contribuisce al ritratto,
+                              senza punti.
+                            </small>
+                          )}
+                          {legacy && !board.closed && (
                             <>
                               <small>
                                 Passare alla nuova prova usa lo stesso tentativo
@@ -666,6 +719,42 @@ export default function Competition({ event, user, members = [], onStamp }) {
               </div>
             )
           )}
+          {board.canPlay && (!attempt || attempt.reviewView) && (
+            <div
+              id="friends-tris"
+              tabIndex={-1}
+              className="competition-friends"
+            >
+              <SnowDuelPanel
+                key={`${user.id}:${event.id}`}
+                eventId={event.id}
+                userId={user.id}
+                opponents={opponents}
+                closed={board.closed}
+              />
+            </div>
+          )}
+          {board.canPlay &&
+            !board.closed &&
+            (!attempt || attempt.reviewView) && (
+              <div
+                id="friends-quiz"
+                tabIndex={-1}
+                className="competition-friends"
+              >
+                <DuelInvitation
+                  opponents={opponents}
+                  busy={busy}
+                  onInvite={(userId) =>
+                    perform(async () => {
+                      await api(`${path}/duels`, "POST", { userId });
+                      await refresh();
+                      setNotice("Duello lanciato.");
+                    })
+                  }
+                />
+              </div>
+            )}
           {(!attempt || attempt.reviewView) && !!board.duels.length && (
             <section className="competition-section">
               <h3>I tuoi duelli</h3>

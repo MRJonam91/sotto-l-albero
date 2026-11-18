@@ -171,7 +171,9 @@ test("Sfide aperte agli iscritti, duelli e bicchieri anche a zero punti", async 
       await page.getByRole("button", { name: "Torna alle sfide" }).click();
     }
 
-    await page.getByRole("button", { name: "Gioca: Pacchi smarriti" }).click();
+    await page
+      .getByRole("button", { name: "Sfida a punti: Pacchi smarriti" })
+      .click();
     await expect(submit).toBeDisabled();
     await page.setViewportSize({ width: 320, height: 844 });
     await capture("pacchi-smarriti");
@@ -196,7 +198,7 @@ test("Sfide aperte agli iscritti, duelli e bicchieri anche a zero punti", async 
     await finish();
 
     await page
-      .getByRole("button", { name: "Gioca: Sacco della slitta" })
+      .getByRole("button", { name: "Sfida a punti: Sacco della slitta" })
       .click();
     await page.getByRole("button", { name: /^Libri,/ }).click();
     await capture("sacco-della-slitta");
@@ -212,7 +214,7 @@ test("Sfide aperte agli iscritti, duelli e bicchieri anche a zero punti", async 
     await finish();
 
     await page
-      .getByRole("button", { name: "Gioca: La cartolina scomparsa" })
+      .getByRole("button", { name: "Sfida a punti: La cartolina scomparsa" })
       .click();
     const tryCode = page.getByRole("button", { name: "Prova il codice" });
     await page.getByRole("textbox", { name: "Tre cifre" }).fill("374");
@@ -255,7 +257,9 @@ test("Sfide aperte agli iscritti, duelli e bicchieri anche a zero punti", async 
     await exit.click();
     await expect(page.locator(".competition-play")).toContainText("100 punti");
     await page.getByRole("button", { name: "Torna alle sfide" }).click();
-    await page.getByRole("button", { name: "Gioca: Prendi i pacchi" }).click();
+    await page
+      .getByRole("button", { name: "Sfida a punti: Prendi i pacchi" })
+      .click();
     await page.getByRole("button", { name: "Fai partire il nastro" }).click();
     for (let wave = 1; wave <= 8; wave++) {
       await expect(
@@ -336,7 +340,9 @@ test("Sfide aperte agli iscritti, duelli e bicchieri anche a zero punti", async 
       return container;
     }
 
-    await page.getByRole("button", { name: "Gioca: Quiz di Natale" }).click();
+    await page
+      .getByRole("button", { name: "Sfida a punti: Quiz di Natale" })
+      .click();
     const play = await playQuizMatch(page, 10, true);
     await expect(play).toContainText("Quiz completato");
     await expect(play).toContainText("300 punti");
@@ -444,7 +450,7 @@ test("Sfide aperte agli iscritti, duelli e bicchieri anche a zero punti", async 
       page.getByRole("button", { name: "Gioca il duello" }),
     ).toHaveCount(0);
     await expect(
-      page.getByRole("button", { name: "Gioca: Quiz di Natale" }),
+      page.getByRole("button", { name: "Sfida a punti: Quiz di Natale" }),
     ).toHaveCount(0);
     await expect(standings.getByText("705 pt", { exact: true })).toBeVisible();
   } finally {

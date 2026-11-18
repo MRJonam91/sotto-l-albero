@@ -28,6 +28,7 @@ function database() {
     "0018_practice_film_catalog.sql",
     "0019_amazon_preferences.sql",
     "0020_profile_activity.sql",
+    "0021_festive_progress.sql",
   ])
     sql.exec(
       readFileSync(new URL(`../migrations/${file}`, import.meta.url), "utf8"),
@@ -1614,7 +1615,7 @@ describe("API privata", () => {
       saved.data.portrait.matchingExplanation.weights.map(
         (weight) => weight.effectiveWeight,
       ),
-    ).toEqual([60, 25, 15]);
+    ).toEqual([0, 63, 37]); // Joining alone is not recorded participation.
     expect(saved.data.portrait.finalDescription).toContain(
       saved.data.portrait.topCharacter.name,
     );

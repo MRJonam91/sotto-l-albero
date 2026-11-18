@@ -245,7 +245,9 @@ test("Browser desktop e mobile: accesso, creazione, desideri, rivelazione ed eff
   await expect(view).toHaveValue("list");
   await expect(page.locator(".hourglass-art")).toHaveCount(0);
   await expect(page.getByText("12 pt", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Gioca: Memory di Natale" }).click();
+  await page
+    .getByRole("button", { name: "Sfida a punti: Memory di Natale" })
+    .click();
   await expect(page.locator(".memory-grid button")).toHaveCount(16);
   await page.getByRole("button", { name: "Carta 1, coperta" }).click();
   await expect(page.locator(".memory-card.visible img")).toBeVisible();

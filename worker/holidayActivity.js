@@ -1,5 +1,7 @@
 import { all } from "./auth.js";
 import { gameCatalog } from "../shared/gameCatalog.js";
+import { parseHolidayProfile } from "../shared/holidayPortrait.js";
+import { computeFestiveProgress } from "../shared/festiveProgress.js";
 
 const scoreMaximum = `CASE game ${gameCatalog
   .filter((game) => game.points > 0)
@@ -30,11 +32,18 @@ export async function loadHolidayActivities(db, userIds) {
   for (let offset = 0; offset < ids.length; offset += 20) {
     const chunk = ids.slice(offset, offset + 20);
     const placeholders = chunk.map(() => "?").join(",");
-    const [games, stamps, interactions, curling, memberships, organized] =
-      await Promise.all([
-        all(
-          db,
-          `WITH completed AS (
+    const [
+      games,
+      stamps,
+      interactions,
+      curling,
+      memberships,
+      organized,
+      users,
+    ] = await Promise.all([
+      all(
+        db,
+        `WITH completed AS (
         SELECT user_id,game,MAX(0.0,MIN(1.0,raw_score*1.0/(${scoreMaximum}))) AS result
         FROM competition_attempts WHERE user_id IN (${placeholders}) AND raw_score IS NOT NULL
         UNION ALL
@@ -53,39 +62,44 @@ export async function loadHolidayActivities(db, userIds) {
         SELECT player_o AS user_id,'tris' AS game,CASE WHEN status='draw' THEN 0.5 WHEN winner='O' THEN 1.0 ELSE 0.0 END AS result
         FROM tris_duels WHERE player_o IN (${placeholders}) AND status IN ('won','draw')
       ) SELECT user_id,game,COUNT(*) AS count,AVG(result) AS averageResult FROM completed GROUP BY user_id,game ORDER BY user_id,game`,
-          ...chunk,
-          ...chunk,
-          ...chunk,
-          ...chunk,
-        ),
-        all(
-          db,
-          `SELECT user_id,COUNT(DISTINCT stamp) AS count FROM user_stamps WHERE user_id IN (${placeholders}) GROUP BY user_id`,
-          ...chunk,
-        ),
-        all(
-          db,
-          `SELECT sender_id AS user_id,COUNT(*) AS count FROM portrait_interactions WHERE sender_id IN (${placeholders}) GROUP BY sender_id`,
-          ...chunk,
-        ),
-        all(
-          db,
-          `SELECT user_id,MIN(COUNT(*),3) AS count FROM profile_activity WHERE user_id IN (${placeholders}) AND game='curling' GROUP BY user_id`,
-          ...chunk,
-        ),
-        all(
-          db,
-          `SELECT user_id,COUNT(DISTINCT event_id) AS participatingEventsCount,
+        ...chunk,
+        ...chunk,
+        ...chunk,
+        ...chunk,
+      ),
+      all(
+        db,
+        `SELECT user_id,COUNT(DISTINCT stamp) AS count FROM user_stamps WHERE user_id IN (${placeholders}) GROUP BY user_id`,
+        ...chunk,
+      ),
+      all(
+        db,
+        `SELECT sender_id AS user_id,COUNT(*) AS count FROM portrait_interactions WHERE sender_id IN (${placeholders}) GROUP BY sender_id`,
+        ...chunk,
+      ),
+      all(
+        db,
+        `SELECT user_id,MIN(COUNT(*),3) AS count FROM profile_activity WHERE user_id IN (${placeholders}) AND game='curling' GROUP BY user_id`,
+        ...chunk,
+      ),
+      all(
+        db,
+        `SELECT user_id,COUNT(DISTINCT event_id) AS participatingEventsCount,
           SUM(CASE WHEN json_valid(wishlist) THEN CASE WHEN json_type(wishlist)='array' THEN json_array_length(wishlist) ELSE 0 END ELSE 0 END) AS wishlistItemsCount
           FROM members WHERE user_id IN (${placeholders}) AND status='approved' GROUP BY user_id`,
-          ...chunk,
-        ),
-        all(
-          db,
-          `SELECT owner_id AS user_id,COUNT(*) AS count FROM events WHERE owner_id IN (${placeholders}) GROUP BY owner_id`,
-          ...chunk,
-        ),
-      ]);
+        ...chunk,
+      ),
+      all(
+        db,
+        `SELECT owner_id AS user_id,COUNT(*) AS count FROM events WHERE owner_id IN (${placeholders}) GROUP BY owner_id`,
+        ...chunk,
+      ),
+      all(
+        db,
+        `SELECT id,holiday_profile,festive_progress_score FROM users WHERE id IN (${placeholders})`,
+        ...chunk,
+      ),
+    ]);
     for (const { user_id, game, count, averageResult } of games)
       result.get(user_id).games.push({ game, count, averageResult });
     for (const row of stamps) result.get(row.user_id).stampsCount = row.count;
@@ -113,6 +127,41 @@ export async function loadHolidayActivities(db, userIds) {
       });
     for (const row of organized)
       result.get(row.user_id).tools.organizedEventsCount = row.count;
+    const advances = [];
+    for (const user of users) {
+      const activity = result.get(user.id);
+      activity.festiveProgressScore = user.festive_progress_score;
+      const next = computeFestiveProgress(
+        activity,
+        parseHolidayProfile(user.holiday_profile),
+      ).score;
+      if (next > user.festive_progress_score) advances.push([user.id, next]);
+    }
+    if (advances.length) {
+      // A single atomic bulk update only raises scores. Concurrent or stale
+      // requests cannot overwrite a higher value with their earlier snapshot.
+      await all(
+        db,
+        `WITH desired(id,score) AS (VALUES ${advances.map(() => "(?,?)").join(",")})
+        UPDATE users SET festive_progress_score=(SELECT score FROM desired WHERE desired.id=users.id)
+        WHERE id IN (SELECT id FROM desired) AND festive_progress_score<(SELECT score FROM desired WHERE desired.id=users.id)
+        RETURNING id,festive_progress_score`,
+        ...advances.flat(),
+      );
+      const stored = await all(
+        db,
+        `SELECT id,festive_progress_score FROM users WHERE id IN (${placeholders})`,
+        ...chunk,
+      );
+      for (const user of stored)
+        result.get(user.id).festiveProgressScore = user.festive_progress_score;
+    }
   }
   return result;
+}
+
+// Use at saved activity boundaries, before a completed snapshot can be reset.
+export async function captureFestiveProgress(db, userId) {
+  const activities = await loadHolidayActivities(db, [userId]);
+  return activities.get(userId)?.festiveProgressScore || 0;
 }

@@ -1,0 +1,227 @@
+.gift-browser {
+  margin: 1.5rem 0;
+  min-width: 0;
+}
+details.wish-shopping > summary {
+  cursor: pointer;
+  font-weight: 650;
+}
+details.wish-shopping[open] > summary {
+  margin-bottom: 1rem;
+}
+.gift-browser-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.2rem;
+}
+.gift-browser-heading h3 {
+  margin: 0.3rem 0 0.5rem;
+  font-size: clamp(1.6rem, 3vw, 2.25rem);
+}
+.gift-browser-heading p {
+  margin: 0.3rem 0;
+}
+.gift-budget {
+  display: grid;
+  gap: 0.25rem;
+  flex: 0 0 auto;
+  padding: 0.8rem 1rem;
+  border: 1px solid #e2c38b;
+  border-radius: 14px;
+  background: #f7ebd4;
+  color: #61422b;
+  font-size: 0.75rem;
+}
+.gift-budget strong {
+  font-size: 1.3rem;
+  font-variant-numeric: tabular-nums;
+}
+.gift-filter-row {
+  display: flex;
+  overflow-x: auto;
+  gap: 0.5rem;
+  padding: 0.25rem 0.1rem 0.6rem;
+  scrollbar-width: thin;
+}
+.gift-filter {
+  flex: 0 0 auto;
+  border: 1px solid var(--line, #bba384);
+  border-radius: 30px;
+  padding: 0.6rem 0.9rem;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.85rem;
+  min-height: 42px;
+}
+.gift-filter[aria-pressed="true"] {
+  color: #fff9ea;
+  border-color: #466b51;
+  background: #365a41;
+}
+.gift-price-filters .gift-filter {
+  font-size: 0.8rem;
+  min-height: 38px;
+}
+.gift-specific-search {
+  margin: 0.8rem 0 1rem;
+}
+.gift-specific-search summary {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+.gift-specific-search form {
+  display: flex;
+  align-items: end;
+  gap: 0.7rem;
+  margin: 1rem 0;
+}
+.gift-specific-search .field {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+.gift-product-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+  padding: 0.3rem 0.2rem 0.8rem;
+}
+.gift-product {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid #dfc9a7;
+  border-radius: 15px;
+  overflow: hidden;
+  background: #fffaf0;
+  color: #3f382c;
+  box-shadow: 0 4px 15px #1e0b0010;
+}
+.gift-product-image {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  background: white;
+  color: #605b51;
+  text-decoration: none;
+  overflow: hidden;
+}
+.gift-product-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.gift-product-image span {
+  padding: 1rem;
+  text-align: center;
+  font-size: 0.8rem;
+}
+.gift-product-copy {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  align-items: start;
+  gap: 0.55rem;
+  padding: 0.9rem;
+}
+.gift-product-merchant {
+  color: #72624c;
+  font-size: 0.72rem;
+  overflow-wrap: anywhere;
+}
+.gift-product h4 {
+  margin: 0;
+  font-family: inherit;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.gift-product-price {
+  margin-top: auto;
+  padding-top: 0.35rem;
+  font-size: 1.2rem;
+  font-variant-numeric: tabular-nums;
+}
+.gift-product-shop {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: #446d51;
+  font-size: 0.75rem;
+}
+.gift-product .button {
+  width: 100%;
+  margin-top: 0.3rem;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+  font-size: 0.8rem;
+}
+.gift-product .button:disabled {
+  opacity: 0.8;
+}
+.gift-load-more {
+  display: flex;
+  justify-content: center;
+  margin: 0.8rem 0;
+}
+.gift-catalog-message {
+  padding: 1.4rem 1rem;
+  text-align: center;
+}
+.gift-catalog-source {
+  margin-top: 1rem;
+  font-size: 0.75rem;
+  line-height: 1.7;
+  opacity: 0.85;
+}
+@media (max-width: 1100px) {
+  .gift-product-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 760px) {
+  .gift-product-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .gift-browser-heading {
+    flex-wrap: wrap;
+  }
+}
+@media (max-width: 480px) {
+  .gift-product-grid {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    gap: 0.8rem;
+    padding-bottom: 1rem;
+  }
+  .gift-product {
+    flex: 0 0 82%;
+    scroll-snap-align: start;
+  }
+  .gift-browser-heading {
+    gap: 0.7rem;
+  }
+  .gift-budget {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.5rem 0.8rem;
+  }
+  .gift-budget strong {
+    font-size: 1rem;
+  }
+  .gift-specific-search form {
+    flex-wrap: wrap;
+  }
+  .gift-specific-search form .button {
+    width: 100%;
+  }
+}

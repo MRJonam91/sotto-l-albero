@@ -60,6 +60,23 @@
   font-size: 1.18rem;
 }
 
+.competition-game,
+.competition-friends {
+  min-width: 0;
+  max-width: 100%;
+  scroll-margin-top: 1rem;
+}
+
+.competition-game .game-description,
+.competition-game .game-modes {
+  overflow-wrap: anywhere;
+}
+
+.competition-game > .button {
+  white-space: normal;
+  text-align: start;
+}
+
 .competition-options {
   display: grid;
   width: 100%;

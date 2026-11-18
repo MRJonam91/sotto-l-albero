@@ -109,12 +109,16 @@ test("stato e descrizione salvati restano visibili al proprietario anche con rit
   expect(a11y.violations).toEqual([]);
 });
 
-test("ritaglio mobile tiene anteprima e regolazioni nello stesso schermo", async ({
+test("la foto apre il ritratto e le regolazioni mobili restano vicine all’anteprima", async ({
   page,
 }) => {
   const photo = await profileFixture(page);
   await page.route("**/avatar-models/*.tflite", (route) => route.abort());
   await page.getByRole("button", { name: "Usa una foto", exact: true }).click();
+  await expect(page.locator(".photo-framing-stage")).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Cambia atmosfera" }),
+  ).toHaveCount(0);
   await page.getByLabel("Scegli una foto", { exact: true }).setInputFiles({
     name: "foto-qa.png",
     mimeType: "image/png",
@@ -122,6 +126,11 @@ test("ritaglio mobile tiene anteprima e regolazioni nello stesso schermo", async
   });
   const stage = page.locator(".photo-framing-stage");
   await expect(stage).toBeVisible();
+  const adjustments = stage.locator(".photo-adjustments");
+  await expect(adjustments).not.toHaveAttribute("open", "");
+  await expect(stage.locator(".photo-range-controls")).not.toBeVisible();
+  await stage.getByText("Regola il ritratto", { exact: true }).tap();
+  await expect(adjustments).toHaveAttribute("open", "");
   await stage.scrollIntoViewIfNeeded();
   await page.evaluate(() => {
     const rect = document
@@ -133,9 +142,12 @@ test("ritaglio mobile tiene anteprima e regolazioni nello stesso schermo", async
   const controls = await stage.locator(".photo-range-controls").boundingBox();
   expect(preview.y).toBeGreaterThanOrEqual(0);
   expect(controls.y + controls.height).toBeLessThanOrEqual(740);
-  expect(controls.y - (preview.y + preview.height)).toBeLessThan(60);
-  await stage.getByRole("slider", { name: /Sposta a sinistra/ }).focus();
+  expect(controls.y).toBeGreaterThanOrEqual(preview.y + preview.height);
+  const horizontal = stage.getByRole("slider", { name: /Sposta a sinistra/ });
+  const before = await horizontal.inputValue();
+  await horizontal.focus();
   await page.keyboard.press("ArrowRight");
+  await expect(horizontal).not.toHaveValue(before);
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth),
   ).toBeLessThanOrEqual(320);

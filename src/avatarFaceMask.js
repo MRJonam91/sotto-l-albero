@@ -1,8 +1,8 @@
 // The model labels: 0=background, 1=hair, 2=body-skin (neck/ears), 3=face-skin,
 // 4=clothes, 5=others (glasses/accessories).
 // Preserve enclosed features such as eyes, lips, and glasses, attach the
-// person's own hair and neck naturally, and compute anatomical landmarks so any
-// face (male, female, short hair, long hair, bearded, glasses) fits cleanly.
+// person's own connected hair and neck. Anatomy comes from the separate face
+// landmarker; a category rectangle is not an eye or mouth detector.
 export function faceMask(categories, width, height, options = {}) {
   const { includeHair = false, includeNeck = false, feather = false } = options;
   const size = width * height;
@@ -64,54 +64,40 @@ export function faceMask(categories, width, height, options = {}) {
   let hairPixels = 0;
   let lowerHairPixels = 0;
 
-  // Attach user's own hair (class 1) around the face & shoulders
-  if (includeHair) {
-    const maxRx = faceW * 0.92;
-    const maxRyTop = faceH * 0.78;
-    const maxRyBottom = faceH * 0.92;
-    const hairMinX = Math.max(0, Math.floor(faceCx - maxRx));
-    const hairMaxX = Math.min(width - 1, Math.ceil(faceCx + maxRx));
-    const hairMinY = Math.max(0, Math.floor(faceCy - maxRyTop));
-    const hairMaxY = Math.min(height - 1, Math.ceil(faceCy + maxRyBottom));
-
-    for (let y = hairMinY; y <= hairMaxY; y++) {
-      const dy =
-        y < faceCy ? (y - faceCy) / maxRyTop : (y - faceCy) / maxRyBottom;
-      for (let x = hairMinX; x <= hairMaxX; x++) {
-        const dx = (x - faceCx) / maxRx;
-        if (dx * dx + dy * dy > 1) continue;
-        const idx = y * width + x;
-        if (categories[idx] === 1) {
-          hairPixels++;
-          if (y > faceCy + faceH * 0.25) lowerHairPixels++;
-          groups[idx] = largest.group;
-          if (x < largest.left) largest.left = x;
-          if (x > largest.right) largest.right = x;
-          if (y < largest.top) largest.top = y;
-          if (y > largest.bottom) largest.bottom = y;
-        }
+  if (includeHair || includeNeck) {
+    const visited = new Uint8Array(size);
+    const start = groups.findIndex((value) => value === largest.group);
+    visited[start] = 1;
+    walk(start, (index) => {
+      if (visited[index]) return false;
+      visited[index] = 1;
+      if (groups[index] === largest.group) return true;
+      const x = index % width,
+        y = Math.floor(index / width);
+      const hair =
+        includeHair &&
+        categories[index] === 1 &&
+        Math.abs(x - faceCx) <= faceW * 1.05 &&
+        y >= faceTop - faceH * 0.6 &&
+        y <= faceBottom + faceH * 0.9;
+      const neck =
+        includeNeck &&
+        categories[index] === 2 &&
+        Math.abs(x - faceCx) <= faceW * 0.65 &&
+        y >= faceTop + faceH * 0.2 &&
+        y <= faceBottom + faceH * 0.65;
+      if (!hair && !neck) return false;
+      groups[index] = largest.group;
+      if (hair) {
+        hairPixels++;
+        if (y > faceCy + faceH * 0.25) lowerHairPixels++;
       }
-    }
-  }
-
-  // Attach connected neck/ears skin (class 2) right below/beside the face
-  if (includeNeck) {
-    const neckMinX = Math.max(0, Math.floor(faceCx - faceW * 0.65));
-    const neckMaxX = Math.min(width - 1, Math.ceil(faceCx + faceW * 0.65));
-    const neckMinY = Math.max(0, Math.floor(faceTop + faceH * 0.2));
-    const neckMaxY = Math.min(height - 1, Math.ceil(faceBottom + faceH * 0.52));
-
-    for (let y = neckMinY; y <= neckMaxY; y++) {
-      for (let x = neckMinX; x <= neckMaxX; x++) {
-        const idx = y * width + x;
-        if (categories[idx] === 2) {
-          groups[idx] = largest.group;
-          if (x < largest.left) largest.left = x;
-          if (x > largest.right) largest.right = x;
-          if (y > largest.bottom) largest.bottom = y;
-        }
-      }
-    }
+      largest.left = Math.min(largest.left, x);
+      largest.right = Math.max(largest.right, x);
+      largest.top = Math.min(largest.top, y);
+      largest.bottom = Math.max(largest.bottom, y);
+      return true;
+    });
   }
 
   const exterior = new Uint8Array(size);
@@ -135,24 +121,7 @@ export function faceMask(categories, width, height, options = {}) {
     for (let x = left; x <= right; x++) {
       const i = y * width + x;
       if (!exterior[i]) {
-        if (includeHair && categories[i] === 1) {
-          const dx = (x - faceCx) / (faceW * 0.92);
-          const dy =
-            y < faceCy
-              ? (y - faceCy) / (faceH * 0.78)
-              : (y - faceCy) / (faceH * 0.92);
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          const fade =
-            dist > 0.75 ? Math.max(0.2, 1 - (dist - 0.75) / 0.28) : 1;
-          alpha[i] = Math.round(255 * fade);
-        } else if (includeNeck && categories[i] === 2 && y > faceBottom) {
-          // Soft fade at bottom of neck so it blends inside any collar
-          const neckProgress = (y - faceBottom) / Math.max(1, faceH * 0.52);
-          const fade = neckProgress > 0.6 ? Math.max(0.15, 1 - (neckProgress - 0.6) / 0.45) : 1;
-          alpha[i] = Math.round(255 * fade);
-        } else {
-          alpha[i] = 255;
-        }
+        alpha[i] = 255;
       }
     }
   }
@@ -179,9 +148,28 @@ export function faceMask(categories, width, height, options = {}) {
 
   const hairRatio = hairPixels / Math.max(1, largest.count);
   const longHair = lowerHairPixels > largest.count * 0.22;
+  const hairAlpha = new Uint8ClampedArray(size);
+  if (includeHair) {
+    for (let i = 0; i < size; i++) {
+      if (categories[i] === 1 && groups[i] === largest.group)
+        hairAlpha[i] = alpha[i];
+    }
+  }
+  const headCapAlpha = hairAlpha.slice();
+  if (Number.isFinite(options.headCapLine)) {
+    for (let y = top; y <= Math.min(bottom, options.headCapLine); y++) {
+      for (let x = left; x <= right; x++) {
+        const at = y * width + x;
+        if (categories[at] === 3 && groups[at] === largest.group)
+          headCapAlpha[at] = alpha[at];
+      }
+    }
+  }
 
   return {
     alpha,
+    hairAlpha,
+    headCapAlpha,
     bounds: {
       x: left,
       y: top,
@@ -197,15 +185,6 @@ export function faceMask(categories, width, height, options = {}) {
     traits: {
       hairRatio,
       longHair,
-    },
-    landmarks: {
-      eyeLineY: faceTop + faceH * 0.39,
-      noseBaseY: faceTop + faceH * 0.58,
-      mouthCenterY: faceTop + faceH * 0.73,
-      chinY: faceBottom,
-      centerX: faceCx,
-      templeLeftX: faceLeft,
-      templeRightX: faceRight,
     },
   };
 }

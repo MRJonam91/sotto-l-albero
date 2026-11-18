@@ -32,6 +32,7 @@ import { useStampCollection } from "./useStampCollection.js";
 import { treasureStories } from "./treasureStories.js";
 import { stamps } from "../shared/stamps.js";
 import { version } from "../package.json";
+import { gameCatalog } from "../shared/gameCatalog.js";
 import AppUpdateNotice from "./AppUpdateNotice.jsx";
 import InviteNotificationHint from "./InviteNotificationHint.jsx";
 import EventShortcuts from "./EventShortcuts.jsx";
@@ -237,16 +238,30 @@ export default function App() {
     setEventId(id);
     const url = new URL(sectionPaths[section], location.origin);
     if (id) url.searchParams.set("event", id);
+    if (section === "challenges") {
+      const current = new URLSearchParams(location.search);
+      addSelectedGame(url, current.get("game"), current.get("mode"));
+    }
     history[replace ? "replaceState" : "pushState"]({}, "", url);
     if (!replace) focusMain();
   }
-  function navigate(next) {
+  function addSelectedGame(url, gameId, mode) {
+    const game = gameCatalog.find((entry) => entry.id === gameId);
+    if (!game) return;
+    url.searchParams.set("game", game.id);
+    if (mode === "friends" && game.modes.includes("friends")) {
+      url.searchParams.set("mode", "friends");
+      url.hash = `friends-${game.id}`;
+    } else url.hash = `game-${game.id}`;
+  }
+  function navigate(next, gameId, mode) {
     setSection(next);
     const id = shortcutTabs[next] ? eventId : null;
     setEventId(id);
     setEventTab(shortcutTabs[next]);
     const url = new URL(sectionPaths[next], location.origin);
     if (id) url.searchParams.set("event", id);
+    if (next === "challenges") addSelectedGame(url, gameId, mode);
     history.pushState({}, "", url);
     focusMain();
     if (session?.user && next !== "games" && next !== "profile")
@@ -663,7 +678,9 @@ export default function App() {
                   key={session.user.id}
                   collection={collection}
                   events={events}
-                  onCompete={() => navigate("challenges")}
+                  onCompete={(gameId, mode) =>
+                    navigate("challenges", gameId, mode)
+                  }
                   onAlbum={() => navigate("profile")}
                   onGroups={() => navigate("events")}
                   onDiscover={discover}

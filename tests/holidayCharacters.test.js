@@ -84,6 +84,9 @@ describe("catalogo dei personaggi delle feste", () => {
       expect(character.movie.trim()).not.toBe("");
       expect(character.tagline.trim()).not.toBe("");
       expect(character.description.trim()).not.toBe("");
+      expect(Number.isFinite(character.festiveReadiness)).toBe(true);
+      expect(character.festiveReadiness).toBeGreaterThanOrEqual(0);
+      expect(character.festiveReadiness).toBeLessThanOrEqual(100);
       expect(Object.keys(character.profile).sort()).toEqual(
         tasteAxes.map(({ id }) => id).sort(),
       );
@@ -159,36 +162,43 @@ describe("catalogo dei personaggi delle feste", () => {
     const winners = new Map();
     const appearances = new Set();
     let count = 0;
-    for (const game of games) {
-      for (const mood of [null, ...holidayMoods]) {
-        for (const optionIndex of [null, 0, 1, 2, 3]) {
-          const portrait = computeHolidayPortrait(
-            {
-              dailyMood: mood ? { id: mood.id, date: "2026-11-18" } : null,
-              answers:
-                optionIndex === null
-                  ? {}
-                  : Object.fromEntries(
-                      holidayQuestions.map((question) => [
-                        question.id,
-                        question.options[optionIndex].id,
-                      ]),
-                    ),
-            },
-            {
-              today: "2026-11-18",
-              activity: game
-                ? { games: [{ game, count: 3, averageResult: 0.8 }] }
-                : {},
-            },
-          );
-          expect(portrait.characterMatches).toHaveLength(3);
-          winners.set(
-            portrait.topCharacter.id,
-            (winners.get(portrait.topCharacter.id) || 0) + 1,
-          );
-          portrait.characterMatches.forEach(({ id }) => appearances.add(id));
-          count++;
+    // Coverage now spans real progress stages; newcomers deliberately share
+    // skeptical starting characters rather than immediately spanning all 52.
+    for (const festiveProgressScore of [0, 20, 45, 75, 100]) {
+      for (const game of games) {
+        for (const mood of [null, ...holidayMoods]) {
+          for (const optionIndex of [null, 0, 1, 2, 3]) {
+            const portrait = computeHolidayPortrait(
+              {
+                dailyMood: mood ? { id: mood.id, date: "2026-11-18" } : null,
+                answers:
+                  optionIndex === null
+                    ? {}
+                    : Object.fromEntries(
+                        holidayQuestions.map((question) => [
+                          question.id,
+                          question.options[optionIndex].id,
+                        ]),
+                      ),
+              },
+              {
+                today: "2026-11-18",
+                activity: {
+                  festiveProgressScore,
+                  ...(game
+                    ? { games: [{ game, count: 3, averageResult: 0.8 }] }
+                    : {}),
+                },
+              },
+            );
+            expect(portrait.characterMatches).toHaveLength(3);
+            winners.set(
+              portrait.topCharacter.id,
+              (winners.get(portrait.topCharacter.id) || 0) + 1,
+            );
+            portrait.characterMatches.forEach(({ id }) => appearances.add(id));
+            count++;
+          }
         }
       }
     }

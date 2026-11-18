@@ -1,4 +1,5 @@
 import { first, run } from "./auth.js";
+import { captureFestiveProgress } from "./holidayActivity.js";
 import { HttpError, json, token } from "./security.js";
 import { createMemoryDeck, memoryCardCount } from "../shared/memory.js";
 import { createMovieQuestions } from "../shared/christmasMovies.js";
@@ -272,7 +273,9 @@ export async function practiceRoute(request, env, path, body, user) {
       throw new HttpError("Metodo non disponibile.", 405);
     return json({
       allowed: await practiceAllowed(db, user.id),
-      games: gameCatalog.map(({ id, name }) => ({ id, name })),
+      games: gameCatalog
+        .filter((game) => game.practiceEngine !== "local")
+        .map(({ id, name }) => ({ id, name })),
     });
   }
   const match =
@@ -298,6 +301,9 @@ export async function practiceRoute(request, env, path, body, user) {
   if (action === "start") {
     const initial = JSON.stringify(newState(game, now));
     if (body?.reset === true && typeof body.revision === "string") {
+      const previous = await find();
+      if (previous?.done && previous.revision === body.revision)
+        await captureFestiveProgress(db, user.id);
       await run(
         db,
         "UPDATE practice_games SET revision=?,state=?,done=0 WHERE user_id=? AND game=? AND revision=?",
@@ -387,5 +393,6 @@ export async function practiceRoute(request, env, path, body, user) {
   );
   if (!changed.meta.changes)
     throw new HttpError("La partita è cambiata. Riaprila per continuare.", 409);
+  if (result.done) await captureFestiveProgress(db, user.id);
   return json({ ...result, ...(feedback ? { feedback } : {}) });
 }

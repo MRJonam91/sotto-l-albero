@@ -1,12 +1,22 @@
 import {
   applyAntiqueMedallionFinish,
   applyVintagePortraitGrade,
+  extendPortraitEdges,
 } from "./avatarVintageFilter.js";
 import {
   avatarScenes as classicAvatarScenes,
   drawAvatar as drawAvatarClassic,
 } from "./avatarCanvasClassic.js";
-import { portraitPlacement } from "./avatarGeometry.js";
+import {
+  portraitPlacement,
+  portraitScenePlacement,
+  mapFaceLandmarks,
+} from "./avatarGeometry.js";
+import { getAvatarTemplate } from "./avatarTemplateVariants.js";
+export {
+  avatarVariantIds,
+  selectAvatarVariant,
+} from "./avatarTemplateVariants.js";
 
 export const avatarStyles = [
   { id: "illustrated", name: "Ritratti illustrati" },
@@ -105,52 +115,94 @@ export function scenesForStyle(style = "illustrated") {
   return style === "classic" ? classicAvatarScenes : avatarScenes;
 }
 
+export function sceneForSettings({
+  style = "illustrated",
+  scene = "elf",
+  variant = "front",
+} = {}) {
+  const list = scenesForStyle(style);
+  const base = list.find((item) => item.id === scene) ?? list[0];
+  if (style === "classic") return base;
+  const template = getAvatarTemplate(base.id, variant);
+  return template ? { ...base, ...template } : base;
+}
+
 const templateCache = new Map();
 const pendingRedraws = new WeakMap();
+const redrawCallbacks = new WeakMap();
 
 function getTemplateLayer(url, onReady) {
   if (typeof Image === "undefined") return null;
   let entry = templateCache.get(url);
   if (!entry) {
     const img = new Image();
-    entry = { img, loaded: false, failed: false, callbacks: [] };
-    if (onReady) entry.callbacks.push(onReady);
-    img.onload = () => {
-      entry.loaded = true;
-      const cbs = entry.callbacks.splice(0);
-      for (const cb of cbs) cb();
+    let settle;
+    entry = {
+      img,
+      loaded: false,
+      failed: false,
+      callbacks: new Set(),
+      promise: new Promise((resolve) => {
+        settle = resolve;
+      }),
     };
-    img.onerror = () => {
-      entry.failed = true;
-      for (const cb of entry.callbacks.splice(0)) cb();
-    };
-    img.src = url;
     templateCache.set(url, entry);
-    return null;
+    const complete = (success) => {
+      entry.loaded = success;
+      entry.failed = !success;
+      settle(success);
+      const callbacks = [...entry.callbacks];
+      entry.callbacks.clear();
+      for (const callback of callbacks) callback();
+      // Browsing fifty variants must not retain fifty decoded 512px paintings.
+      let loaded = [...templateCache.values()].filter(
+        (item) => item.loaded,
+      ).length;
+      for (const [key, candidate] of templateCache) {
+        if (loaded <= 12) break;
+        if (key !== url && candidate.loaded && !candidate.callbacks.size) {
+          templateCache.delete(key);
+          loaded--;
+        }
+      }
+    };
+    img.onload = () => complete(true);
+    img.onerror = () => complete(false);
+    if (onReady) entry.callbacks.add(onReady);
+    img.src = url;
+  } else if (!entry.loaded && !entry.failed && onReady)
+    entry.callbacks.add(onReady);
+  if (entry.loaded) {
+    templateCache.delete(url);
+    templateCache.set(url, entry);
+    return entry.img;
   }
-  if (entry.loaded) return entry.img;
-  if (!entry.failed && onReady) entry.callbacks.push(onReady);
   return null;
 }
 
-export async function preloadAvatarTemplates() {
-  if (typeof Image === "undefined") return;
-  const urls = [];
-  for (const s of avatarScenes) {
-    urls.push(
-      `/avatar-templates/${s.id}-bg.webp`,
-      `/avatar-templates/${s.id}-fg.webp`,
-    );
-  }
-  await Promise.all(
-    urls.map(
-      (url) =>
-        new Promise((resolve) => {
-          const img = getTemplateLayer(url, () => resolve());
-          if (img || templateCache.get(url)?.failed) resolve();
-        }),
-    ),
-  );
+async function preloadUrls(urls) {
+  const requests = urls.map((url) => {
+    getTemplateLayer(url);
+    return templateCache.get(url)?.promise ?? Promise.resolve(false);
+  });
+  return (await Promise.all(requests)).every(Boolean);
+}
+
+export async function preloadSelectedAvatarTemplate(settings = {}) {
+  if (settings.style === "classic") return true;
+  const chosen = sceneForSettings(settings);
+  if (chosen.overlay && (await preloadUrls([chosen.overlay]))) return true;
+  const id = chosen.sceneId ?? chosen.id;
+  await preloadUrls([
+    `/avatar-templates/${id}-bg.webp`,
+    `/avatar-templates/${id}-fg.webp`,
+  ]);
+  return false;
+}
+
+// Backwards-compatible entry point; deliberately loads only the selected scene.
+export function preloadAvatarTemplates(settings = {}) {
+  return preloadSelectedAvatarTemplate(settings);
 }
 
 function ellipse(ctx, x, y, rx, ry, color) {
@@ -228,53 +280,152 @@ function drawAdaptiveSantaBeard(ctx, x, y, rx, ry) {
   ctx.restore();
 }
 
-// Weak photo keys release old selfies; each entry holds at most the ten scene grades.
+// Weak photo keys release old selfies; each entry holds at most six scene grades.
 const gradedPortraits = new WeakMap();
 
-function makeGradedPortraitCanvas(image, isIsolated, hatShadow, sceneId) {
+function makeGradedPortraitCanvas(
+  image,
+  isIsolated,
+  hatShadow,
+  sceneId,
+  scene,
+) {
   if (typeof document === "undefined") return image;
+  const chosen =
+    scene ??
+    avatarScenes.find((item) => item.id === sceneId) ??
+    avatarScenes[0];
   let versions = gradedPortraits.get(image);
   if (!versions) {
     versions = new Map();
     gradedPortraits.set(image, versions);
   }
-  const key = `${sceneId}:${isIsolated ? 1 : 0}:${hatShadow}`;
-  if (versions.has(key)) return versions.get(key);
-  const maxDim = 320;
-  const scale = Math.min(
-    1,
-    maxDim / Math.max(image.width || 320, image.height || 320),
-  );
-  const w = Math.max(1, Math.round((image.width || 320) * scale));
-  const h = Math.max(1, Math.round((image.height || 320) * scale));
+  const key = `${chosen.id}:${isIsolated ? 1 : 0}:${JSON.stringify(chosen.lighting ?? null)}:${hatShadow}`;
+  if (versions.has(key)) {
+    const cached = versions.get(key);
+    versions.delete(key);
+    versions.set(key, cached);
+    return cached;
+  }
+  const scale = Math.min(1, 640 / Math.max(image.width, image.height));
   const off = document.createElement("canvas");
-  off.width = w;
-  off.height = h;
-  const octx = off.getContext("2d");
-  octx.drawImage(image, 0, 0, w, h);
+  off.width = Math.max(1, Math.round(image.width * scale));
+  off.height = Math.max(1, Math.round(image.height * scale));
+  const sx = off.width / image.width,
+    sy = off.height / image.height;
+  if (image.faceBox) {
+    const box = image.faceBox;
+    off.faceBox = {
+      w: box.w * sx,
+      h: box.h * sy,
+      cx: box.cx * sx,
+      cy: box.cy * sy,
+    };
+    if (Number.isFinite(box.topY)) off.faceBox.topY = box.topY * sy;
+    if (Number.isFinite(box.chinY)) off.faceBox.chinY = box.chinY * sy;
+  }
+  off.landmarks = mapFaceLandmarks(
+    image.landmarks,
+    { scaleX: sx, scaleY: sy },
+    "graded-pixels",
+  );
+  if (image.pose) off.pose = { ...image.pose };
+  const ctx = off.getContext("2d");
+  ctx.drawImage(image, 0, 0, off.width, off.height);
   try {
-    const imgData = octx.getImageData(0, 0, w, h);
-    applyVintagePortraitGrade(imgData.data, w, h, {
+    const pixels = ctx.getImageData(0, 0, off.width, off.height);
+    applyVintagePortraitGrade(pixels.data, off.width, off.height, {
       strength: 0.78,
       smoothing: true,
       painterly: true,
-      hatShadow: isIsolated ? hatShadow : hatShadow * 0.85,
+      hatShadow: chosen.hasHat ? hatShadow : 0,
       sceneId,
+      faceBox: off.faceBox,
+      landmarks: off.landmarks,
+      lighting: chosen.lighting,
     });
-    octx.putImageData(imgData, 0, 0);
+    if (isIsolated)
+      extendPortraitEdges(
+        pixels.data,
+        off.width,
+        off.height,
+        Math.min(4, (chosen.featherPx ?? 1.2) * 1.6),
+      );
+    ctx.putImageData(pixels, 0, 0);
   } catch {
-    // Tainted canvas fallback
-  }
-  if (image.faceBox) {
-    off.faceBox = {
-      w: image.faceBox.w * scale,
-      h: image.faceBox.h * scale,
-      cx: image.faceBox.cx * scale,
-      cy: image.faceBox.cy * scale,
-    };
+    // The proportional source still works if canvas pixel readback is unavailable.
   }
   versions.set(key, off);
+  // Six recent scene grades per weak photo key, rather than fifty 640px copies.
+  if (versions.size > 6) versions.delete(versions.keys().next().value);
   return off;
+}
+
+function drawFaceWithOverlay(ctx, portrait, scene, settings) {
+  const graded = makeGradedPortraitCanvas(
+    portrait.source,
+    portrait.isolated,
+    scene.hatShadow,
+    scene.sceneId,
+    scene,
+  );
+  const placement = portraitScenePlacement(
+    graded,
+    scene,
+    settings,
+    portrait.isolated,
+  );
+  const bounds = scene.openingBounds;
+  ctx.save();
+  // The central aperture is separate from transparent pixels outside the frame.
+  // The painted foreground itself supplies the exact curved occlusion boundary.
+  ctx.beginPath();
+  ctx.rect(bounds.x - 2, bounds.y - 2, bounds.width + 4, bounds.height + 4);
+  ctx.clip();
+  ctx.transform(...placement.transform);
+  ctx.drawImage(graded, 0, 0);
+  ctx.restore();
+  return placement;
+}
+
+function drawHairAboveOverlay(ctx, portrait, scene, placement) {
+  const capMask = portrait.source.headCapMask ?? portrait.source.hairMask;
+  if (scene.sceneId !== "snowglobe" || !portrait.isolated || !capMask) return;
+  const graded = makeGradedPortraitCanvas(
+    portrait.source,
+    true,
+    scene.hatShadow,
+    scene.sceneId,
+    scene,
+  );
+  if (!graded.hairLayer) {
+    const hair = document.createElement("canvas");
+    hair.width = graded.width;
+    hair.height = graded.height;
+    const hairContext = hair.getContext("2d");
+    hairContext.drawImage(graded, 0, 0);
+    hairContext.globalCompositeOperation = "destination-in";
+    hairContext.drawImage(capMask, 0, 0, hair.width, hair.height);
+    graded.hairLayer = hair;
+  }
+  const faceBottom = scene.faceBounds.y + scene.faceBounds.height;
+  const bottom = Math.min(
+    faceBottom,
+    (scene.anchors.chin?.[1] ?? faceBottom) + 1,
+    scene.collarY - 5,
+  );
+  ctx.save();
+  // This scene has no hat. Restore the actual segmented upper head over the painted
+  // sky inside the glass, using the very same transform as the face underneath.
+  ctx.beginPath();
+  ctx.ellipse(128, 112, 112, 106, 0, 0, Math.PI * 2);
+  ctx.clip();
+  ctx.beginPath();
+  ctx.rect(0, 0, 256, bottom);
+  ctx.clip();
+  ctx.transform(...placement.transform);
+  ctx.drawImage(graded.hairLayer, 0, 0);
+  ctx.restore();
 }
 
 function drawFaceInTemplate(
@@ -320,9 +471,6 @@ function drawFaceInTemplate(
   }
 
   if (isolated) {
-    ctx.shadowColor = "#140c0788";
-    ctx.shadowBlur = 6;
-    ctx.shadowOffsetY = 2;
     ctx.drawImage(
       graded,
       placement.x,
@@ -347,19 +495,27 @@ function drawFaceInTemplate(
   ctx.restore();
 }
 
-export function drawAvatar(
-  canvas,
-  portrait,
-  {
+function finishCanvas(ctx, size, intensity = 2) {
+  try {
+    const pixels = ctx.getImageData(0, 0, size, size);
+    applyAntiqueMedallionFinish(pixels.data, size, size, intensity);
+    ctx.putImageData(pixels, 0, 0);
+  } catch {
+    /* Pixel readback can be restricted by the browser. */
+  }
+}
+
+export function drawAvatar(canvas, portrait, settings = {}, size = 256) {
+  const {
     style = "illustrated",
-    scene,
+    scene = "elf",
+    variant = "front",
     zoom = 1.15,
     offsetX = 0,
     offsetY = 0,
     beard = true,
-  },
-  size = 256,
-) {
+    rotation = 0,
+  } = settings;
   if (style === "classic") {
     pendingRedraws.delete(canvas);
     return drawAvatarClassic(
@@ -369,70 +525,89 @@ export function drawAvatar(
       size,
     );
   }
-
-  const chosen =
-    avatarScenes.find((item) => item.id === scene) ?? avatarScenes[0];
+  const currentSettings = {
+    style,
+    scene,
+    variant,
+    zoom,
+    offsetX,
+    offsetY,
+    beard,
+    rotation,
+  };
+  pendingRedraws.set(canvas, { portrait, settings: currentSettings, size });
+  if (!portrait) return { ready: false };
+  let triggerRedraw = redrawCallbacks.get(canvas);
+  if (!triggerRedraw) {
+    triggerRedraw = () => {
+      const latest = pendingRedraws.get(canvas);
+      if (latest)
+        drawAvatar(canvas, latest.portrait, latest.settings, latest.size);
+    };
+    redrawCallbacks.set(canvas, triggerRedraw);
+  }
+  const chosen = sceneForSettings(currentSettings);
+  let overlay;
+  if (chosen.overlay) {
+    overlay = getTemplateLayer(chosen.overlay, triggerRedraw);
+    if (!overlay && !templateCache.get(chosen.overlay)?.failed)
+      return { ready: false };
+  }
+  const id = chosen.sceneId ?? chosen.id;
+  let background, foreground;
+  const legacy = avatarScenes.find((item) => item.id === id) ?? avatarScenes[0];
+  if (!overlay) {
+    const bgUrl = `/avatar-templates/${id}-bg.webp`,
+      fgUrl = `/avatar-templates/${id}-fg.webp`;
+    background = getTemplateLayer(bgUrl, triggerRedraw);
+    foreground = getTemplateLayer(fgUrl, triggerRedraw);
+    const failed =
+      templateCache.get(bgUrl)?.failed ||
+      templateCache.get(fgUrl)?.failed ||
+      typeof Image === "undefined";
+    if ((!background || !foreground) && !failed) return { ready: false };
+    if ((!background || !foreground) && failed) {
+      drawAvatarClassic(
+        canvas,
+        portrait,
+        { scene: id, zoom, offsetX, offsetY, beard },
+        size,
+      );
+      return { ready: true, fallback: true };
+    }
+  }
+  // Do not clear a completed previous result until the replacement is ready.
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext("2d", { alpha: false });
-
-  const settings = { style, scene, zoom, offsetX, offsetY, beard };
-  pendingRedraws.set(canvas, { portrait, settings, size });
-  const triggerRedraw = () => {
-    const latest = pendingRedraws.get(canvas);
-    if (latest) {
-      drawAvatar(canvas, latest.portrait, latest.settings, latest.size);
-    }
-  };
-
   ctx.save();
   ctx.scale(size / 256, size / 256);
   ctx.imageSmoothingQuality = "high";
-
-  const bgImg = getTemplateLayer(
-    `/avatar-templates/${chosen.id}-bg.webp`,
-    triggerRedraw,
-  );
-  const fgImg = getTemplateLayer(
-    `/avatar-templates/${chosen.id}-fg.webp`,
-    triggerRedraw,
-  );
-
-  if (bgImg && fgImg) {
-    ctx.drawImage(bgImg, 0, 0, 256, 256);
-    if (portrait) {
-      drawFaceInTemplate(ctx, portrait, chosen, { zoom, offsetX, offsetY });
-    }
-    ctx.drawImage(fgImg, 0, 0, 256, 256);
-    if (chosen.id === "santa" && beard && portrait) {
-      const [fx, fy, frx, fry] = chosen.face;
+  ctx.fillStyle = "#0b2822";
+  ctx.fillRect(0, 0, 256, 256);
+  let placement;
+  if (overlay) {
+    placement = drawFaceWithOverlay(ctx, portrait, chosen, currentSettings);
+    ctx.drawImage(overlay, 0, 0, 256, 256);
+    drawHairAboveOverlay(ctx, portrait, chosen, placement);
+  } else {
+    ctx.drawImage(background, 0, 0, 256, 256);
+    drawFaceInTemplate(ctx, portrait, legacy, currentSettings);
+    ctx.drawImage(foreground, 0, 0, 256, 256);
+    if (id === "santa" && beard) {
+      const [x, y, rx, ry] = legacy.face;
       drawAdaptiveSantaBeard(
         ctx,
-        fx + offsetX * 0.27,
-        fy + offsetY * 0.27,
-        frx * Math.min(1.25, Math.max(0.85, zoom)),
-        fry * Math.min(1.25, Math.max(0.85, zoom)),
+        x + offsetX * 0.27,
+        y + offsetY * 0.27,
+        rx * zoom,
+        ry * zoom,
       );
     }
-  } else {
-    ctx.restore();
-    return drawAvatarClassic(
-      canvas,
-      portrait,
-      { scene: chosen.id, zoom, offsetX, offsetY, beard },
-      size,
-    );
   }
-
   ctx.restore();
-
-  try {
-    const frameData = ctx.getImageData(0, 0, size, size);
-    applyAntiqueMedallionFinish(frameData.data, size, size, 4);
-    ctx.putImageData(frameData, 0, 0);
-  } catch {
-    // Skip grain if canvas readback is restricted
-  }
+  finishCanvas(ctx, size, overlay ? 1.5 : 3);
+  return { ready: true, fallback: !overlay, alignment: placement?.alignment };
 }
 
 function toBlob(canvas, type, quality) {
@@ -449,7 +624,8 @@ function toBlob(canvas, type, quality) {
 }
 
 export async function makeAvatarThumbnail(image, settings) {
-  if (settings.style !== "classic") await preloadAvatarTemplates();
+  if (settings.style !== "classic")
+    await preloadSelectedAvatarTemplate(settings);
   const canvas = document.createElement("canvas");
   drawAvatar(canvas, image, settings);
   for (const type of ["image/webp", "image/jpeg"]) {
@@ -473,7 +649,8 @@ export async function makeAvatarThumbnail(image, settings) {
 }
 
 export async function downloadAvatar(image, settings) {
-  if (settings.style !== "classic") await preloadAvatarTemplates();
+  if (settings.style !== "classic")
+    await preloadSelectedAvatarTemplate(settings);
   const canvas = document.createElement("canvas");
   drawAvatar(canvas, image, settings, 1024);
   const blob = await toBlob(canvas, "image/png");

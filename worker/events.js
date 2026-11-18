@@ -20,7 +20,10 @@ import {
   parseHolidayProfile,
 } from "../shared/holidayPortrait.js";
 import { telegramAvailable, telegramMessage } from "./telegram.js";
-import { loadHolidayActivities } from "./holidayActivity.js";
+import {
+  loadHolidayActivities,
+  captureFestiveProgress,
+} from "./holidayActivity.js";
 import { loadAmazonPreferences } from "./amazonPreferences.js";
 import { amazonWishlistLink } from "../shared/amazonLinks.js";
 const nowIso = () => new Date().toISOString();
@@ -539,6 +542,9 @@ export async function eventRoute(request, env, path, body, user) {
                         matchingExplanation: {
                           ...computed.matchingExplanation,
                           signals: [],
+                          festiveProgress: {
+                            level: computed.festiveProgress.level,
+                          },
                         },
                       }
                     : null,
@@ -726,6 +732,8 @@ export async function eventRoute(request, env, path, body, user) {
         answer: safeText(x.answer, 1000),
       };
     });
+    if (items.length < previousItems.length)
+      await captureFestiveProgress(db, user.id);
     await run(
       db,
       "UPDATE members SET wishlist=?,updated_at=? WHERE id=?",
@@ -733,6 +741,8 @@ export async function eventRoute(request, env, path, body, user) {
       nowIso(),
       member.id,
     );
+    if (items.length > previousItems.length)
+      await captureFestiveProgress(db, user.id);
     return json({ ok: true, items });
   }
   if (!admin)

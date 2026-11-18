@@ -5,6 +5,9 @@ export const gameCatalog = [
     description: "Domande natalizie, una alla volta.",
     points: 300,
     kind: "quiz",
+    ranked: true,
+    practiceEngine: "server",
+    modes: ["practice", "ranked", "friends"],
   },
   {
     id: "memory",
@@ -12,6 +15,9 @@ export const gameCatalog = [
     description: "Trova le otto coppie tra i ricordi di Natale.",
     points: 300,
     kind: "memory",
+    ranked: true,
+    practiceEngine: "server",
+    modes: ["practice", "ranked"],
   },
   {
     id: "film",
@@ -19,6 +25,9 @@ export const gameCatalog = [
     description: "Riconosci il film di Natale dalla sequenza di icone.",
     points: 200,
     kind: "film",
+    ranked: true,
+    practiceEngine: "server",
+    modes: ["practice", "ranked"],
   },
   {
     id: "pacchi",
@@ -26,6 +35,9 @@ export const gameCatalog = [
     description: "Abbina i pacchi alle persone seguendo gli indizi.",
     points: 100,
     kind: "challenge",
+    ranked: true,
+    practiceEngine: "server",
+    modes: ["practice", "ranked"],
   },
   {
     id: "slitta",
@@ -33,6 +45,9 @@ export const gameCatalog = [
     description: "Prepara il carico rispettando lo spazio della slitta.",
     points: 100,
     kind: "challenge",
+    ranked: true,
+    practiceEngine: "server",
+    modes: ["practice", "ranked"],
   },
   {
     id: "cartolina",
@@ -40,6 +55,9 @@ export const gameCatalog = [
     description: "Esplora due stanze e ricomponi il mistero della cartolina.",
     points: 100,
     kind: "challenge",
+    ranked: true,
+    practiceEngine: "server",
+    modes: ["practice", "ranked"],
   },
   {
     id: "addobbi",
@@ -47,6 +65,9 @@ export const gameCatalog = [
     description: "Riconosci i timbri e raccogli i pacchi sul nastro.",
     points: 100,
     kind: "challenge",
+    ranked: true,
+    practiceEngine: "server",
+    modes: ["practice", "ranked"],
   },
   {
     id: "tris",
@@ -56,8 +77,28 @@ export const gameCatalog = [
     points: 0,
     kind: "challenge",
     ranked: false,
+    practiceEngine: "server",
+    modes: ["computer", "friends"],
+  },
+  {
+    id: "curling",
+    name: "Curling dei regali",
+    description:
+      "Fai scivolare i regali vicino alla lanterna. Gli urti possono cambiare la partita.",
+    points: 0,
+    kind: "local",
+    ranked: false,
+    practiceEngine: "local",
+    modes: ["computer"],
   },
 ];
+
+export const gameModeLabels = {
+  practice: "Allenamento libero",
+  ranked: "Sfida a punti",
+  friends: "Con un amico",
+  computer: "Contro il computer",
+};
 
 export const gameDefinitions = Object.fromEntries(
   gameCatalog

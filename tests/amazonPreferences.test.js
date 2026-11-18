@@ -22,6 +22,14 @@ function database() {
     CREATE TABLE events(id TEXT PRIMARY KEY,group_id TEXT,owner_id TEXT); INSERT INTO events VALUES('event','group','owner');
     CREATE TABLE members(id TEXT PRIMARY KEY,event_id TEXT,user_id TEXT,status TEXT,wishlist TEXT,updated_at TEXT);
     INSERT INTO members VALUES('m-owner','event','owner','approved','[]',''),('m-other','event','other','approved','[]','');`);
+  sql.exec(`ALTER TABLE users ADD COLUMN holiday_profile TEXT NOT NULL DEFAULT '{}';
+    ALTER TABLE users ADD COLUMN festive_progress_score INTEGER NOT NULL DEFAULT 0;
+    CREATE TABLE competition_attempts(id TEXT,user_id TEXT,game TEXT,raw_score INTEGER,state TEXT);
+    CREATE TABLE practice_games(user_id TEXT,game TEXT,done INTEGER,state TEXT);
+    CREATE TABLE user_stamps(user_id TEXT,stamp TEXT);
+    CREATE TABLE portrait_interactions(sender_id TEXT,receiver_id TEXT);
+    CREATE TABLE tris_duels(player_x TEXT,player_o TEXT,status TEXT,winner TEXT);
+    CREATE TABLE profile_activity(user_id TEXT,game TEXT,day TEXT);`);
   return {
     sql,
     prepare(query) {
@@ -33,6 +41,9 @@ function database() {
         },
         async first() {
           return sql.prepare(query).get(...args) || null;
+        },
+        async all() {
+          return { results: sql.prepare(query).all(...args) };
         },
         async run() {
           return {
