@@ -5,7 +5,7 @@ import AvatarCamera from "./AvatarCamera.jsx";
 import {
   avatarStyles,
   downloadAvatar,
-  drawAvatar,
+  drawAvatarPreview,
   makeAvatarThumbnail,
   preloadSelectedAvatarTemplate,
   sceneForSettings,
@@ -51,7 +51,7 @@ export default function PhotoEditor({ profile, name, disabled, onSave }) {
   const [manualControlsOpen, setManualControlsOpen] = useState(false);
   const [settings, setSettings] = useState({
     style: "illustrated",
-    paintStrength: 0.75,
+    paintStrength: 1,
     scene: "elf",
     variant: "front",
     zoom: 1.15,
@@ -61,6 +61,8 @@ export default function PhotoEditor({ profile, name, disabled, onSave }) {
   });
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
+  const [preview, setPreview] = useState(null);
+  const [previewAttempt, setPreviewAttempt] = useState(0);
   const canvas = useRef(null);
   const mini = useRef(null);
   const nativeCamera = useRef(null);
@@ -74,6 +76,10 @@ export default function PhotoEditor({ profile, name, disabled, onSave }) {
   const hintId = useId();
   const dragHintId = useId();
   const isDisabled = disabled || !!busy;
+  const previewReady =
+    preview?.portrait === portrait && preview?.settings === settings && preview.ready;
+  const previewFailed =
+    preview?.portrait === portrait && preview?.settings === settings && !preview.ready;
   const availableScenes = scenesForStyle(settings.style);
   const chosenScene = sceneForSettings(settings);
   const offsetLimits = portraitOffsetLimits(
@@ -107,12 +113,25 @@ export default function PhotoEditor({ profile, name, disabled, onSave }) {
 
   useEffect(() => {
     if (!portrait) return;
+    let cancelDraw;
     const frame = requestAnimationFrame(() => {
-      if (canvas.current) drawAvatar(canvas.current, portrait, settings);
-      if (mini.current) drawAvatar(mini.current, portrait, settings, 72);
+      if (!canvas.current || settingsRef.current !== settings) return;
+      cancelDraw = drawAvatarPreview(
+        canvas.current,
+        portrait,
+        settings,
+        mini.current,
+        (ready) => {
+          if (settingsRef.current === settings)
+            setPreview({ portrait, settings, ready });
+        },
+      );
     });
-    return () => cancelAnimationFrame(frame);
-  }, [portrait, settings]);
+    return () => {
+      cancelAnimationFrame(frame);
+      cancelDraw?.();
+    };
+  }, [portrait, settings, previewAttempt]);
 
   useEffect(
     () => () => {
@@ -152,6 +171,7 @@ export default function PhotoEditor({ profile, name, disabled, onSave }) {
     if (selected.size > originalLimit)
       return setError("Scegli una foto da 25 MB o meno.");
     setPortrait(null);
+    setPreview(null);
     setScenePickerOpen(false);
     setManualControlsOpen(false);
     photoSeed.current = crypto.getRandomValues(new Uint32Array(1))[0];
@@ -165,6 +185,7 @@ export default function PhotoEditor({ profile, name, disabled, onSave }) {
       zoom: 1.15,
       offsetX: 0,
       offsetY: 0,
+      framingPaintStrength: undefined,
     }));
     const shouldSend = profile.photoBackupAvailable;
     setCropNotice("");
@@ -190,6 +211,7 @@ export default function PhotoEditor({ profile, name, disabled, onSave }) {
       if (revision !== photoRevision.current) return;
       await revealPortrait(cutout || source, !!cutout, revision);
       if (revision !== photoRevision.current) return;
+      if (!cutout) setManualControlsOpen(true);
       setCropNotice(
         cutout
           ? t(
@@ -203,6 +225,7 @@ export default function PhotoEditor({ profile, name, disabled, onSave }) {
       if (revision === photoRevision.current) {
         await revealPortrait(source, false, revision);
         if (revision !== photoRevision.current) return;
+        setManualControlsOpen(true);
         setCropNotice(
           "Il ritaglio automatico non è disponibile qui. Puoi sistemare il viso a mano.",
         );
@@ -247,10 +270,15 @@ export default function PhotoEditor({ profile, name, disabled, onSave }) {
   }
 
   function setValue(key, value) {
-    if (["zoom", "offsetX", "offsetY"].includes(key)) useManualCrop();
-    updateSettings((current) =>
-      constrainSettings({ ...current, [key]: value }),
-    );
+    const adjustsFrame = ["zoom", "offsetX", "offsetY"].includes(key);
+    if (adjustsFrame) useManualCrop();
+    updateSettings((current) => {
+      const next = { ...current, [key]: value };
+      if (adjustsFrame)
+        next.framingPaintStrength =
+          current.framingPaintStrength ?? current.paintStrength;
+      return constrainSettings(next);
+    });
   }
 
   function centreFace() {
@@ -261,6 +289,7 @@ export default function PhotoEditor({ profile, name, disabled, onSave }) {
         portrait?.isolated || portrait?.source.landmarks?.detected ? 1 : 1.15,
       offsetX: 0,
       offsetY: 0,
+      framingPaintStrength: undefined,
     }));
   }
 
@@ -286,6 +315,7 @@ export default function PhotoEditor({ profile, name, disabled, onSave }) {
     if (!start || start.pointerId !== event.pointerId) return;
     updateSettings((current) => ({
       ...current,
+      framingPaintStrength: current.framingPaintStrength ?? current.paintStrength,
       offsetX: clampOffset(
         start.offsetX + (event.clientX - start.x) * start.units,
         start.limits.x,
@@ -393,9 +423,11 @@ export default function PhotoEditor({ profile, name, disabled, onSave }) {
       {portrait && (
         <>
           <div className="photo-framing-stage">
-            <div className="photo-preview">
+            <div className="photo-preview" aria-busy={!previewReady && !previewFailed}>
               <canvas
                 ref={canvas}
+                width={256}
+                height={256}
                 role="img"
                 aria-label={t("Anteprima dell’avatar")}
                 aria-describedby={dragHintId}
@@ -410,7 +442,7 @@ export default function PhotoEditor({ profile, name, disabled, onSave }) {
               />
               {portrait && (
                 <div className="profile-mini-preview">
-                  <canvas ref={mini} aria-hidden="true" />
+                  <canvas ref={mini} width={72} height={72} aria-hidden="true" />
                   <span>
                     {t("Nel gruppo")} <strong>{name}</strong>
                   </span>
@@ -601,7 +633,10 @@ export default function PhotoEditor({ profile, name, disabled, onSave }) {
                     value={settings.paintStrength}
                     disabled={isDisabled}
                     onChange={(event) =>
-                      setValue("paintStrength", Number(event.target.value))
+                      updateSettings({
+                        ...settingsRef.current,
+                        paintStrength: Number(event.target.value),
+                      })
                     }
                   >
                     <option value={0.35}>{t("Leggera")}</option>
@@ -623,12 +658,27 @@ export default function PhotoEditor({ profile, name, disabled, onSave }) {
           <p className="photo-crop-status" role="status">
             {t(cropNotice)}
           </p>
+          {previewFailed && (
+            <div>
+              <Notice error>{t("Non siamo riusciti ad aggiornare il ritratto.")}</Notice>
+              <button
+                type="button"
+                className="text-button"
+                onClick={() => {
+                  setPreview(null);
+                  setPreviewAttempt((attempt) => attempt + 1);
+                }}
+              >
+                {t("Riprova")}
+              </button>
+            </div>
+          )}
           <div className="form-actions photo-actions">
             <Button
               type="button"
               variant="outline"
               busy={busy === "download"}
-              disabled={!portrait || isDisabled}
+              disabled={!previewReady || isDisabled}
               onClick={() =>
                 act("download", () => downloadAvatar(portrait, settings))
               }
@@ -639,7 +689,7 @@ export default function PhotoEditor({ profile, name, disabled, onSave }) {
             <Button
               type="button"
               busy={busy === "save"}
-              disabled={!portrait || !profile.photoAvailable || isDisabled}
+              disabled={!previewReady || !profile.photoAvailable || isDisabled}
               onClick={() =>
                 act("save", async () =>
                   onSave({

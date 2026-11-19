@@ -1998,6 +1998,7 @@ function stableSeed(value) {
 export function selectAvatarVariant(source, sceneId, seed = 0) {
   const yaw = Math.max(-45, Math.min(45, numericPose(source, "yaw")));
   const roll = Math.max(-35, Math.min(35, numericPose(source, "roll")));
+  if (Math.abs(yaw) <= 5 && Math.abs(roll) <= 4) return "front";
   const candidates = avatarTemplates
     .filter((template) => template.sceneId === sceneId)
     .map((template) => ({
@@ -2015,7 +2016,7 @@ export function selectAvatarVariant(source, sceneId, seed = 0) {
   if (!candidates.length) return "front";
   // Diversity is confined to poses close to the best geometric match.
   const compatible = candidates.filter(
-    (candidate) => candidate.cost <= candidates[0].cost + 0.3,
+    (candidate) => candidate.cost <= candidates[0].cost + 0.08,
   );
   return compatible[stableSeed(`${sceneId}:${seed}`) % compatible.length].id;
 }

@@ -61,4 +61,13 @@ describe("painted avatar variants", () => {
     }
     expect(selectAvatarVariant(null, "unknown")).toBe("front");
   });
+
+  it("defaults to the frontal costume for frontal or undetected poses regardless of the photo seed", () => {
+    for (const scene of avatarSceneIds) {
+      for (const seed of [0, 42, 9982]) {
+        expect(selectAvatarVariant({ pose: { yaw: 1, roll: 1 } }, scene, seed)).toBe("front");
+        expect(selectAvatarVariant(null, scene, seed)).toBe("front");
+      }
+    }
+  });
 });

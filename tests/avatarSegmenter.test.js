@@ -118,6 +118,44 @@ it("refuses an automatic cutout when the real detector finds multiple people", a
   expect(await isolateAvatarFace({ width: 1000, height: 800 })).toBeNull();
 });
 
+it("uses the detected outline when segmentation does not return a face", async () => {
+  faceMask.mockReturnValueOnce(null);
+  faceAnalysis.detect.mockResolvedValue({
+    landmarks: {
+      detected: true,
+      imageLeftEye: [130, 140],
+      imageRightEye: [230, 140],
+      chin: [180, 280],
+      faceOval: Array.from({ length: 20 }, (_, index) => {
+        const angle = (index * Math.PI) / 10;
+        return [180 + 100 * Math.cos(angle), 175 + 105 * Math.sin(angle)];
+      }),
+    },
+  });
+  const drawImage = vi.fn();
+  const fill = vi.fn();
+  vi.stubGlobal("document", {
+    createElement: () => ({
+      getContext: () => ({
+        drawImage,
+        fill,
+        beginPath() {},
+        moveTo() {},
+        lineTo() {},
+        closePath() {},
+      }),
+    }),
+  });
+  const { isolateAvatarFace } = await import("../src/avatarSegmenter.js");
+  const image = { width: 400, height: 600 };
+  const result = await isolateAvatarFace(image);
+  expect(result?.landmarks.imageLeftEye[0]).toBeLessThan(60);
+  expect(result.width).toBeLessThan(220);
+  expect(result.height).toBeLessThan(230);
+  expect(fill).toHaveBeenCalled();
+  expect(image.landmarks).toBeUndefined();
+});
+
 it("retains a separate alpha-only hair mask in exactly the same cropped coordinates", async () => {
   hairFixture.alpha = new Uint8Array(10000);
   hairFixture.alpha[10 * 100 + 40] = 255;

@@ -180,6 +180,80 @@ describe("illustrated anatomical alignment", () => {
     expect(placed.width / placed.height).toBeCloseTo(400 / 600);
     expect(placed.rotation).toBeLessThan(0);
   });
+  it("keeps the sleigh's medium framing close to the older silhouette and locks a manual frame", () => {
+    const template = avatarTemplates.find(({ id }) => id === "sleigh-front");
+    const landmarks = {
+      ...source.landmarks,
+      faceOval: Array.from({ length: 36 }, (_, i) => [
+        165 + 78 * Math.cos((i * Math.PI) / 18),
+        255 + 105 * Math.sin((i * Math.PI) / 18),
+      ]),
+    };
+    const input = { ...source, landmarks };
+    const previous = portraitScenePlacement(input, {
+      ...template,
+      anchors: { ...template.anchors, chin: undefined },
+    });
+    const medium = portraitScenePlacement(input, template, { paintStrength: 0.75 });
+    const strong = portraitScenePlacement(input, template, { paintStrength: 1 });
+    expect(medium.scale / previous.scale).toBeCloseTo(0.96);
+    expect(strong.scale).toBeLessThan(medium.scale);
+
+    const manual = { zoom: 1.1, offsetX: -8, framingPaintStrength: 0.75 };
+    expect(
+      portraitScenePlacement(input, template, { ...manual, paintStrength: 0.75 }).transform,
+    ).toEqual(
+      portraitScenePlacement(input, template, { ...manual, paintStrength: 1 }).transform,
+    );
+  });
+  it("uses the eye-to-chin span of the costume for a long face", () => {
+    const template = avatarTemplates.find(({ id }) => id === "victorian-front");
+    const faceOval = Array.from({ length: 36 }, (_, i) => [
+      100 + 44 * Math.cos((i * Math.PI) / 18),
+      100 + 71 * Math.sin((i * Math.PI) / 18),
+    ]);
+    const landmarks = {
+      detected: true,
+      imageLeftEye: [74, 68],
+      imageRightEye: [126, 68],
+      chin: [100, 171],
+      faceOval,
+    };
+    const fitted = portraitScenePlacement(
+      { width: 200, height: 240, landmarks },
+      template,
+      {},
+      true,
+    );
+    const targetEyeY =
+      (template.anchors.imageLeftEye[1] + template.anchors.imageRightEye[1]) / 2;
+    expect(Math.abs(transformPortraitPoint(fitted, [100, 68])[1] - targetEyeY)).toBeLessThan(7);
+    expect(Math.abs(transformPortraitPoint(fitted, landmarks.chin)[1] - template.anchors.chin[1])).toBeLessThan(9);
+    expect(fitted.width / fitted.height).toBeCloseTo(200 / 240);
+  });
+  it("keeps eyes and chin in the measured aperture when the outline fit puts eyes at the brim", () => {
+    const faceOval = Array.from({ length: 24 }, (_, index) => {
+      const angle = (index * Math.PI) / 12;
+      return [165 + 78 * Math.cos(angle), 255 + 105 * Math.sin(angle)];
+    });
+    const landmarks = { ...source.landmarks, faceOval };
+    // An asymmetric brim covers more of the image-left eye.
+    const clear = ([x, y], margin = 0) =>
+      x >= 88 + margin &&
+      x <= 168 - margin &&
+      y >= (x < 128 ? 120 : 101) + margin &&
+      y <= 185 - margin;
+    const placed = portraitScenePlacement(
+      { ...source, landmarks },
+      { ...scene, collarY: 190 },
+      {},
+      true,
+      clear,
+    );
+    for (const eye of [landmarks.imageLeftEye, landmarks.imageRightEye])
+      expect(clear(transformPortraitPoint(placed, eye), 2)).toBe(true);
+    expect(clear(transformPortraitPoint(placed, landmarks.chin), 0)).toBe(true);
+  });
   it("applies manual movement in scene pixels and zoom around the eye midpoint", () => {
     const placed = portraitScenePlacement(
       source,

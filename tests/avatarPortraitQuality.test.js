@@ -119,6 +119,63 @@ it("follows the light direction in the painting and retains the original matte",
   );
 });
 
+it("reflects the painted scene's warm and cool pigments without changing alpha", () => {
+  const size = 48;
+  const sample = (ambient) =>
+    applyVintagePortraitGrade(
+      patch(size, size, [122, 95, 85], 231),
+      size,
+      size,
+      {
+        paintStrength: 0.75,
+        lighting: { temperature: 0, strength: 0.2, direction: [0, 0], ambient },
+      },
+    ).slice((24 * size + 24) * 4, (24 * size + 24) * 4 + 4);
+  const warm = sample([
+    [155, 101, 65],
+    [160, 93, 59],
+  ]);
+  const cool = sample([
+    [65, 99, 155],
+    [59, 101, 160],
+  ]);
+  expect(warm[0] - warm[2]).toBeGreaterThan(cool[0] - cool[2] + 8);
+  expect(warm[3]).toBe(231);
+  expect(cool[3]).toBe(231);
+});
+
+it("produces visibly different pigment planes for strong and light brushwork at avatar size", () => {
+  const size = 96;
+  const photo = patch(size, size, [150, 109, 98]);
+  for (let y = 0; y < size; y++)
+    for (let x = 0; x < size; x++) {
+      const at = (y * size + x) * 4;
+      const shading = Math.round(29 * Math.cos(x / 24) - 15 * Math.sin(y / 16));
+      for (let c = 0; c < 3; c++) photo[at + c] += shading;
+      photo[at + 3] = x > 3 && y > 3 ? 255 : 0;
+    }
+  const [light, strong] = [0.35, 1].map((paintStrength) =>
+    applyVintagePortraitGrade(photo.slice(), size, size, {
+      paintStrength,
+      faceBox: { cx: 48, cy: 47, w: 80, h: 89 },
+      lighting: { temperature: 0.3, strength: 0.25, direction: [-0.65, -0.45] },
+    }),
+  );
+  let difference = 0;
+  let samples = 0;
+  for (let y = 10; y < 86; y += 3)
+    for (let x = 10; x < 86; x += 3) {
+      const at = (y * size + x) * 4;
+      for (let c = 0; c < 3; c++)
+        difference += Math.abs(light[at + c] - strong[at + c]);
+      samples += 3;
+    }
+  expect(difference / samples).toBeGreaterThan(10);
+  expect(strong.filter((_, index) => index % 4 === 3)).toEqual(
+    photo.filter((_, index) => index % 4 === 3),
+  );
+});
+
 it("extends edge colour only a few pixels and never fills a large missing face area", () => {
   const data = patch(17, 17, [0, 0, 0], 0);
   for (let y = 5; y < 12; y++)

@@ -4,7 +4,12 @@
 // person's own connected hair and neck. Anatomy comes from the separate face
 // landmarker; a category rectangle is not an eye or mouth detector.
 export function faceMask(categories, width, height, options = {}) {
-  const { includeHair = false, includeNeck = false, feather = false } = options;
+  const {
+    includeHair = false,
+    includeNeck = false,
+    includeCollar = true,
+    feather = false,
+  } = options;
   const size = width * height;
   const groups = new Uint32Array(size);
   // Eyeglass frames can split one face into two large skin components. Only
@@ -133,6 +138,7 @@ export function faceMask(categories, width, height, options = {}) {
         Math.abs(x - faceCx) <= faceW * 0.9;
       const depth = chin ? (y - chin[1]) / faceH : -1;
       const collar =
+        includeCollar &&
         chin &&
         categories[index] === 4 &&
         depth >= -0.12 &&

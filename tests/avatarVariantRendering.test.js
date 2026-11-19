@@ -145,7 +145,10 @@ it("reuses graded geometry across preview/export, and applies the eye rotation w
   }
   expect(grade).toHaveBeenCalledTimes(1);
   expect(grade.mock.calls[0][3].landmarks.detected).toBe(true);
-  expect(grade.mock.calls[0][3].faceBox).toMatchObject({ cx: 170, cy: 260 });
+  const [, width, height, { faceBox }] = grade.mock.calls[0];
+  expect(height).toBe(512);
+  expect(faceBox.cx / width).toBeCloseTo(170 / 400, 5);
+  expect(faceBox.cy / height).toBeCloseTo(260 / 600, 5);
 });
 
 it("never lets a delayed illustrated request replace a newly selected classic result", async () => {
@@ -174,6 +177,48 @@ it("uses the selected brush strength for both preview and export, caching each g
   expect(grade.mock.calls.map((call) => call[3].paintStrength)).toEqual([
     0.35, 1,
   ]);
+});
+
+it("leaves the previous preview untouched on a failed brush pass and can retry", async () => {
+  const { images, createCanvas } = setup();
+  const { drawAvatarPreview, preloadSelectedAvatarTemplate } =
+    await import("../src/avatarCanvas.js");
+  const settings = { scene: "elf", variant: "front" };
+  const loaded = preloadSelectedAvatarTemplate(settings);
+  images[0].onload();
+  await loaded;
+  const canvas = createCanvas();
+  const mini = createCanvas();
+  const report = vi.fn();
+  const input = portrait();
+  drawAvatarPreview(canvas, input, settings, mini, report);
+  expect(report).toHaveBeenLastCalledWith(true);
+  const firstDrawCount = canvas.ctx.drawImage.mock.calls.length;
+  const firstMiniCount = mini.ctx.drawImage.mock.calls.length;
+  grade.mockImplementationOnce(() => { throw new Error("readback failure"); });
+  drawAvatarPreview(canvas, input, { ...settings, paintStrength: 1 }, mini, report);
+  expect(report).toHaveBeenLastCalledWith(false);
+  expect(canvas.ctx.drawImage).toHaveBeenCalledTimes(firstDrawCount);
+  expect(mini.ctx.drawImage).toHaveBeenCalledTimes(firstMiniCount);
+  drawAvatarPreview(canvas, input, { ...settings, paintStrength: 1 }, mini, report);
+  expect(report).toHaveBeenLastCalledWith(true);
+  expect(canvas.ctx.drawImage).toHaveBeenCalledTimes(firstDrawCount + 1);
+  expect(mini.ctx.drawImage).toHaveBeenCalledTimes(firstMiniCount + 1);
+});
+
+it("ignores the cancelled preview when a different variant finishes loading first", async () => {
+  const { images, createCanvas } = setup();
+  const { drawAvatarPreview } = await import("../src/avatarCanvas.js");
+  const canvas = createCanvas();
+  const input = portrait();
+  const report = vi.fn();
+  const cancel = drawAvatarPreview(canvas, input, { scene: "elf", variant: "left" }, null, report);
+  cancel();
+  drawAvatarPreview(canvas, input, { scene: "elf", variant: "right" }, null, report);
+  images[1].onload();
+  images[0].onload();
+  expect(report.mock.calls).toEqual([[true]]);
+  expect(canvas.ctx.drawImage).toHaveBeenCalledTimes(1);
 });
 
 it("waits for the selected overlay before thumbnail encoding, without preloading other variants", async () => {

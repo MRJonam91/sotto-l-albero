@@ -37,7 +37,11 @@ vi.mock("react", async (original) => ({
 }));
 vi.mock("../src/avatarSegmenter.js", () => ({ isolateAvatarFace: isolate }));
 vi.mock("../src/avatarCanvas.js", () => ({
-  drawAvatar: drawing,
+  drawAvatarPreview: (canvas, portrait, settings, mini, report) => {
+    drawing(canvas, portrait, settings);
+    drawing(mini, portrait, settings, 72);
+    report(true);
+  },
   makeAvatarThumbnail: thumbnail,
   downloadAvatar: download,
   preloadSelectedAvatarTemplate: preload,
@@ -167,6 +171,28 @@ function button(tree, text) {
   );
 }
 
+it("keeps the selected manual crop when the brush changes and resets the lock when recentered", async () => {
+  select(render(), "selfie.jpg");
+  images[0].finish();
+  await vi.waitFor(() => expect(finishCrop).toBeTypeOf("function"));
+  finishCrop({ width: 120, height: 200 });
+  await vi.waitFor(() => expect(find(render(), (node) => node.type === "canvas")).not.toBeNull());
+  find(render(), (node) => node.props?.label === "Pennellata")
+    .props.children.props.onChange({ target: { value: "0.75" } });
+  find(render(), (node) => node.props?.["aria-label"] === "Ingrandimento")
+    .props.onChange({ target: { value: "1.2" } });
+  find(render(), (node) => node.props?.label === "Pennellata")
+    .props.children.props.onChange({ target: { value: "1" } });
+  render();
+  expect(drawing.mock.lastCall[2]).toMatchObject({
+    zoom: 1.2, paintStrength: 1, framingPaintStrength: 0.75,
+  });
+  button(render(), "Centra volto").props.onClick();
+  render();
+  expect(drawing.mock.lastCall[2].framingPaintStrength).toBeUndefined();
+  expect(drawing.mock.lastCall[2].paintStrength).toBe(1);
+});
+
 async function manualPortrait() {
   button(render(), "Regola a mano").props.onClick();
   await vi.waitFor(() =>
@@ -200,6 +226,7 @@ it("does not draw an empty template or an unprocessed photo while preparing a po
   );
   expect(drawnPortrait()).toEqual({ source: cutout, isolated: true });
   expect(drawing.mock.lastCall[2].variant).toBe("right");
+  expect(drawing.mock.lastCall[2].paintStrength).toBe(1);
 });
 
 it("keeps the latest photo when earlier image decoding completes late", async () => {

@@ -130,10 +130,12 @@ test("la foto apre il ritratto e le regolazioni mobili restano vicine all’ante
   const stage = page.locator(".photo-framing-stage");
   await expect(stage).toBeVisible();
   const adjustments = stage.locator(".photo-adjustments");
-  await expect(adjustments).not.toHaveAttribute("open", "");
+  await expect(adjustments).toHaveAttribute("open", "");
   await expect(
     stage.getByRole("combobox", { name: "Pennellata" }),
   ).toBeVisible();
+  await expect(stage.locator(".photo-range-controls")).toBeVisible();
+  await stage.getByText("Regola il ritratto", { exact: true }).tap();
   await expect(stage.locator(".photo-range-controls")).not.toBeVisible();
   await stage.getByText("Regola il ritratto", { exact: true }).tap();
   await expect(adjustments).toHaveAttribute("open", "");

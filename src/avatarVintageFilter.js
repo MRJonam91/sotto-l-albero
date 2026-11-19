@@ -40,7 +40,7 @@ export function applyOilBrushwork(data, width, height, mix = 0.65, radius = 3) {
       square[at] = square[at - stride] + l2;
     }
   }
-  const reach = clamp(Math.round(radius), 1, 12);
+  const reach = clamp(Math.round(radius), 1, 20);
   const rise = Math.max(1, Math.round(reach * 0.75));
   const area = (table, a, b, c, d) => table[d] - table[b] - table[c] + table[a];
   for (let y = 0; y < height; y++) {
@@ -93,6 +93,130 @@ export function applyOilBrushwork(data, width, height, mix = 0.65, radius = 3) {
   return data;
 }
 
+function strokeSeed(x, y, layer) {
+  let seed =
+    Math.imul(x + 19, 374761393) ^ Math.imul(y + 37, 668265263) ^ layer;
+  seed = Math.imul(seed ^ (seed >>> 13), 1274126177);
+  return ((seed ^ (seed >>> 16)) >>> 0) / 0x100000000;
+}
+
+// Repaint the smoothed reference with overlapping strokes. The broad pass
+// builds the shapes, then a narrower pass follows the smaller value edges.
+function paintPortraitStrokes(data, width, height, box, landmarks, paint) {
+  const reference = data.slice();
+  const values = new Float32Array(width * height);
+  for (let i = 0; i < values.length; i++) {
+    const at = i * 4;
+    values[i] = luma(reference[at], reference[at + 1], reference[at + 2]);
+  }
+  const details = new Uint8Array(values.length);
+  for (const [point, spread] of [
+    [landmarks?.imageLeftEye, 0.12],
+    [landmarks?.imageRightEye, 0.12],
+    [landmarks?.noseTip, 0.075],
+    [landmarks?.mouthCenter, 0.16],
+  ]) {
+    if (!point?.every(Number.isFinite)) continue;
+    const [cx, cy] = point;
+    const rx = Math.max(1, box.w * spread);
+    const ry = Math.max(1, box.h * (spread * 0.48));
+    for (
+      let y = Math.max(0, Math.ceil(cy - ry));
+      y <= Math.min(height - 1, cy + ry);
+      y++
+    )
+      for (
+        let x = Math.max(0, Math.ceil(cx - rx));
+        x <= Math.min(width - 1, cx + rx);
+        x++
+      ) {
+        const shape = ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2;
+        if (shape < 1) details[y * width + x] = Math.round((1 - shape) * 230);
+      }
+  }
+  const opacity = 0.28 + paint * 0.67;
+  for (const [layer, pass] of [1, 0.52].entries()) {
+    const step = Math.max(
+      3,
+      Math.round(box.w * (0.034 + 0.048 * paint) * pass),
+    );
+    const delta = Math.max(1, Math.round(step * 0.5));
+    for (let gy = 0; gy < height; gy += step) {
+      for (let gx = 0; gx < width; gx += step) {
+        const seed = strokeSeed(gx, gy, layer);
+        const x = Math.min(
+          width - 1,
+          gx + Math.floor(step * (0.15 + seed * 0.7)),
+        );
+        const y = Math.min(
+          height - 1,
+          gy + Math.floor(step * (0.15 + strokeSeed(gy, gx, layer + 8) * 0.7)),
+        );
+        const center = y * width + x;
+        const source = center * 4;
+        if (reference[source + 3] < 128) continue;
+        const left = values[y * width + Math.max(0, x - delta)];
+        const right = values[y * width + Math.min(width - 1, x + delta)];
+        const top = values[Math.max(0, y - delta) * width + x];
+        const bottom = values[Math.min(height - 1, y + delta) * width + x];
+        const gradient = Math.abs(right - left) + Math.abs(bottom - top);
+        const angle =
+          gradient > 3
+            ? Math.atan2(bottom - top, right - left) + Math.PI / 2
+            : (seed - 0.5) * 1.9;
+        const cos = Math.cos(angle);
+        const sin = Math.sin(angle);
+        const length = step * (1.15 + 0.54 * seed);
+        const breadth = step * (0.66 + 0.22 * seed);
+        const variation = (seed - 0.5) * Math.min(9, gradient * 0.85);
+        const fromX = Math.max(0, Math.ceil(x - length));
+        const fromY = Math.max(0, Math.ceil(y - length));
+        const toX = Math.min(width - 1, x + length);
+        const toY = Math.min(height - 1, y + length);
+        const alongX = cos / length;
+        const alongY = sin / length;
+        const acrossX = -sin / breadth;
+        const acrossY = cos / breadth;
+        const inverseContrast = 1 / (layer ? 13 : 24);
+        const centreValue = values[center];
+        const red = reference[source];
+        const green = reference[source + 1];
+        const blue = reference[source + 2];
+        for (let py = fromY; py <= toY; py++) {
+          const alongRow = (py - y) * alongY;
+          const acrossRow = (py - y) * acrossY;
+          for (let px = fromX; px <= toX; px++) {
+            const cell = py * width + px;
+            const at = cell * 4;
+            if (data[at + 3] < 24) continue;
+            const dx = px - x;
+            const along = dx * alongX + alongRow;
+            const across = dx * acrossX + acrossRow;
+            const coverage = 1 - along * along - across * across;
+            if (coverage <= 0) continue;
+            const gap = Math.abs(values[cell] - centreValue) * inverseContrast;
+            const amount =
+              (Math.min(1, coverage * 2.2) *
+                opacity *
+                (1 - details[cell] / 310)) /
+              (1 + gap * gap * gap);
+            const bristle = variation * (1 - Math.abs(across) * 0.6);
+            data[at] = clampByte(
+              data[at] + (red + bristle - data[at]) * amount,
+            );
+            data[at + 1] = clampByte(
+              data[at + 1] + (green + bristle - data[at + 1]) * amount,
+            );
+            data[at + 2] = clampByte(
+              data[at + 2] + (blue + bristle - data[at + 2]) * amount,
+            );
+          }
+        }
+      }
+    }
+  }
+}
+
 export function applyVintagePortraitGrade(data, width, height, options = {}) {
   const {
     strength = 0.78,
@@ -114,6 +238,10 @@ export function applyVintagePortraitGrade(data, width, height, options = {}) {
   const temperature = clamp(Number(lighting.temperature) || 0, -1, 1);
   const lightStrength = clamp(Number(lighting.strength) || 0, 0, 1);
   const direction = lighting.direction ?? [0, 0];
+  const reflection = lighting.ambient?.map((rgb) => {
+    const light = luma(...rgb);
+    return rgb.map((channel) => clamp(channel - light, -55, 55));
+  });
   const skinWeight = (x, y) => {
     const distance = Math.hypot(
       (x - box.cx) / Math.max(1, box.w * 0.42),
@@ -149,8 +277,18 @@ export function applyVintagePortraitGrade(data, width, height, options = {}) {
   const gainB = 1 - Math.min(0.14, cool * 0.45);
   const meanLum = meanR * 0.299 + meanG * 0.587 + meanB * 0.114;
   const paint = painterly ? clamp(options.paintStrength ?? 0.75, 0, 1) : 0;
-  const stroke = clamp(box.w * (0.012 + 0.023 * paint), 1, 12);
-  if (paint) applyOilBrushwork(data, width, height, 0.38 + 0.6 * paint, stroke);
+  const glazeStrength = paint ** 1.8;
+  const stroke = clamp(box.w * (0.008 + 0.041 * paint), 1, 20);
+  if (paint) {
+    applyOilBrushwork(
+      data,
+      width,
+      height,
+      Math.min(0.98, 0.325 + 0.76 * paint),
+      stroke,
+    );
+    paintPortraitStrokes(data, width, height, box, options.landmarks, paint);
+  }
   const source = new Uint8ClampedArray(data);
   const eyeY = options.landmarks?.detected
     ? (options.landmarks.imageLeftEye[1] + options.landmarks.imageRightEye[1]) /
@@ -197,7 +335,7 @@ export function applyVintagePortraitGrade(data, width, height, options = {}) {
       const directional =
         clamp(rx * direction[0] + ry * direction[1], -1, 1) *
         lightStrength *
-        (0.055 + paint * 0.34);
+        (0.085 + paint * 0.86);
       const contact =
         y >= top - 2 && y < eyeY
           ? clamp((eyeY - y) / Math.max(1, eyeY - top), 0, 1) *
@@ -207,45 +345,43 @@ export function applyVintagePortraitGrade(data, width, height, options = {}) {
       const value = light / 255;
       // Blend soft value bands and a short print-like highlight range. Apply the
       // curve to luminance once, so the hue of the photographed skin survives.
-      const step = 16 + 15 * paint;
+      const step = 17 + 32 * paint;
       const band =
         (-Math.sin((light * Math.PI * 2) / step) * step) / (2 * Math.PI);
       const curve = value * value * (3 - 2 * value);
-      const dryBrush = paint
-        ? Math.sin(
-            (y + 0.22 * x) / Math.max(0.8, stroke * 0.38) +
-              1.3 * Math.sin(x / (stroke * 2.7) + y / (stroke * 5)),
-          )
-        : 0;
       const paintedLight =
         light +
         paint *
-          (band * 0.98 +
-            (curve - value) * 86 +
+          (band * 1.48 +
+            (curve - value) * 103 +
             8 * (1 - value) ** 3 -
-            13 * value ** 3 +
-            dryBrush * (0.9 + 1.5 * value));
+            24 * value ** 3);
+      const side = clamp((rx + 1) / 2, 0, 1);
       for (let c = 0; c < 3; c++) {
         const balance = c === 0 ? gainR : c === 2 ? gainB : 1;
         const warm =
           c === 0
-            ? 1 + temperature * 0.12
+            ? 1 + temperature * (0.12 + 0.25 * paint)
             : c === 2
-              ? 1 - temperature * 0.12
+              ? 1 - temperature * (0.12 + 0.25 * paint)
               : 1;
         const base = meanLum + (colour[c] - meanLum) * 0.98;
         const pigment =
           paintedLight -
           light +
-          (light - colour[c]) * paint * (0.08 + 0.1 * value);
+          (light - colour[c]) * paint * (0.13 + 0.15 * value);
         const glaze =
-          paint *
+          glazeStrength *
           (c === 0
-            ? 5.5 * value + temperature * 3
+            ? 10.5 * value + temperature * 17 + skin * 7
             : c === 2
-              ? -7 * value - temperature * 4
+              ? -16 * value - temperature * 23 - skin * 9
               : 0);
-        const texture = base + pigment + glaze;
+        const bounce = reflection
+          ? (reflection[0][c] * (1 - side) + reflection[1][c] * side) *
+            (0.06 + 0.24 * paint)
+          : 0;
+        const texture = base + pigment + glaze + bounce;
         const processed =
           texture *
           (1 + (balance - 1) * skin) *
@@ -311,7 +447,9 @@ export function applyAntiqueMedallionFinish(
       const idx = (y * width + x) * 4;
       if (r2 > 0.96) continue;
 
-      const seed = ((x * 374761393 + y * 668265263) ^ 0x5bf03635) >>> 0;
+      const gx = Math.floor((x * 256) / width);
+      const gy = Math.floor((y * 256) / height);
+      const seed = ((gx * 374761393 + gy * 668265263) ^ 0x5bf03635) >>> 0;
       const grain = ((seed & 0xff) / 255 - 0.5) * intensity;
       const vignette = r2 > 0.56 ? 1 - (r2 - 0.56) * 0.34 : 1;
 

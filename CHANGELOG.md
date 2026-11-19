@@ -1,5 +1,11 @@
 # Sotto l’Albero
 
+## 1.8.2
+
+- Ritratti illustrati con inquadratura calibrata per scena, pennellata Intensa predefinita e ritaglio del contorno del volto quando la segmentazione non è disponibile.
+- Il cambio di pennellata conserva le regolazioni manuali. L’editor mantiene l’ultima anteprima valida se il nuovo disegno fallisce.
+- Illustrated portraits now frame each scene individually and default to Intense brushwork. The editor can crop along the face outline when segmentation is unavailable. It preserves manual framing and keeps the last successful preview if rendering fails.
+
 ## 1.8.1
 
 - Sfide con posizione personale, classifica del gruppo e accessi diretti ai giochi a punti e al Tris sulla neve. Il Tris tra partecipanti ha un riquadro dedicato.

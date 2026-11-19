@@ -11,8 +11,10 @@ import {
   portraitPlacement,
   portraitScenePlacement,
   mapFaceLandmarks,
+  transformPortraitPoint,
 } from "./avatarGeometry.js";
 import { getAvatarTemplate } from "./avatarTemplateVariants.js";
+import { avatarAperture } from "./avatarAperture.js";
 export {
   avatarVariantIds,
   selectAvatarVariant,
@@ -287,6 +289,29 @@ function drawAdaptiveSantaBeard(ctx, x, y, rx, ry) {
 // Weak photo keys release old selfies; each entry holds at most six scene grades.
 const gradedPortraits = new WeakMap();
 
+function sampleFacePigment(data, width, height, box, landmarks) {
+  if (!box || data.length !== width * height * 4) return undefined;
+  const cheeks = [landmarks.imageLeftEye, landmarks.imageRightEye].map(
+    ([x, y]) => [Math.round(x), Math.round(y + box.h * 0.15)],
+  );
+  const radius = Math.max(1, Math.round(box.w * 0.045));
+  const sum = [0, 0, 0];
+  let samples = 0;
+  for (const [x, y] of cheeks) {
+    const right = Math.min(width - 1, x + radius);
+    const bottom = Math.min(height - 1, y + radius);
+    for (let row = Math.max(0, y - radius); row <= bottom; row++) {
+      for (let column = Math.max(0, x - radius); column <= right; column++) {
+        const at = (row * width + column) * 4;
+        if (data[at + 3] < 220) continue;
+        for (let c = 0; c < 3; c++) sum[c] += data[at + c];
+        samples++;
+      }
+    }
+  }
+  if (samples) return sum.map((channel) => channel / samples);
+}
+
 function makeGradedPortraitCanvas(
   image,
   isIsolated,
@@ -312,7 +337,9 @@ function makeGradedPortraitCanvas(
     versions.set(key, cached);
     return cached;
   }
-  const scale = Math.min(1, 640 / Math.max(image.width, image.height));
+  // A 512px working portrait leaves more detail than the face occupies in
+  // the 1024px export, and bounds the two brush passes on mobile.
+  const scale = Math.min(1, 512 / Math.max(image.width, image.height));
   const off = document.createElement("canvas");
   off.width = Math.max(1, Math.round(image.width * scale));
   off.height = Math.max(1, Math.round(image.height * scale));
@@ -335,39 +362,77 @@ function makeGradedPortraitCanvas(
     "graded-pixels",
   );
   if (image.pose) off.pose = { ...image.pose };
-  const ctx = off.getContext("2d");
+  const ctx = off.getContext("2d", { willReadFrequently: true });
   ctx.drawImage(image, 0, 0, off.width, off.height);
-  try {
-    const pixels = ctx.getImageData(0, 0, off.width, off.height);
-    applyVintagePortraitGrade(pixels.data, off.width, off.height, {
-      strength: 0.78,
-      smoothing: true,
-      painterly: true,
-      paintStrength,
-      hatShadow: chosen.hasHat ? hatShadow : 0,
-      sceneId,
-      faceBox: off.faceBox,
-      landmarks: off.landmarks,
-      lighting: chosen.lighting,
-    });
-    if (isIsolated)
-      extendPortraitEdges(
+  const pixels = ctx.getImageData(0, 0, off.width, off.height);
+  applyVintagePortraitGrade(pixels.data, off.width, off.height, {
+    strength: 0.9,
+    smoothing: true,
+    painterly: true,
+    paintStrength,
+    hatShadow: chosen.hasHat ? hatShadow : 0,
+    sceneId,
+    faceBox: off.faceBox,
+    landmarks: off.landmarks,
+    lighting: chosen.lighting,
+  });
+  if (isIsolated) {
+    if (off.landmarks?.chin)
+      off.facePigment = sampleFacePigment(
         pixels.data,
         off.width,
         off.height,
-        Math.min(4, (chosen.featherPx ?? 1.2) * 1.6),
+        off.faceBox,
+        off.landmarks,
       );
-    ctx.putImageData(pixels, 0, 0);
-  } catch {
-    // The proportional source still works if canvas pixel readback is unavailable.
+    extendPortraitEdges(
+      pixels.data,
+      off.width,
+      off.height,
+      Math.min(4, (chosen.featherPx ?? 1.2) * 1.6),
+    );
   }
+  ctx.putImageData(pixels, 0, 0);
   versions.set(key, off);
-  // Six recent scene grades per weak photo key, rather than fifty 640px copies.
+  // Six recent scene grades per weak photo key, rather than fifty copies.
   if (versions.size > 6) versions.delete(versions.keys().next().value);
   return off;
 }
 
-function drawFaceWithOverlay(ctx, portrait, scene, settings) {
+function paintNeckShadow(ctx, graded, scene, placement, collar) {
+  if (!graded.facePigment) return;
+  const [, chinY] = transformPortraitPoint(placement, graded.landmarks.chin);
+  const start = Math.max(
+    chinY - 5,
+    scene.faceBounds.y + scene.faceBounds.height * 0.73,
+  );
+  const end = scene.collarY;
+  if (end - start < 6) return;
+  const glaze = ctx.createLinearGradient(0, start, 0, end);
+  const colour = (light, alpha = 1) => {
+    const rgb = graded.facePigment.map((channel) => Math.round(channel * light));
+    return "rgba(" + rgb.join(", ") + ", " + alpha + ")";
+  };
+  glaze.addColorStop(0, colour(0.48, 0));
+  glaze.addColorStop(0.25, colour(0.48));
+  glaze.addColorStop(0.75, colour(0.68));
+  glaze.addColorStop(1, colour(0.59));
+  ctx.fillStyle = glaze;
+  ctx.fillRect(
+    scene.openingBounds.x,
+    start,
+    scene.openingBounds.width,
+    end - start + 1,
+  );
+  // Where the aperture extends well below the jaw, carry the costume's
+  // actual fabric up into the opening instead of exposing a long flat neck.
+  if (collar?.height && end - chinY > 17) {
+    const top = Math.max(chinY + 7, end - 27);
+    ctx.drawImage(collar, 0, top, 256, end - top + 1);
+  }
+}
+
+function drawFaceWithOverlay(ctx, portrait, scene, settings, aperture) {
   const graded = makeGradedPortraitCanvas(
     portrait.source,
     portrait.isolated,
@@ -381,6 +446,7 @@ function drawFaceWithOverlay(ctx, portrait, scene, settings) {
     scene,
     settings,
     portrait.isolated,
+    aperture?.clear,
   );
   const bounds = scene.openingBounds;
   ctx.save();
@@ -389,6 +455,13 @@ function drawFaceWithOverlay(ctx, portrait, scene, settings) {
   ctx.beginPath();
   ctx.rect(bounds.x - 2, bounds.y - 2, bounds.width + 4, bounds.height + 4);
   ctx.clip();
+  if (aperture) paintNeckShadow(ctx, graded, scene, placement, aperture.collar);
+  if (!portrait.isolated) {
+    const [x, y, rx, ry] = scene.face;
+    // In manual mode leave the illustrated collar and background visible.
+    ellipse(ctx, x, y, rx * 0.98, ry * 1.02);
+    ctx.clip();
+  }
   ctx.transform(...placement.transform);
   ctx.drawImage(graded, 0, 0);
   ctx.restore();
@@ -515,7 +588,7 @@ function finishCanvas(ctx, size, intensity = 2) {
   }
 }
 
-export function drawAvatar(canvas, portrait, settings = {}, size = 256) {
+function drawAvatarFrame(canvas, portrait, settings, size, onComplete) {
   const {
     style = "illustrated",
     scene = "elf",
@@ -529,15 +602,17 @@ export function drawAvatar(canvas, portrait, settings = {}, size = 256) {
     beard = true,
     rotation = 0,
     paintStrength = 0.75,
+    framingPaintStrength,
   } = settings;
   if (style === "classic") {
     pendingRedraws.delete(canvas);
-    return drawAvatarClassic(
+    drawAvatarClassic(
       canvas,
       portrait,
       { scene, zoom, offsetX, offsetY, beard },
       size,
     );
+    return { ready: true };
   }
   const currentSettings = {
     style,
@@ -549,15 +624,30 @@ export function drawAvatar(canvas, portrait, settings = {}, size = 256) {
     beard,
     rotation,
     paintStrength,
+    framingPaintStrength,
   };
-  pendingRedraws.set(canvas, { portrait, settings: currentSettings, size });
-  if (!portrait) return { ready: false };
+  if (!portrait) {
+    pendingRedraws.delete(canvas);
+    return { ready: false };
+  }
+  pendingRedraws.set(canvas, {
+    portrait,
+    settings: currentSettings,
+    size,
+    onComplete,
+  });
   let triggerRedraw = redrawCallbacks.get(canvas);
   if (!triggerRedraw) {
     triggerRedraw = () => {
       const latest = pendingRedraws.get(canvas);
       if (latest)
-        drawAvatar(canvas, latest.portrait, latest.settings, latest.size);
+        drawAvatar(
+          canvas,
+          latest.portrait,
+          latest.settings,
+          latest.size,
+          latest.onComplete,
+        );
     };
     redrawCallbacks.set(canvas, triggerRedraw);
   }
@@ -594,7 +684,8 @@ export function drawAvatar(canvas, portrait, settings = {}, size = 256) {
   // Do not clear a completed previous result until the replacement is ready.
   canvas.width = size;
   canvas.height = size;
-  const ctx = canvas.getContext("2d", { alpha: false });
+  const ctx = canvas.getContext("2d", { alpha: false, willReadFrequently: true });
+  if (!ctx || ctx.isContextLost?.()) throw new Error("Canvas unavailable");
   ctx.save();
   ctx.scale(size / 256, size / 256);
   ctx.imageSmoothingQuality = "high";
@@ -602,9 +693,22 @@ export function drawAvatar(canvas, portrait, settings = {}, size = 256) {
   ctx.fillRect(0, 0, 256, 256);
   let placement;
   if (overlay) {
-    placement = drawFaceWithOverlay(ctx, portrait, chosen, currentSettings);
+    const aperture = avatarAperture(overlay, chosen);
+    const paintedScene = aperture?.ambient
+      ? { ...chosen, lighting: { ...chosen.lighting, ambient: aperture.ambient } }
+      : chosen;
+    if (aperture) ctx.drawImage(aperture.underlay, 0, 0);
+    placement = drawFaceWithOverlay(
+      ctx, portrait, paintedScene, currentSettings, aperture,
+    );
+    if (aperture) {
+      ctx.save();
+      ctx.globalAlpha = 0.35 + 0.65 * paintStrength;
+      ctx.drawImage(aperture.contact, 0, 0);
+      ctx.restore();
+    }
     ctx.drawImage(overlay, 0, 0, 256, 256);
-    drawHairAboveOverlay(ctx, portrait, chosen, placement, paintStrength);
+    drawHairAboveOverlay(ctx, portrait, paintedScene, placement, paintStrength);
   } else {
     ctx.drawImage(background, 0, 0, 256, 256);
     drawFaceInTemplate(ctx, portrait, legacy, currentSettings);
@@ -621,8 +725,66 @@ export function drawAvatar(canvas, portrait, settings = {}, size = 256) {
     }
   }
   ctx.restore();
-  finishCanvas(ctx, size, overlay ? 1.5 : 3);
+  finishCanvas(ctx, size, 3);
+  if (ctx.isContextLost?.()) throw new Error("Canvas unavailable");
   return { ready: true, fallback: !overlay, alignment: placement?.alignment };
+}
+
+export function drawAvatar(canvas, portrait, settings = {}, size = 256, onComplete) {
+  let result;
+  try {
+    result = drawAvatarFrame(canvas, portrait, settings, size, onComplete);
+  } catch (failure) {
+    pendingRedraws.delete(canvas);
+    if (!onComplete) throw failure;
+    onComplete(false);
+    return { ready: false };
+  }
+  if (result.ready) {
+    pendingRedraws.delete(canvas);
+    onComplete?.(true);
+  }
+  return result;
+}
+
+const previewBuffers = new WeakMap();
+
+export function drawAvatarPreview(canvas, portrait, settings, mini, report) {
+  let buffer = previewBuffers.get(canvas);
+  if (!buffer) {
+    buffer = document.createElement("canvas");
+    previewBuffers.set(canvas, buffer);
+  }
+  function present(ready) {
+    if (!ready) return report(false);
+    try {
+      const previewContext = canvas.getContext("2d");
+      const miniContext = mini?.getContext("2d");
+      if (
+        !previewContext ||
+        previewContext.isContextLost?.() ||
+        (mini && (!miniContext || miniContext.isContextLost?.()))
+      ) {
+        return report(false);
+      }
+      if (canvas.width !== 256 || canvas.height !== 256)
+        canvas.width = canvas.height = 256;
+      previewContext.drawImage(buffer, 0, 0);
+      if (miniContext) {
+        if (mini.width !== 72 || mini.height !== 72) mini.width = mini.height = 72;
+        miniContext.imageSmoothingQuality = "high";
+        miniContext.drawImage(buffer, 0, 0, 72, 72);
+      }
+    } catch {
+      return report(false);
+    }
+    report(true);
+  }
+  drawAvatar(buffer, portrait, settings, 256, present);
+  return () => {
+    if (pendingRedraws.get(buffer)?.onComplete === present)
+      pendingRedraws.delete(buffer);
+  };
 }
 
 function toBlob(canvas, type, quality) {
@@ -642,7 +804,8 @@ export async function makeAvatarThumbnail(image, settings) {
   if (settings.style !== "classic")
     await preloadSelectedAvatarTemplate(settings);
   const canvas = document.createElement("canvas");
-  drawAvatar(canvas, image, settings);
+  if (!drawAvatar(canvas, image, settings).ready)
+    throw new Error("Non siamo riusciti ad aggiornare il ritratto.");
   for (const type of ["image/webp", "image/jpeg"]) {
     for (const quality of [0.86, 0.72, 0.58, 0.44]) {
       const blob = await toBlob(canvas, type, quality);
@@ -667,7 +830,8 @@ export async function downloadAvatar(image, settings) {
   if (settings.style !== "classic")
     await preloadSelectedAvatarTemplate(settings);
   const canvas = document.createElement("canvas");
-  drawAvatar(canvas, image, settings, 1024);
+  if (!drawAvatar(canvas, image, settings, 1024).ready)
+    throw new Error("Non siamo riusciti ad aggiornare il ritratto.");
   const blob = await toBlob(canvas, "image/png");
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");

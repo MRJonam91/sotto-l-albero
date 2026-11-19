@@ -128,7 +128,22 @@ function outlineScale(opening, width, height) {
   return Math.min(Math.sqrt(widthScale * heightScale), heightScale * 1.06);
 }
 
-function fitFaceOutline(source, opening, eyeCentre, roll) {
+// Ratios are relative to the measured face opening of each illustrated variant.
+// Keep the sleigh's close-fitting hood and scarf at the reference proportions.
+const illustratedFaceScales = {
+  elf: { medium: 0.94, intenseMin: 0.89 },
+  santa: { medium: 0.94, intenseMin: 0.91 },
+  sleigh: { medium: 0.96, intenseMin: 0.82 },
+  cozy: { medium: 0.93, intenseMin: 0.89 },
+  nutcracker: { medium: 0.96, intenseMin: 0.92 },
+  victorian: { medium: 0.94, intenseMin: 0.88 },
+  reindeer: { medium: 0.95, intenseMin: 0.88 },
+  chimney: { medium: 0.94, intenseMin: 0.91 },
+  ornament: { medium: 0.92, intenseMin: 0.88 },
+  snowglobe: { medium: 0.93, intenseMin: 0.90 },
+};
+
+function fitFaceOutline(source, opening, eyeCentre, roll, scene, targetCentre, framingStrength) {
   const oval = source.faceOval;
   if (
     !opening ||
@@ -149,14 +164,76 @@ function fitFaceOutline(source, opening, eyeCentre, roll) {
   const xs = outline.map(([x]) => x);
   const width = Math.max(...xs) - Math.min(...xs);
   const forehead = Math.min(...outline.map(([, y]) => y));
-  const chin = rotate(source.chin)[1];
+  const [chinX, chin] = rotate(source.chin);
   if (!(width > 1 && forehead < 0 && chin > 0)) return null;
 
-  const scale = outlineScale(opening, width, chin - forehead);
-  // Share any small discrepancy between hairline and chin instead of
-  // clipping it all at the collar. Manual zoom still pivots at the eyes.
-  const eyeY = opening.top + (opening.height - (chin + forehead) * scale) / 2;
-  return { scale, eyeY };
+  const silhouetteScale = outlineScale(opening, width, chin - forehead);
+  const scales = illustratedFaceScales[scene.sceneId];
+  const { anchors, collarY } = scene;
+  const targetSpan = validPoint(anchors.chin) ? anchors.chin[1] - targetCentre[1] : 0;
+  const mediumFraming = scales && framingStrength <= 0.75;
+  if (mediumFraming || targetSpan <= 0) {
+    const scale = silhouetteScale * (mediumFraming ? scales.medium : 1);
+    const eyeY = opening.top + (opening.height - (chin + forehead) * scale) / 2;
+    return { scale, centre: [targetCentre[0], eyeY] };
+  }
+  // Respect the eye-to-jaw span of the painted character while keeping the
+  // photographed head proportional. The cutout can have a taller neck opening.
+  const scale = Math.min(
+    silhouetteScale,
+    Math.max(
+      silhouetteScale * (framingStrength === undefined ? 0.82 : (scales?.intenseMin ?? 0.82)),
+      (targetSpan * 1.04) / chin,
+    ),
+  );
+  const eyeY = targetCentre[1] + (targetSpan - chin * scale) * 0.46;
+  const neckRoom = collarY - (eyeY + chin * scale);
+  const collarOffset = Math.max(0, Math.min(4, (neckRoom - 24) * 0.22));
+  const minY = opening.top - 4 - forehead * scale;
+  const maxY = opening.top + opening.height - chin * scale;
+  const chinDrift = anchors.chin[0] - (targetCentre[0] + chinX * scale);
+  const eyeX = targetCentre[0] + Math.max(-3, Math.min(3, chinDrift * 0.3));
+  return {
+    scale,
+    centre: [eyeX, Math.max(minY, Math.min(maxY, eyeY + collarOffset))],
+  };
+}
+
+function keepFeaturesVisible(source, origin, centre, scale, angle, clear, collarY) {
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  const features = [
+    { point: source.imageLeftEye, margin: 2 },
+    { point: source.imageRightEye, margin: 2 },
+  ];
+  if (validPoint(source.chin)) features.push({ point: source.chin, margin: 0 });
+  const offsets = features.map(({ point: [x, y], margin }) => {
+    x -= origin[0];
+    y -= origin[1];
+    return { x: x * cos - y * sin, y: x * sin + y * cos, margin };
+  });
+  const fits = (x, y, s) =>
+    offsets.every(({ x: dx, y: dy, margin }) => {
+      const point = [x + dx * s, y + dy * s];
+      return (margin || point[1] < collarY - 2) && clear(point, margin);
+    });
+  if (fits(...centre, scale)) return { centre, scale };
+
+  let best = { centre, scale, cost: Infinity };
+  for (const ratio of [1, 0.96, 0.91, 0.85, 0.78, 0.7]) {
+    const nextScale = scale * ratio;
+    const sizeCost = ((1 - ratio) * 48) ** 2;
+    for (let dy = -22; dy <= 22; dy += 2) {
+      for (let dx = -14; dx <= 14; dx += 2) {
+        const cost = sizeCost + dx ** 2 + dy ** 2;
+        if (cost >= best.cost) continue;
+        const x = centre[0] + dx;
+        const y = centre[1] + dy;
+        if (fits(x, y, nextScale)) best = { centre: [x, y], scale: nextScale, cost };
+      }
+    }
+  }
+  return best;
 }
 
 export function portraitScenePlacement(
@@ -164,6 +241,7 @@ export function portraitScenePlacement(
   scene,
   settings = {},
   isolated = false,
+  clear,
 ) {
   const { zoom = 1, offsetX = 0, offsetY = 0, rotation = 0 } = settings;
   const source = image.landmarks;
@@ -183,7 +261,7 @@ export function portraitScenePlacement(
       target.imageRightEye[0] - target.imageLeftEye[0],
       target.imageRightEye[1] - target.imageLeftEye[1],
     ];
-    scale = (Math.hypot(...to) / Math.hypot(...from)) * zoom;
+    scale = Math.hypot(...to) / Math.hypot(...from);
     angle = Math.atan2(to[1], to[0]) - Math.atan2(from[1], from[0]);
     sourceCentre = [
       (source.imageLeftEye[0] + source.imageRightEye[0]) / 2,
@@ -193,11 +271,27 @@ export function portraitScenePlacement(
       (target.imageLeftEye[0] + target.imageRightEye[0]) / 2,
       (target.imageLeftEye[1] + target.imageRightEye[1]) / 2,
     ];
-    const outline = fitFaceOutline(source, opening, sourceCentre, angle);
+    const outline = fitFaceOutline(
+      source,
+      opening,
+      sourceCentre,
+      angle,
+      scene,
+      targetCentre,
+      settings.framingPaintStrength ?? settings.paintStrength,
+    );
     if (outline) {
-      scale = outline.scale * zoom;
-      targetCentre[1] = outline.eyeY;
+      scale = outline.scale;
+      targetCentre = outline.centre;
     }
+    if (clear) {
+      const fitted = keepFeaturesVisible(
+        source, sourceCentre, targetCentre, scale, angle, clear, scene.collarY,
+      );
+      scale = fitted.scale;
+      targetCentre = fitted.centre;
+    }
+    scale *= zoom;
     alignment = "eyes";
   } else {
     const legacy = portraitPlacement(image, scene.face, settings, isolated);

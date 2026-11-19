@@ -52,6 +52,66 @@ function canvasAt(width, height) {
   return canvas;
 }
 
+function cutoutFromOutline(image, analysis) {
+  const landmarks = analysis?.landmarks;
+  const oval = landmarks?.faceOval?.filter(
+    (point) => point?.length === 2 && point.every(Number.isFinite),
+  );
+  if (!landmarks?.detected || !oval || oval.length < 12) return null;
+  const xs = oval.map(([x]) => x);
+  const ys = oval.map(([, y]) => y);
+  const left = Math.min(...xs);
+  const top = Math.min(...ys);
+  const width = Math.max(...xs) - left;
+  const height = Math.max(...ys) - top;
+  if (width < 2 || height < 2) return null;
+
+  const scale = Math.min(1, 480 / Math.max(width, height));
+  const padding = 4;
+  const result = canvasAt(
+    Math.ceil(width * scale) + padding * 2,
+    Math.ceil(height * scale) + padding * 2,
+  );
+  const map = {
+    scaleX: scale,
+    offsetX: padding - left * scale,
+    offsetY: padding - top * scale,
+  };
+  result.landmarks = mapFaceLandmarks(landmarks, map, "cutout-pixels");
+  result.pose = analysis.pose;
+  const w = width * scale;
+  const h = height * scale;
+  const cx = padding + w / 2;
+  const cy = padding + h / 2;
+  result.faceBox = { w, h, cx, cy, topY: padding, chinY: padding + h };
+
+  const points = result.landmarks.faceOval
+    .map(([x, y]) => ({ x, y, angle: Math.atan2(y - cy, x - cx) }))
+    .sort((a, b) => a.angle - b.angle);
+  const mask = canvasAt(result.width, result.height);
+  const matte = mask.getContext("2d");
+  matte.beginPath();
+  matte.moveTo(points[0].x, points[0].y);
+  for (const { x, y } of points.slice(1)) matte.lineTo(x, y);
+  matte.closePath();
+  matte.shadowColor = "#0008";
+  matte.shadowBlur = 2;
+  matte.fill();
+
+  const ctx = result.getContext("2d");
+  ctx.drawImage(
+    image,
+    map.offsetX,
+    map.offsetY,
+    image.width * scale,
+    image.height * scale,
+  );
+  ctx.globalCompositeOperation = "destination-in";
+  ctx.drawImage(mask, 0, 0);
+  mask.width = mask.height = 1;
+  return result;
+}
+
 export async function isolateAvatarFace(image, options = {}) {
   const scale = Math.min(1, 512 / Math.max(image.width, image.height));
   const source = canvasAt(
@@ -64,10 +124,10 @@ export async function isolateAvatarFace(image, options = {}) {
     detectAvatarFace(image, source),
   ]);
   if (analysis?.multipleFaces) return null;
-  if (!model) return null;
+  if (!model) return cutoutFromOutline(image, analysis);
 
   let result;
-  model.segment(source, ({ categoryMask, confidenceMasks }) => {
+  function readMask({ categoryMask, confidenceMasks }) {
     if (!categoryMask) return;
     const { width, height } = categoryMask;
     const categories = categoryMask.getAsUint8Array();
@@ -85,6 +145,7 @@ export async function isolateAvatarFace(image, options = {}) {
     const face = faceMask(categories, width, height, {
       includeHair: options.includeHair ?? true,
       includeNeck: options.includeNeck ?? true,
+      includeCollar: options.includeCollar ?? false,
       feather: true,
       headCapLine,
       chin: analysis?.landmarks?.chin && [
@@ -189,6 +250,11 @@ export async function isolateAvatarFace(image, options = {}) {
       );
       result.pose = { ...analysis.pose };
     }
-  });
-  return result ?? null;
+  }
+  try {
+    model.segment(source, readMask);
+  } catch {
+    return cutoutFromOutline(image, analysis);
+  }
+  return result ?? cutoutFromOutline(image, analysis);
 }
