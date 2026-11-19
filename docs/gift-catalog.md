@@ -14,6 +14,8 @@ La verifica del 19 novembre 2026 ha confermato risposte reali HTTP 200 del forni
 
 `GET /api/gifts/profile` espone un profilo UCP pubblico e minimo con versione `2026-08-25`, ricerca, lookup e l’estensione Global Catalog. Non contiene email, account, profili personali, checkout o credenziali. La struttura segue la [documentazione dei profili](https://shopify.dev/docs/agents/profiles).
 
+Il solo documento statico di discovery usa `Cache-Control: public, max-age=300`, come richiesto dalle [regole di hosting UCP](https://ucp.dev/latest/specification/overview/#profile-requirements). Espone il servizio MCP e un registro vuoto dei gestori di pagamento. Le risposte dei prodotti e tutte le API personali mantengono `no-store`.
+
 `GET /api/gifts?eventId=…` richiede autenticazione e accesso al gruppo. Il server recupera il budget dell’evento e limita sempre il massimo a quel valore, anche se il browser invia un prezzo più alto. Parametri facoltativi: `category` (`all`, `home`, `games`, `creative`, `stationery`, `care`), `q` (massimo 100 caratteri), `min`, `max` e `cursor`. Il fornitore riceve solo ricerca commerciale esplicita o generica, prezzo e contesto Italia/euro/italiano: nessun ritratto, gusto privato, indirizzo email o assegnazione dello scambio.
 
 In produzione l’URL del profilo è ricavato da `APP_URL` e termina con `/api/gifts/profile`. Soltanto con richiesta locale verificata e `LOCAL_DEV=true` si usa il profilo di esempio ospitato da Shopify e [documentato per le prove](https://shopify.dev/docs/agents/get-started/search-catalog).

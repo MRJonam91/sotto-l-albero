@@ -100,6 +100,9 @@ describe("live gift catalog", () => {
       new Request("https://santa.example/api/gifts/profile"),
     );
     const profile = await response.json();
+    expect(response.headers.get("Cache-Control")).toBe("public, max-age=300");
+    expect(profile.ucp.services["dev.ucp.shopping"][0].transport).toBe("mcp");
+    expect(profile.ucp.payment_handlers).toEqual({});
     expect(
       profile.ucp.capabilities["dev.ucp.shopping.catalog.search"],
     ).toBeTruthy();

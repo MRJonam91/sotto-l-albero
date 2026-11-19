@@ -17,24 +17,57 @@ const testProfile =
 export function giftCatalogProfileRoute(request) {
   if (request.method !== "GET")
     throw new HttpError("Metodo non disponibile.", 405);
-  return json({
-    ucp: {
-      version: protocolVersion,
-      capabilities: {
-        "dev.ucp.shopping.catalog.search": [{ version: protocolVersion }],
-        "dev.ucp.shopping.catalog.lookup": [{ version: protocolVersion }],
-        "dev.shopify.catalog.global": [
-          {
-            version: protocolVersion,
-            extends: [
-              "dev.ucp.shopping.catalog.search",
-              "dev.ucp.shopping.catalog.lookup",
-            ],
-          },
-        ],
+  return json(
+    {
+      ucp: {
+        version: protocolVersion,
+        services: {
+          "dev.ucp.shopping": [
+            {
+              version: protocolVersion,
+              spec: "https://ucp.dev/2026-08-25/specification/overview",
+              transport: "mcp",
+              schema:
+                "https://ucp.dev/2026-08-25/services/shopping/mcp.openrpc.json",
+            },
+          ],
+        },
+        capabilities: {
+          "dev.ucp.shopping.catalog.search": [
+            {
+              version: protocolVersion,
+              spec: "https://ucp.dev/2026-08-25/specification/catalog/search",
+              schema:
+                "https://ucp.dev/2026-08-25/schemas/shopping/catalog_search.json",
+            },
+          ],
+          "dev.ucp.shopping.catalog.lookup": [
+            {
+              version: protocolVersion,
+              spec: "https://ucp.dev/2026-08-25/specification/catalog/lookup",
+              schema:
+                "https://ucp.dev/2026-08-25/schemas/shopping/catalog_lookup.json",
+            },
+          ],
+          "dev.shopify.catalog.global": [
+            {
+              version: protocolVersion,
+              spec: "https://shopify.dev/docs/agents/catalog/global-catalog",
+              schema:
+                "https://shopify.dev/ucp/schemas/2026-08-25/shopify_catalog_global.json",
+              extends: [
+                "dev.ucp.shopping.catalog.search",
+                "dev.ucp.shopping.catalog.lookup",
+              ],
+            },
+          ],
+        },
+        payment_handlers: {},
       },
     },
-  });
+    200,
+    { "Cache-Control": "public, max-age=300" },
+  );
 }
 
 function publicHttps(value) {
