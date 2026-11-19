@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   amazonPreferencesRoute,
   loadAmazonPreferences,
@@ -23,6 +23,16 @@ function database() {
     CREATE TABLE members(id TEXT PRIMARY KEY,event_id TEXT,user_id TEXT,status TEXT,wishlist TEXT,updated_at TEXT);
     INSERT INTO members VALUES('m-owner','event','owner','approved','[]',''),('m-other','event','other','approved','[]','');`);
   sql.exec(`ALTER TABLE users ADD COLUMN holiday_profile TEXT NOT NULL DEFAULT '{}';
+    ALTER TABLE users ADD COLUMN email TEXT;
+    ALTER TABLE users ADD COLUMN name TEXT;
+    ALTER TABLE users ADD COLUMN nickname TEXT;
+    ALTER TABLE users ADD COLUMN badge TEXT;
+    ALTER TABLE users ADD COLUMN badge_text TEXT;
+    UPDATE users SET email='affiliation-owner@example.test' WHERE id='owner';
+    UPDATE users SET email='someone@gmail.com',name='Other' WHERE id='other';
+    ALTER TABLE events ADD COLUMN version INTEGER NOT NULL DEFAULT 1;
+    ALTER TABLE events ADD COLUMN status TEXT NOT NULL DEFAULT 'open';
+    CREATE TABLE assignments(event_id TEXT, version INTEGER, giver_id TEXT, receiver_id TEXT);
     ALTER TABLE users ADD COLUMN festive_progress_score INTEGER NOT NULL DEFAULT 0;
     CREATE TABLE competition_attempts(id TEXT,user_id TEXT,game TEXT,raw_score INTEGER,state TEXT);
     CREATE TABLE practice_games(user_id TEXT,game TEXT,done INTEGER,state TEXT);
@@ -208,6 +218,98 @@ describe("account-scoped Amazon preferences", () => {
     expect(new URL(unprivileged.url).searchParams.get("tag")).toBe("forged-21");
     expect(unprivileged.affiliate).toBeUndefined();
     expect(unprivileged.amazonAffiliate).toBeUndefined();
+  });
+
+  it("applies the enabled site tag to other participants' saved links and preserves their originals", async () => {
+    const env = {
+      DB: database(),
+      AMAZON_AFFILIATE_EMAIL: "affiliation-owner@example.test",
+      AMAZON_AFFILIATE_SCOPE: "site",
+      AMAZON_AFFILIATE_TAGS: '{"amazon.de":"site-de-21"}',
+    };
+    const urls = [
+      "https://www.amazon.it/dp/B012345678?tag=old-21&quantity=2",
+      "https://amzn.to/test-link",
+      "https://www.amazon.de/dp/B012345678",
+      "https://www.amazon.com/dp/B012345678",
+      "https://www.etsy.com/listing/42",
+      "https://amzn.to/test-external",
+    ];
+    const scope = await amazonPreferencesRoute(
+      request("PUT"),
+      env,
+      { enabled: true, tag: "site-it-21" },
+      owner,
+    );
+    expect((await scope.json()).scope).toBe("site");
+    const items = urls.map((url, i) => ({
+      type: "object",
+      title: `Wish ${i}`,
+      url,
+    }));
+    const saved = await eventRoute(
+      request("PUT"),
+      env,
+      "/api/events/event/wishlist",
+      { items },
+      other,
+    );
+    expect((await saved.json()).items.map(({ url }) => url)).toEqual(urls);
+    env.DB.sql.exec(`UPDATE events SET status='drawn';
+      INSERT INTO assignments VALUES('event',1,'m-owner','m-other');`);
+    const http = vi.spyOn(globalThis, "fetch").mockImplementation(
+      async (url) =>
+        new Response(null, {
+          status: 302,
+          headers: {
+            Location:
+              url.pathname === "/test-link"
+                ? "https://www.amazon.it/dp/B012345679?tag=different-21"
+                : "https://unrelated.example/private",
+          },
+        }),
+    );
+    const read = async () =>
+      (
+        await (
+          await eventRoute(
+            request("POST"),
+            env,
+            "/api/events/event/recipient",
+            { version: 1 },
+            owner,
+          )
+        ).json()
+      ).recipient.wishlist;
+    try {
+      const projected = await read();
+      expect(projected.map(({ url }) => url)).toEqual([
+        "https://www.amazon.it/dp/B012345678?tag=site-it-21&quantity=2",
+        "https://www.amazon.it/dp/B012345679?tag=site-it-21",
+        "https://www.amazon.de/dp/B012345678?tag=site-de-21",
+        ...urls.slice(3),
+      ]);
+      expect(projected.filter((item) => item.siteAffiliate)).toHaveLength(3);
+      expect(
+        http.mock.calls.map(([url, options]) => [
+          url.hostname,
+          options.method,
+          options.redirect,
+        ]),
+      ).toEqual([
+        ["amzn.to", "HEAD", "manual"],
+        ["amzn.to", "HEAD", "manual"],
+      ]);
+      await amazonPreferencesRoute(
+        request("PUT"),
+        env,
+        { enabled: false, tag: "site-it-21" },
+        owner,
+      );
+      expect((await read()).map(({ url }) => url)).toEqual(urls);
+    } finally {
+      http.mockRestore();
+    }
   });
   it("requires an explicit pickup city, limits it, and preserves other shop links as plain data", async () => {
     const env = { DB: database() };

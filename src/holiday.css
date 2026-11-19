@@ -188,6 +188,31 @@
   gap: 8px;
   max-width: 124px;
 }
+.stamp-milestones {
+  margin-block: 20px 26px;
+}
+.stamp-milestones ul {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+  gap: 8px;
+  padding: 0;
+  list-style: none;
+}
+.stamp-milestones li {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid #c4ac7b;
+  border-radius: 8px;
+}
+.stamp-milestones li span {
+  font-size: 0.85rem;
+}
+.stamp-milestones .stamp-milestone-complete {
+  color: #184536;
+  background: #e1ead9;
+  border-color: #7b9984;
+}
 .hero .timed-treasures {
   position: absolute;
   z-index: 2;

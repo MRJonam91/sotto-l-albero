@@ -1,0 +1,16 @@
+export default [
+  ["Chiudi","Close","Fermer","Schließen","Cerrar","Fechar"],
+  ["Da decidere","To be decided","À définir","Noch offen","Por decidir","Por definir"],
+  ["Da preparare","Draft","Brouillon","Entwurf","Borrador","Rascunho"],
+  ["Iscrizioni aperte","Registration open","Inscriptions ouvertes","Anmeldung offen","Inscripción abierta","Inscrições abertas"],
+  ["Iscrizioni chiuse","Registration closed","Inscriptions closes","Anmeldung geschlossen","Inscripción cerrada","Inscrições encerradas"],
+  ["Nomi estratti","Names drawn","Tirage effectué","Namen ausgelost","Sorteo realizado","Sorteio realizado"],
+  ["Concluso","Finished","Terminé","Abgeschlossen","Finalizado","Concluído"],
+  ["Da rifare","Needs a new draw","À refaire","Erneut auslosen","Repetir sorteo","Repetir sorteio"],
+  ["Estrazione in corso","Drawing names","Tirage en cours","Auslosung läuft","Sorteo en curso","Sorteio em curso"],
+  ["Regole da rivedere","Review the rules","Règles à vérifier","Regeln prüfen","Revisar las reglas","Rever as regras"],
+  ["La connessione si è interrotta. Riprova tra poco.","Connection lost. Try again shortly.","Connexion interrompue. Réessaie dans un instant.","Verbindung unterbrochen. Versuche es gleich noch einmal.","Se ha perdido la conexión. Vuelve a intentarlo en un momento.","A ligação foi interrompida. Tenta novamente dentro de momentos."],
+  ["Qualcosa non è andato. Riprova tra poco.","Something went wrong. Try again shortly.","Un problème est survenu. Réessaie dans un instant.","Etwas ist schiefgegangen. Versuche es gleich noch einmal.","Algo ha salido mal. Vuelve a intentarlo en un momento.","Ocorreu um erro. Tenta novamente dentro de momentos."],
+  ["Sotto l’Albero · Il tuo Secret Santa","Sotto l’Albero · Your Secret Santa","Sotto l’Albero · Ton Secret Santa","Sotto l’Albero · Dein Wichteln","Sotto l’Albero · Tu amigo invisible","Sotto l’Albero · O teu amigo secreto"],
+  ["Organizza il Secret Santa del tuo gruppo. Inviti, desideri e un nome da tenere segreto fino a Natale.","Organise your group’s Secret Santa. Send invitations, share wish lists and keep the name you draw a secret until Christmas.","Organise le Secret Santa de ton groupe. Invitations, listes de souhaits et un nom à garder secret jusqu’à Noël.","Organisiere das Wichteln für deine Gruppe. Verschicke Einladungen, teile Wünsche und halte den gezogenen Namen bis Weihnachten geheim.","Organiza el amigo invisible de tu grupo. Envía invitaciones, comparte deseos y guarda el nombre en secreto hasta Navidad.","Organiza o amigo secreto do teu grupo. Envia convites, partilha desejos e guarda o nome em segredo até ao Natal."],
+];

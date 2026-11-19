@@ -57,6 +57,7 @@ export const avatarScenes = [
     face: [128, 120, 46, 52],
     hatShadow: 0.12,
     hasHat: false,
+    hairWindow: [128, 128, 123, 123],
     topClipY: 22,
   },
   {
@@ -98,6 +99,8 @@ export const avatarScenes = [
     glassClip: [128, 143, 66],
     hatShadow: 0.14,
     hasHat: false,
+    // Inside the glass, below the painted ribbon and brass cap.
+    hairWindow: [128, 142, 73, 89],
     topClipY: 68,
   },
   {
@@ -107,6 +110,7 @@ export const avatarScenes = [
     glassClip: [128, 128, 72],
     hatShadow: 0.14,
     hasHat: false,
+    hairWindow: [128, 112, 112, 106],
     topClipY: 50,
   },
 ];
@@ -289,6 +293,7 @@ function makeGradedPortraitCanvas(
   hatShadow,
   sceneId,
   scene,
+  paintStrength = 0.75,
 ) {
   if (typeof document === "undefined") return image;
   const chosen =
@@ -300,7 +305,7 @@ function makeGradedPortraitCanvas(
     versions = new Map();
     gradedPortraits.set(image, versions);
   }
-  const key = `${chosen.id}:${isIsolated ? 1 : 0}:${JSON.stringify(chosen.lighting ?? null)}:${hatShadow}`;
+  const key = `${chosen.id}:${isIsolated ? 1 : 0}:${JSON.stringify(chosen.lighting ?? null)}:${hatShadow}:${paintStrength}`;
   if (versions.has(key)) {
     const cached = versions.get(key);
     versions.delete(key);
@@ -338,6 +343,7 @@ function makeGradedPortraitCanvas(
       strength: 0.78,
       smoothing: true,
       painterly: true,
+      paintStrength,
       hatShadow: chosen.hasHat ? hatShadow : 0,
       sceneId,
       faceBox: off.faceBox,
@@ -368,6 +374,7 @@ function drawFaceWithOverlay(ctx, portrait, scene, settings) {
     scene.hatShadow,
     scene.sceneId,
     scene,
+    settings.paintStrength,
   );
   const placement = portraitScenePlacement(
     graded,
@@ -388,15 +395,16 @@ function drawFaceWithOverlay(ctx, portrait, scene, settings) {
   return placement;
 }
 
-function drawHairAboveOverlay(ctx, portrait, scene, placement) {
+function drawHairAboveOverlay(ctx, portrait, scene, placement, paintStrength) {
   const capMask = portrait.source.headCapMask ?? portrait.source.hairMask;
-  if (scene.sceneId !== "snowglobe" || !portrait.isolated || !capMask) return;
+  if (!scene.hairWindow || !portrait.isolated || !capMask) return;
   const graded = makeGradedPortraitCanvas(
     portrait.source,
     true,
     scene.hatShadow,
     scene.sceneId,
     scene,
+    paintStrength,
   );
   if (!graded.hairLayer) {
     const hair = document.createElement("canvas");
@@ -415,10 +423,10 @@ function drawHairAboveOverlay(ctx, portrait, scene, placement) {
     scene.collarY - 5,
   );
   ctx.save();
-  // This scene has no hat. Restore the actual segmented upper head over the painted
-  // sky inside the glass, using the very same transform as the face underneath.
+  // Bring the real hair and upper forehead in front of the hatless backdrop.
+  // Each window protects the painted frame or glass and the lower collar.
   ctx.beginPath();
-  ctx.ellipse(128, 112, 112, 106, 0, 0, Math.PI * 2);
+  ctx.ellipse(...scene.hairWindow, 0, 0, Math.PI * 2);
   ctx.clip();
   ctx.beginPath();
   ctx.rect(0, 0, 256, bottom);
@@ -432,13 +440,15 @@ function drawFaceInTemplate(
   ctx,
   { source: image, isolated },
   scene,
-  { zoom, offsetX, offsetY },
+  { zoom, offsetX, offsetY, paintStrength },
 ) {
   const graded = makeGradedPortraitCanvas(
     image,
     isolated,
     scene.hatShadow,
     scene.id,
+    scene,
+    paintStrength,
   );
   const [x, y, rx, ry] = scene.face;
   const placement = portraitPlacement(
@@ -510,11 +520,15 @@ export function drawAvatar(canvas, portrait, settings = {}, size = 256) {
     style = "illustrated",
     scene = "elf",
     variant = "front",
-    zoom = 1.15,
+    zoom = style === "illustrated" &&
+    (portrait?.source?.landmarks?.detected || portrait?.isolated)
+      ? 1
+      : 1.15,
     offsetX = 0,
     offsetY = 0,
     beard = true,
     rotation = 0,
+    paintStrength = 0.75,
   } = settings;
   if (style === "classic") {
     pendingRedraws.delete(canvas);
@@ -534,6 +548,7 @@ export function drawAvatar(canvas, portrait, settings = {}, size = 256) {
     offsetY,
     beard,
     rotation,
+    paintStrength,
   };
   pendingRedraws.set(canvas, { portrait, settings: currentSettings, size });
   if (!portrait) return { ready: false };
@@ -589,7 +604,7 @@ export function drawAvatar(canvas, portrait, settings = {}, size = 256) {
   if (overlay) {
     placement = drawFaceWithOverlay(ctx, portrait, chosen, currentSettings);
     ctx.drawImage(overlay, 0, 0, 256, 256);
-    drawHairAboveOverlay(ctx, portrait, chosen, placement);
+    drawHairAboveOverlay(ctx, portrait, chosen, placement, paintStrength);
   } else {
     ctx.drawImage(background, 0, 0, 256, 256);
     drawFaceInTemplate(ctx, portrait, legacy, currentSettings);

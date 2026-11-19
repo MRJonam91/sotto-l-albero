@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import worker from "../worker/index.js";
 import { drawEvent, scheduled, historicalRules } from "../worker/events.js";
 import { holidayBadges, formatBadgeLabel } from "../shared/badges.js";
+import { holidayActivities } from "../shared/holidayPortrait.js";
 
 function database() {
   const sql = new DatabaseSync(":memory:");
@@ -29,6 +30,8 @@ function database() {
     "0019_amazon_preferences.sql",
     "0020_profile_activity.sql",
     "0021_festive_progress.sql",
+    "0022_account_language.sql",
+    "0023_stamp_completion_bonus.sql",
   ])
     sql.exec(
       readFileSync(new URL(`../migrations/${file}`, import.meta.url), "utf8"),
@@ -1966,6 +1969,7 @@ describe("API privata", () => {
       ),
     ).toEqual([100, 0, 0]);
     expect(own.portrait.matchingExplanation.signals.join(" ")).toContain("80%");
+    expect(own.portrait.privateSignalParts.length).toBeGreaterThan(0);
     expect(own.context.activity.games).toEqual([
       { game: "quiz", count: 1, averageResult: 0.8 },
     ]);
@@ -1974,6 +1978,51 @@ describe("API privata", () => {
       own.portrait.characterMatches,
     );
     expect(group.members[0].portrait.matchingExplanation.signals).toEqual([]);
+    expect(group.members[0].portrait).not.toHaveProperty("privateSignalParts");
     expect(group.members[0].context).toBeUndefined();
   });
+});
+
+it("salva soltanto una lingua supportata per l’account autenticato", async () => {
+  const cookie = await login("lingue@example.test");
+  expect(
+    (await api("/preferences/language", "PUT", { locale: "pt" })).status,
+  ).toBe(401);
+  const before = (await api("/me", "GET", null, cookie)).data.user;
+  expect(before.locale).toBe("it");
+  expect(
+    (await api("/preferences/language", "PUT", { locale: "pt" }, cookie))
+      .status,
+  ).toBe(200);
+  expect(
+    (await api("/preferences/language", "PUT", { locale: "__proto__" }, cookie))
+      .status,
+  ).toBe(400);
+  expect((await api("/me", "GET", null, cookie)).data.user).toEqual({
+    ...before,
+    locale: "pt",
+  });
+});
+
+it("dimentica il preset quando un client precedente scrive una nuova attività", async () => {
+  const cookie = await login("attivita-libera@example.test");
+  for (const daily of [false, true]) {
+    const preset = {
+      activity: "Wrapping presents",
+      activityPreset: holidayActivities[0],
+    };
+    await api("/profile", "PUT", { holidayProfile: preset }, cookie);
+    const payload = { holidayProfile: { activity: "A passeggio con Ada" } };
+    const response = daily
+      ? await api(
+          "/profile/daily-checkin",
+          "POST",
+          { ...payload, action: "complete" },
+          cookie,
+        )
+      : await api("/profile", "PUT", payload, cookie);
+    expect(response.status).toBe(200);
+    expect(response.data.holidayProfile.activity).toBe("A passeggio con Ada");
+    expect(response.data.holidayProfile).not.toHaveProperty("activityPreset");
+  }
 });

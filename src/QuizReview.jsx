@@ -1,3 +1,4 @@
+import { gameT, t } from "./i18n.js";
 import { Check, Clock, Sparkles, X } from "lucide-react";
 import MovieClueStage from "./MovieClueStage.jsx";
 
@@ -35,7 +36,7 @@ function OutcomeBadge({ outcome, prefix }) {
   return (
     <span className="quiz-outcome-pill" data-tone={info.tone}>
       {Icon && <Icon size={13} aria-hidden="true" />}
-      {prefix ? `${prefix}: ${info.label}` : info.label}
+      {prefix ? `${prefix}: ${t(info.label)}` : t(info.label)}
     </span>
   );
 }
@@ -50,22 +51,26 @@ export function QuizAttemptHistory({
   return (
     <ul
       className="quiz-attempt-history"
-      aria-label={`Esiti dei tentativi: ${gameName}`}
+      aria-label={t("Esiti dei tentativi: {gameName}", {
+        gameName: t(gameName),
+      })}
     >
       {history.map((item) => (
         <li key={item.id ?? item.ordinal} className="quiz-history-row">
           <span>
-            Tentativo {item.ordinal}:{" "}
+            {t("Tentativo {ordinal}: ", { ordinal: item.ordinal })}
             <strong>
               {item.correct}/{item.total}
-            </strong>{" "}
-            ({item.score} pt)
+            </strong>
+            {t(" ({score} pt)", { score: item.score })}
           </span>
           {item.outcomes && (
             <span
               className="quiz-history-dots"
               role="group"
-              aria-label={`Risposte del tentativo ${item.ordinal}`}
+              aria-label={t("Risposte del tentativo {ordinal}", {
+                ordinal: item.ordinal,
+              })}
             >
               {item.outcomes.map((outcome, index) => {
                 const info = outcomeInfo(outcome);
@@ -75,8 +80,14 @@ export function QuizAttemptHistory({
                     role="img"
                     className="quiz-history-dot"
                     data-tone={info.tone}
-                    title={`Domanda ${index + 1}: ${info.label}`}
-                    aria-label={`Domanda ${index + 1}: ${info.label}`}
+                    title={t("Domanda {number}: {label}", {
+                      number: index + 1,
+                      label: t(info.label),
+                    })}
+                    aria-label={t("Domanda {number}: {label}", {
+                      number: index + 1,
+                      label: t(info.label),
+                    })}
                   />
                 );
               })}
@@ -87,10 +98,13 @@ export function QuizAttemptHistory({
               type="button"
               className="text-button quiz-history-review"
               disabled={busy}
-              aria-label={`Vedi risposte: tentativo ${item.ordinal} di ${gameName}`}
+              aria-label={t(
+                "Vedi risposte: tentativo {ordinal} di {gameName}",
+                { ordinal: item.ordinal, gameName: t(gameName) },
+              )}
               onClick={(event) => onReview(item, event.currentTarget)}
             >
-              Vedi risposte
+              {t("Vedi risposte")}
             </button>
           )}
         </li>
@@ -106,7 +120,9 @@ export function DuelScorecard({ outcomes, opponentName }) {
     <div
       className="duel-scorecard"
       role="group"
-      aria-label={`Risultati domanda per domanda contro ${opponentName}`}
+      aria-label={t("Risultati domanda per domanda contro {opponentName}", {
+        opponentName,
+      })}
     >
       <div
         className="duel-scorecard-row duel-scorecard-head"
@@ -120,7 +136,7 @@ export function DuelScorecard({ outcomes, opponentName }) {
         ))}
       </div>
       <div className="duel-scorecard-row">
-        <span className="duel-scorecard-name">Tu</span>
+        <span className="duel-scorecard-name">{t("Tu")}</span>
         {outcomes.map((round, index) => {
           const info = outcomeInfo(round.me);
           return (
@@ -129,8 +145,14 @@ export function DuelScorecard({ outcomes, opponentName }) {
               role="img"
               className="duel-scorecard-cell"
               data-tone={info.tone}
-              title={`Domanda ${index + 1} · Tu: ${info.label}`}
-              aria-label={`Domanda ${index + 1}, Tu: ${info.label}`}
+              title={t("Domanda {number} · Tu: {label}", {
+                number: index + 1,
+                label: t(info.label),
+              })}
+              aria-label={t("Domanda {number}, Tu: {label}", {
+                number: index + 1,
+                label: t(info.label),
+              })}
             >
               {info.short}
             </span>
@@ -148,8 +170,16 @@ export function DuelScorecard({ outcomes, opponentName }) {
                 role="img"
                 className="duel-scorecard-cell"
                 data-tone={info.tone}
-                title={`Domanda ${index + 1} · ${opponentName}: ${info.label}`}
-                aria-label={`Domanda ${index + 1}, ${opponentName}: ${info.label}`}
+                title={t("Domanda {number} · {opponentName}: {label}", {
+                  number: index + 1,
+                  opponentName,
+                  label: t(info.label),
+                })}
+                aria-label={t("Domanda {number}, {opponentName}: {label}", {
+                  number: index + 1,
+                  opponentName,
+                  label: t(info.label),
+                })}
               >
                 {info.short}
               </span>
@@ -176,21 +206,31 @@ export default function QuizReview({ review, myScore }) {
   const verdict = !hasOpponent
     ? null
     : review.correctCount > review.opponent.correctCount
-      ? { label: "Hai vinto il duello!", tone: "win" }
+      ? { label: t("Hai vinto il duello!"), tone: "win" }
       : review.correctCount < review.opponent.correctCount
-        ? { label: `Ha vinto ${review.opponent.name}`, tone: "loss" }
-        : { label: "Pareggio!", tone: "tie" };
+        ? {
+            label: t("Ha vinto {name}", { name: review.opponent.name }),
+            tone: "loss",
+          }
+        : { label: t("Pareggio!"), tone: "tie" };
 
   return (
     <div className="quiz-review">
       {hasOpponent ? (
         <div className="quiz-duel-banner">
           <div className="quiz-duel-player">
-            <strong>Tu</strong>
+            <strong>{t("Tu")}</strong>
             <span>
-              {review.correctCount} / {review.total} esatte
+              {t("{correctCount} / {total} esatte", {
+                correctCount: review.correctCount,
+                total: review.total,
+              })}
             </span>
-            <small>{myScore ?? review.correctCount * 10} punti</small>
+            <small>
+              {t("{score} punti", {
+                score: myScore ?? review.correctCount * 10,
+              })}
+            </small>
           </div>
           <span className="quiz-duel-verdict" data-tone={verdict.tone}>
             {verdict.label}
@@ -198,26 +238,36 @@ export default function QuizReview({ review, myScore }) {
           <div className="quiz-duel-player">
             <strong>{review.opponent.name}</strong>
             <span>
-              {review.opponent.correctCount} / {review.total} esatte
+              {t("{correctCount} / {total} esatte", {
+                correctCount: review.opponent.correctCount,
+                total: review.total,
+              })}
             </span>
-            <small>{review.opponent.score} punti</small>
+            <small>
+              {t("{score} punti", { score: review.opponent.score })}
+            </small>
           </div>
         </div>
       ) : (
         <div className="quiz-review-stats">
           <span className="quiz-stat-pill" data-tone="correct">
-            {review.correctCount} su {review.total} esatte
+            {t("{correctCount} su {total} esatte", {
+              correctCount: review.correctCount,
+              total: review.total,
+            })}
           </span>
           {(!hasMissingAnswers || wrongCount > 0) && (
             <span className="quiz-stat-pill" data-tone="wrong">
-              {wrongCount === 1 ? "1 sbagliata" : `${wrongCount} sbagliate`}
+              {wrongCount === 1
+                ? t("1 sbagliata")
+                : t("{wrongCount} sbagliate", { wrongCount })}
             </span>
           )}
           {timeoutCount > 0 && (
             <span className="quiz-stat-pill" data-tone="timeout">
               {timeoutCount === 1
-                ? "1 tempo scaduto"
-                : `${timeoutCount} tempi scaduti`}
+                ? t("1 tempo scaduto")
+                : t("{timeoutCount} tempi scaduti", { timeoutCount })}
             </span>
           )}
         </div>
@@ -225,7 +275,7 @@ export default function QuizReview({ review, myScore }) {
 
       <ol
         className="quiz-review-strip"
-        aria-label="Andamento delle dieci domande"
+        aria-label={t("Andamento delle dieci domande")}
       >
         {review.items.map((item, index) => {
           const mine = outcomeInfo(item.myOutcome);
@@ -235,7 +285,10 @@ export default function QuizReview({ review, myScore }) {
               key={index}
               className="quiz-strip-cell"
               data-tone={mine.tone}
-              title={`Domanda ${index + 1}: ${mine.label}`}
+              title={t("Domanda {number}: {label}", {
+                number: index + 1,
+                label: t(mine.label),
+              })}
             >
               <span className="quiz-strip-num">{index + 1}</span>
               <span className="quiz-strip-mark" data-tone={mine.tone}>
@@ -245,7 +298,7 @@ export default function QuizReview({ review, myScore }) {
                 <span
                   className="quiz-strip-mark quiz-strip-opponent"
                   data-tone={theirs.tone}
-                  title={`${review.opponent.name}: ${theirs.label}`}
+                  title={`${review.opponent.name}: ${t(theirs.label)}`}
                 >
                   {theirs.short}
                 </span>
@@ -257,9 +310,9 @@ export default function QuizReview({ review, myScore }) {
 
       {hasMissingAnswers && (
         <p className="quiz-review-note">
-          Per questa partita precedente sono disponibili il risultato e le
-          soluzioni. Il dettaglio delle tue risposte non è stato registrato
-          completamente.
+          {t(
+            "Per questa partita precedente sono disponibili il risultato e le soluzioni. Il dettaglio delle tue risposte non è stato registrato completamente.",
+          )}
         </p>
       )}
 
@@ -271,11 +324,13 @@ export default function QuizReview({ review, myScore }) {
             data-outcome={item.myOutcome ?? "pending"}
           >
             <div className="quiz-review-card-head">
-              <span className="quiz-review-number">Domanda {index + 1}</span>
+              <span className="quiz-review-number">
+                {t("Domanda {number}", { number: index + 1 })}
+              </span>
               <div className="quiz-review-badges">
                 <OutcomeBadge
                   outcome={item.myOutcome}
-                  prefix={hasOpponent ? "Tu" : undefined}
+                  prefix={hasOpponent ? t("Tu") : undefined}
                 />
                 {hasOpponent && (
                   <OutcomeBadge
@@ -285,7 +340,7 @@ export default function QuizReview({ review, myScore }) {
                 )}
               </div>
             </div>
-            <p className="quiz-review-question">{item.text}</p>
+            <p className="quiz-review-question">{gameT(item.text)}</p>
             {item.icons && (
               <MovieClueStage
                 index={index}
@@ -321,12 +376,12 @@ export default function QuizReview({ review, myScore }) {
                           aria-hidden="true"
                         />
                       )}
-                      <span>{option}</span>
+                      <span>{gameT(option)}</span>
                     </span>
                     <span className="quiz-review-tags">
                       {isCorrect && (
                         <span className="quiz-tag" data-kind="correct">
-                          Risposta esatta
+                          {t("Risposta esatta")}
                         </span>
                       )}
                       {isMine && (
@@ -334,7 +389,7 @@ export default function QuizReview({ review, myScore }) {
                           className="quiz-tag"
                           data-kind={isCorrect ? "mine-ok" : "mine-bad"}
                         >
-                          Tu
+                          {t("Tu")}
                         </span>
                       )}
                       {isOpponent && (
@@ -352,29 +407,31 @@ export default function QuizReview({ review, myScore }) {
             </ul>
             {item.myOutcome === "unrecorded" && (
               <p className="quiz-review-missing">
-                Risposta non registrata per questa partita precedente.
+                {t("Risposta non registrata per questa partita precedente.")}
               </p>
             )}
             {hasOpponent && item.opponentOutcome === "unrecorded" && (
               <p className="quiz-review-missing">
-                {review.opponent.name}: risposta non registrata per questa
-                partita precedente.
+                {t(
+                  "{name}: risposta non registrata per questa partita precedente.",
+                  { name: review.opponent.name },
+                )}
               </p>
             )}
             {item.myOutcome === "timeout" && (
               <p className="quiz-review-timeout">
-                Tempo scaduto: nessuna risposta inviata da te.
+                {t("Tempo scaduto: nessuna risposta inviata da te.")}
               </p>
             )}
             {hasOpponent && item.opponentOutcome === "timeout" && (
               <p className="quiz-review-timeout">
-                {review.opponent.name}: tempo scaduto.
+                {t("{name}: tempo scaduto.", { name: review.opponent.name })}
               </p>
             )}
             {item.note && (
               <p className="quiz-review-note">
                 <Sparkles size={15} aria-hidden="true" />
-                <span>{item.note}</span>
+                <span>{gameT(item.note)}</span>
               </p>
             )}
           </li>

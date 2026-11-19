@@ -1,3 +1,4 @@
+import { t } from "./i18n.js";
 import { useId, useState } from "react";
 import {
   ArrowLeft,
@@ -11,6 +12,8 @@ import {
 } from "lucide-react";
 import {
   computeHolidayPortrait,
+  formatPortraitDescription,
+  formatPortraitSignals,
   getDailyQuestion,
   holidayActivities,
   holidayIconMap,
@@ -70,12 +73,12 @@ export function HolidaySpiritImage({
   const icons = spiritScene?.icons?.length
     ? spiritScene.icons
     : ["🎄", "⭐", "🎁"];
-  const label = (nickname || name || "Spirito di Natale").slice(0, 26);
+  const label = (nickname || name || t("Spirito di Natale")).slice(0, 26);
   const shortQuote = (
     quote ||
     activity ||
-    topCharacter?.tagline ||
-    "Buone Feste sotto l’Albero"
+    t(topCharacter?.tagline) ||
+    t("Buone Feste sotto l’Albero")
   ).slice(0, 62);
 
   return (
@@ -84,7 +87,9 @@ export function HolidaySpiritImage({
         viewBox="0 0 420 230"
         className="spirit-generated-svg"
         role="img"
-        aria-label={`Immagine dello spirito natalizio di ${label}`}
+        aria-label={t("Immagine dello spirito natalizio di {name}", {
+          name: label,
+        })}
       >
         <defs>
           <linearGradient id={skyId} x1="0" y1="0" x2="0" y2="1">
@@ -204,7 +209,9 @@ export function HolidaySpiritImage({
           fontSize="10.5"
           fontWeight="700"
         >
-          {topCharacter ? `Spirito: ${topCharacter.name}` : palette.label}
+          {topCharacter
+            ? t("Spirito: {name}", { name: topCharacter.name })
+            : t(palette.label)}
         </text>
 
         <rect
@@ -225,7 +232,7 @@ export function HolidaySpiritImage({
           fontSize="13"
           fontWeight="700"
         >
-          {label} · {palette.label}
+          {label} · {t(palette.label)}
         </text>
         <text x="210" y="205" textAnchor="middle" fill="#d6ba7b" fontSize="11">
           “{shortQuote}”
@@ -304,12 +311,12 @@ export function TasteRadarChart({ tastes = [] }) {
       <div
         className="portrait-taste-bars"
         role="list"
-        aria-label="Tratti natalizi, ciascuno su una scala da 0 a 100"
+        aria-label={t("Tratti natalizi, ciascuno su una scala da 0 a 100")}
       >
         {tastes.map((item) => (
           <div key={item.id} className="portrait-taste-row" role="listitem">
             <div className="portrait-taste-head">
-              <span>{item.label}</span>
+              <span>{t(item.label)}</span>
               <strong>{item.value}/100</strong>
             </div>
             <div className="portrait-taste-track" aria-hidden="true">
@@ -330,24 +337,26 @@ export function FestiveProgressBadge({ progress, compact = false }) {
   if (compact)
     return (
       <p className="profile-footnote">
-        Coinvolgimento natalizio: <strong>{progress.level.label}</strong>
+        {t("Coinvolgimento natalizio:")}{" "}
+        <strong>{t(progress.level.label)}</strong>
       </p>
     );
   return (
     <div className="festive-progress">
       <div className="holiday-summary-heading">
-        <strong>{progress.level.label}</strong>
+        <strong>{t(progress.level.label)}</strong>
         <span className="quiet">{progress.score}/100</span>
       </div>
       <progress
-        aria-label="Coinvolgimento natalizio"
+        aria-label={t("Coinvolgimento natalizio")}
         max={100}
         value={progress.score}
         style={{ width: "100%", accentColor: "var(--green, #275b46)" }}
       />
       <p className="profile-footnote">
-        Giochi diversi, timbri e desideri salvati fanno avanzare il percorso. Le
-        domande sono facoltative; il livello raggiunto si conserva.
+        {t(
+          "Giochi diversi, timbri e desideri salvati fanno avanzare il percorso. Le domande sono facoltative; il livello raggiunto si conserva.",
+        )}
       </p>
     </div>
   );
@@ -356,9 +365,15 @@ export function FestiveProgressBadge({ progress, compact = false }) {
 export function MovieCharacterComparison({
   characterMatches = [],
   matchingExplanation,
+  privateSignalParts,
   showExplanation = true,
 }) {
   const visible = characterMatches.slice(0, 3);
+  const signals = !showExplanation
+    ? []
+    : privateSignalParts
+      ? formatPortraitSignals(privateSignalParts, t)
+      : matchingExplanation?.signals || [];
   const isInitial =
     matchingExplanation?.provisional &&
     matchingExplanation.weights?.every((source) => !source.available);
@@ -368,7 +383,7 @@ export function MovieCharacterComparison({
       <div
         className="character-comparison-grid compact-characters"
         role="list"
-        aria-label="Tre personaggi natalizi più affini"
+        aria-label={t("Tre personaggi natalizi più affini")}
       >
         {visible.map((character, index) => (
           <div
@@ -397,7 +412,7 @@ export function MovieCharacterComparison({
               </div>
               <small>{character.movie}</small>
               {index === 0 && (
-                <p className="character-match-note">{character.tagline}</p>
+                <p className="character-match-note">{t(character.tagline)}</p>
               )}
             </div>
           </div>
@@ -407,47 +422,47 @@ export function MovieCharacterComparison({
         {matchingExplanation?.provisional && (
           <>
             {isInitial
-              ? "Affinità iniziali da tratti neutri; il coinvolgimento parte dai personaggi scettici. "
-              : "Prime affinità, ancora in aggiornamento. "}
+              ? t(
+                  "Affinità iniziali da tratti neutri; il coinvolgimento parte dai personaggi scettici.",
+                ) + " "
+              : t("Prime affinità, ancora in aggiornamento.") + " "}
           </>
         )}
-        Le affinità sono indipendenti: non devono sommare 100%.
+        {t("Le affinità sono indipendenti: non devono sommare 100%.")}
       </p>
       {matchingExplanation && showExplanation && (
         <details className="portrait-matching-explanation">
-          <summary>Come nasce l’associazione?</summary>
+          <summary>{t("Come nasce l’associazione?")}</summary>
           <p>
-            È un gioco di somiglianze, non un test della personalità. L’attività
-            nel tool forma il ritratto; stato e domande facoltative lo affinano.
+            {t(
+              "È un gioco di somiglianze, non un test della personalità. L’attività nel tool forma il ritratto; stato e domande facoltative lo affinano.",
+            )}
           </p>
           <ul className="matching-weights">
             {matchingExplanation.weights?.map((source) => (
               <li key={source.id}>
-                <span>{source.label}</span>
+                <span>{t(source.label)}</span>
                 <strong>
                   {source.available
                     ? `${source.effectiveWeight}%`
-                    : "Non usata"}
+                    : t("Non usata")}
                 </strong>
               </li>
             ))}
           </ul>
           <p>
-            Questi sono i pesi usati ora. Se una fonte manca, il suo peso viene
-            distribuito fra quelle disponibili. Saltare una domanda o lo stato
-            del giorno non dà penalità.
+            {t(
+              "Questi sono i pesi usati ora. Se una fonte manca, il suo peso viene distribuito fra quelle disponibili. Saltare una domanda o lo stato del giorno non dà penalità.",
+            )}
           </p>
           <p>
-            Ogni affinità combina 65% tratti e 35% coinvolgimento natalizio. Il
-            primo confronto usa i cinque tratti; il secondo avvicina il livello
-            raggiunto alla fase natalizia del personaggio. All’inizio compaiono
-            gli scettici del Natale: è una tappa del gioco, senza attribuirti il
-            loro carattere. Non è una probabilità né una misura psicologica.
-            L’iscrizione a un gruppo da sola non conta.
+            {t(
+              "Ogni affinità combina 65% tratti e 35% coinvolgimento natalizio. Il primo confronto usa i cinque tratti; il secondo avvicina il livello raggiunto alla fase natalizia del personaggio. All’inizio compaiono gli scettici del Natale: è una tappa del gioco, senza attribuirti il loro carattere. Non è una probabilità né una misura psicologica. L’iscrizione a un gruppo da sola non conta.",
+            )}
           </p>
-          {matchingExplanation.signals?.length > 0 && (
+          {signals.length > 0 && (
             <ul>
-              {matchingExplanation.signals.map((signal) => (
+              {signals.map((signal) => (
                 <li key={signal}>{signal}</li>
               ))}
             </ul>
@@ -503,7 +518,11 @@ export function HolidayGuidedWizard({
     dailyPlan.ordered[questionIndex] || dailyPlan.featured;
 
   function setField(key, nextValue) {
-    onChange({ ...value, [key]: nextValue });
+    onChange({
+      ...value,
+      ...(key === "activity" ? { activityPreset: null } : {}),
+      [key]: nextValue,
+    });
   }
 
   function setAnswer(questionId, optionId) {
@@ -555,23 +574,26 @@ export function HolidayGuidedWizard({
             <span className="eyebrow">
               <Sparkles size={14} aria-hidden="true" />{" "}
               {isDaily
-                ? "Momento di Natale · Una volta al giorno"
-                : "Domande e dettagli facoltativi"}
+                ? t("Momento di Natale · Una volta al giorno")
+                : t("Domande e dettagli facoltativi")}
             </span>
             <span className="guided-step-badge">
-              Passaggio {step + 1} di {wizardSteps.length}
+              {t("Passaggio")} {step + 1} {t("di")} {wizardSteps.length}
             </span>
           </div>
           <h2 id={titleId}>
             {isDaily
-              ? `Bentornato ${profile.nickname || profile.name || user?.name || ""}! Racconta il tuo Natale di oggi`
-              : "Personalizza il tuo Natale"}
+              ? t("Bentornato {name}! Racconta il tuo Natale di oggi", {
+                  name: profile.nickname || profile.name || user?.name || "",
+                })
+              : t("Personalizza il tuo Natale")}
           </h2>
           <p className="guided-subtitle">
-            Scegli cosa raccontare: ogni passaggio è{" "}
-            <strong>facoltativo</strong>. Le risposte aiutano a comporre il
-            ritratto e i personaggi per gioco. Puoi aggiungerne altre quando
-            vuoi.
+            {t("Scegli cosa raccontare: ogni passaggio è")}{" "}
+            <strong>{t("facoltativo")}</strong>
+            {t(
+              ". Le risposte aiutano a comporre il ritratto e i personaggi per gioco. Puoi aggiungerne altre quando vuoi.",
+            )}
           </p>
         </div>
         {isDaily && onSkip ? (
@@ -582,12 +604,12 @@ export function HolidayGuidedWizard({
             disabled={busy}
             onClick={onSkip}
           >
-            Ignora per oggi
+            {t("Ignora per oggi")}
           </Button>
         ) : null}
       </div>
 
-      <nav className="guided-stepper" aria-label="Passaggi guidati">
+      <nav className="guided-stepper" aria-label={t("Passaggi guidati")}>
         {wizardSteps.map((item, idx) => {
           const active = idx === step;
           return (
@@ -606,7 +628,7 @@ export function HolidayGuidedWizard({
                   idx + 1
                 )}
               </span>
-              <span className="guided-step-label">{item.short}</span>
+              <span className="guided-step-label">{t(item.short)}</span>
             </button>
           );
         })}
@@ -616,37 +638,50 @@ export function HolidayGuidedWizard({
         {currentStep.id === "oggi" ? (
           <div className="guided-pane">
             <h3>
-              Passo 1 · Cosa stai combinando per le feste?{" "}
-              <small>(facoltativo)</small>
+              {t("Passo 1 · Cosa stai combinando per le feste?")}{" "}
+              <small>{t("(facoltativo)")}</small>
             </h3>
             <p className="guided-hint">
-              Scegli un’idea pronta o scrivi un pensiero personale per il tuo
-              gruppo.
+              {t(
+                "Scegli un’idea pronta o scrivi un pensiero personale per il tuo gruppo.",
+              )}
             </p>
             <div className="form-grid">
               <div>
                 <Field
-                  label="Attività natalizia in corso"
+                  label={t("Attività natalizia in corso")}
                   name="holidayActivity"
                   maxLength={120}
-                  placeholder="Es. Sto impacchettando i regali…"
-                  value={value?.activity || ""}
+                  placeholder={t("Es. Sto impacchettando i regali…")}
+                  value={
+                    value?.activityPreset
+                      ? t(value.activityPreset)
+                      : value?.activity || ""
+                  }
                   onChange={(event) => setField("activity", event.target.value)}
                 />
                 <div
                   className="chip-suggestions"
-                  aria-label="Idee per l’attività in corso"
+                  aria-label={t("Idee per l’attività in corso")}
                 >
                   {holidayActivities.slice(0, 4).map((act) => (
                     <button
                       key={act}
                       type="button"
                       className="suggestion-chip"
-                      aria-pressed={value?.activity === act}
+                      aria-pressed={
+                        (value?.activityPreset || value?.activity) === act
+                      }
                       disabled={busy}
-                      onClick={() => setField("activity", act)}
+                      onClick={() =>
+                        onChange({
+                          ...value,
+                          activity: t(act),
+                          activityPreset: act,
+                        })
+                      }
                     >
-                      {act}
+                      {t(act)}
                     </button>
                   ))}
                 </div>
@@ -654,27 +689,29 @@ export function HolidayGuidedWizard({
 
               <div>
                 <Field
-                  label="Frase o motto natalizio del momento"
+                  label={t("Frase o motto natalizio del momento")}
                   name="holidayQuote"
                   maxLength={160}
-                  placeholder="Es. Anche il Grinch aveva solo bisogno della compagnia giusta…"
+                  placeholder={t(
+                    "Es. Anche il Grinch aveva solo bisogno della compagnia giusta…",
+                  )}
                   value={value?.quote || ""}
                   onChange={(event) => setField("quote", event.target.value)}
                 />
                 <div
                   className="chip-suggestions"
-                  aria-label="Idee per la frase natalizia"
+                  aria-label={t("Idee per la frase natalizia")}
                 >
                   {holidayPhrases.slice(0, 3).map((phrase) => (
                     <button
                       key={phrase}
                       type="button"
                       className="suggestion-chip"
-                      aria-pressed={value?.quote === phrase}
+                      aria-pressed={value?.quote === t(phrase)}
                       disabled={busy}
-                      onClick={() => setField("quote", phrase)}
+                      onClick={() => setField("quote", t(phrase))}
                     >
-                      “{phrase.slice(0, 38)}…”
+                      “{t(phrase).slice(0, 38)}…”
                     </button>
                   ))}
                 </div>
@@ -686,17 +723,18 @@ export function HolidayGuidedWizard({
         {currentStep.id === "icone" ? (
           <div className="guided-pane">
             <h3>
-              Passo 2 · Invia un messaggio via icone natalizie{" "}
-              <small>(facoltativo)</small>
+              {t("Passo 2 · Invia un messaggio via icone natalizie")}{" "}
+              <small>{t("(facoltativo)")}</small>
             </h3>
             <p className="guided-hint">
-              Scegli fino a 6 icone per comporre il tuo messaggio o rebus di
-              Natale visibile nel gruppo.
+              {t(
+                "Scegli fino a 6 icone per comporre il tuo messaggio o rebus di Natale visibile nel gruppo.",
+              )}
             </p>
             <div
               className="icon-message-picker"
               role="group"
-              aria-label="Scegli le icone del tuo messaggio"
+              aria-label={t("Scegli le icone del tuo messaggio")}
             >
               {holidayIcons.map(({ id, emoji, label }) => {
                 const selected = (value?.iconMessage || []).includes(id);
@@ -706,19 +744,19 @@ export function HolidayGuidedWizard({
                     type="button"
                     className="icon-Variables-btn"
                     aria-pressed={selected}
-                    aria-label={`${label} (${emoji})`}
+                    aria-label={`${t(label)} (${emoji})`}
                     disabled={busy}
                     onClick={() => toggleIcon(id)}
                   >
                     <span aria-hidden="true">{emoji}</span>
-                    <small>{label}</small>
+                    <small>{t(label)}</small>
                   </button>
                 );
               })}
             </div>
             {(value?.iconMessage || []).length > 0 ? (
               <div className="icon-message-preview-bar">
-                <span>Il tuo messaggio:</span>
+                <span>{t("Il tuo messaggio:")}</span>
                 <strong className="icon-sequence-display">
                   {value.iconMessage
                     .map((id) => holidayIconMap.get(id)?.emoji)
@@ -730,15 +768,19 @@ export function HolidayGuidedWizard({
                   disabled={busy}
                   onClick={() => setField("iconMessage", [])}
                 >
-                  Svuota icone
+                  {t("Svuota icone")}
                 </button>
               </div>
             ) : null}
             <Field
-              label="Traduzione o indizio del messaggio a icone (facoltativo)"
+              label={t(
+                "Traduzione o indizio del messaggio a icone (facoltativo)",
+              )}
               name="iconCaption"
               maxLength={120}
-              placeholder="Es. Serata perfetta: albero acceso, cioccolata e film!"
+              placeholder={t(
+                "Es. Serata perfetta: albero acceso, cioccolata e film!",
+              )}
               value={value?.iconCaption || ""}
               onChange={(event) => setField("iconCaption", event.target.value)}
             />
@@ -748,64 +790,69 @@ export function HolidayGuidedWizard({
         {currentStep.id === "indovinello" ? (
           <div className="guided-pane">
             <h3>
-              Passo 3 · Lascia un indovinello del giorno{" "}
-              <small>(facoltativo)</small>
+              {t("Passo 3 · Lascia un indovinello del giorno")}{" "}
+              <small>{t("(facoltativo)")}</small>
             </h3>
             <p className="guided-hint">
-              I membri del gruppo potranno provare a indovinare e riceverai una
-              notifica via email o Telegram (se attivati nel profilo).
+              {t(
+                "I membri del gruppo potranno provare a indovinare e riceverai una notifica via email o Telegram (se attivati nel profilo).",
+              )}
             </p>
             <div
               className="chip-suggestions"
-              aria-label="Indovinelli natalizi pronti"
+              aria-label={t("Indovinelli natalizi pronti")}
             >
               {holidayRiddlePresets.map((preset) => (
                 <button
                   key={preset.id}
                   type="button"
                   className="suggestion-chip"
-                  aria-pressed={value?.riddle === preset.riddle}
+                  aria-pressed={value?.riddle === t(preset.riddle)}
                   disabled={busy}
                   onClick={() =>
                     onChange({
                       ...value,
-                      riddle: preset.riddle,
-                      riddleHint: preset.hint,
-                      riddleAnswer: preset.answer,
+                      riddle: t(preset.riddle),
+                      riddleHint: t(preset.hint),
+                      riddleAnswer: t(preset.answer),
                     })
                   }
                 >
-                  Usa: {preset.title}
+                  {t("Usa:")} {t(preset.title)}
                 </button>
               ))}
             </div>
             <Field
-              label="Il tuo indovinello natalizio"
+              label={t("Il tuo indovinello natalizio")}
               name="dailyRiddle"
               maxLength={240}
-              placeholder="Scrivi un indovinello per i tuoi compagni di gruppo…"
+              placeholder={t(
+                "Scrivi un indovinello per i tuoi compagni di gruppo…",
+              )}
               value={value?.riddle || ""}
               onChange={(event) => setField("riddle", event.target.value)}
             />
             <div className="form-grid">
               <Field
-                label="Piccolo aiuto (facoltativo)"
+                label={t("Piccolo aiuto (facoltativo)")}
                 name="dailyRiddleHint"
                 maxLength={160}
-                placeholder="Es. Si appende ai rami dell’albero…"
+                placeholder={t("Es. Si appende ai rami dell’albero…")}
                 value={value?.riddleHint || ""}
                 onChange={(event) => setField("riddleHint", event.target.value)}
               />
               <Field
-                label="Soluzione segreta (per verificare chi indovina)"
+                label={t("Soluzione segreta (per verificare chi indovina)")}
                 name="dailyRiddleAnswer"
                 maxLength={120}
-                placeholder="Es. bastoncino di zucchero"
+                placeholder={t("Es. bastoncino di zucchero")}
                 value={value?.riddleAnswer || ""}
                 onChange={(event) =>
                   setField("riddleAnswer", event.target.value)
                 }
-                hint="Resta segreta: serve al sistema per verificare le risposte."
+                hint={t(
+                  "Resta segreta: serve al sistema per verificare le risposte.",
+                )}
               />
             </div>
           </div>
@@ -814,20 +861,22 @@ export function HolidayGuidedWizard({
         {currentStep.id === "domande" ? (
           <div className="guided-pane">
             <h3>
-              Passo 4 · Domanda del giorno e gusti delle feste{" "}
+              {t("Passo 4 · Domanda del giorno e gusti delle feste")}{" "}
               <small>
-                ({computed.answeredCount} di {holidayQuestions.length} risposte)
+                ({computed.answeredCount} {t("di")} {holidayQuestions.length}{" "}
+                {t("risposte)")}
               </small>
             </h3>
             <p className="guided-hint">
-              Rispondi alla domanda di oggi e, se ti va, scorri le altre per
-              rendere precisi grafico e personaggio dei film.
+              {t(
+                "Rispondi alla domanda di oggi e, se ti va, scorri le altre per rendere precisi grafico e personaggio dei film.",
+              )}
             </p>
 
             <div
               className="guided-question-tabs"
               role="tablist"
-              aria-label="Domande sulle preferenze natalizie"
+              aria-label={t("Domande sulle preferenze natalizie")}
             >
               {dailyPlan.ordered.map((q, idx) => {
                 const answered = Boolean(value?.answers?.[q.id]);
@@ -837,68 +886,95 @@ export function HolidayGuidedWizard({
                     key={q.id}
                     type="button"
                     role="tab"
+                    id={titleId + "-tab-" + idx}
+                    aria-controls={titleId + "-question"}
+                    tabIndex={active ? 0 : -1}
+                    onKeyDown={(event) => {
+                      const last = dailyPlan.ordered.length - 1;
+                      const next = {
+                        ArrowRight: (idx + 1) % (last + 1),
+                        ArrowLeft: (idx + last) % (last + 1),
+                        Home: 0,
+                        End: last,
+                      }[event.key];
+                      if (next === undefined) return;
+                      event.preventDefault();
+                      setQuestionIndex(next);
+                      document
+                        .getElementById(titleId + "-tab-" + next)
+                        ?.focus();
+                    }}
                     aria-selected={active}
                     className={`guided-q-tab ${active ? "active" : ""} ${answered ? "answered" : ""}`}
                     disabled={busy}
                     onClick={() => setQuestionIndex(idx)}
                   >
-                    {idx === 0 ? "✨ Oggi: " : `${idx + 1}. `}
-                    {q.shortLabel}
+                    {idx === 0 ? t("✨ Oggi:") + " " : `${idx + 1}. `}
+                    {t(q.shortLabel)}
                     {answered ? " ✓" : ""}
                   </button>
                 );
               })}
             </div>
 
-            <fieldset className="holiday-question-box">
-              <legend>
-                {questionIndex === 0 ? "✨ Domanda del giorno · " : ""}
-                {currentQuestion.title}
-              </legend>
-              <div className="holiday-question-options">
-                {currentQuestion.options.map((opt) => {
-                  const selected =
-                    value?.answers?.[currentQuestion.id] === opt.id;
-                  return (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      className="holiday-choice-btn"
-                      aria-pressed={selected}
-                      disabled={busy}
-                      onClick={() => setAnswer(currentQuestion.id, opt.id)}
-                    >
-                      {opt.label}
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="guided-q-nav">
-                <span className="quiet">
-                  Domanda {questionIndex + 1} di {dailyPlan.ordered.length}
-                </span>
-                <div className="button-row">
-                  {questionIndex > 0 ? (
-                    <button
-                      type="button"
-                      className="text-button"
-                      onClick={() => setQuestionIndex((i) => i - 1)}
-                    >
-                      ← Domanda precedente
-                    </button>
-                  ) : null}
-                  {questionIndex < dailyPlan.ordered.length - 1 ? (
-                    <button
-                      type="button"
-                      className="text-button"
-                      onClick={() => setQuestionIndex((i) => i + 1)}
-                    >
-                      Prossima domanda →
-                    </button>
-                  ) : null}
+            <div
+              role="tabpanel"
+              id={titleId + "-question"}
+              aria-labelledby={titleId + "-tab-" + questionIndex}
+            >
+              <fieldset className="holiday-question-box">
+                <legend>
+                  {questionIndex === 0
+                    ? t("✨ Domanda del giorno ·") + " "
+                    : ""}
+                  {t(currentQuestion.title)}
+                </legend>
+                <div className="holiday-question-options">
+                  {currentQuestion.options.map((opt) => {
+                    const selected =
+                      value?.answers?.[currentQuestion.id] === opt.id;
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        className="holiday-choice-btn"
+                        aria-pressed={selected}
+                        disabled={busy}
+                        onClick={() => setAnswer(currentQuestion.id, opt.id)}
+                      >
+                        {t(opt.label)}
+                      </button>
+                    );
+                  })}
                 </div>
-              </div>
-            </fieldset>
+                <div className="guided-q-nav">
+                  <span className="quiet">
+                    {t("Domanda")} {questionIndex + 1} {t("di")}{" "}
+                    {dailyPlan.ordered.length}
+                  </span>
+                  <div className="button-row">
+                    {questionIndex > 0 ? (
+                      <button
+                        type="button"
+                        className="text-button"
+                        onClick={() => setQuestionIndex((i) => i - 1)}
+                      >
+                        {t("← Domanda precedente")}
+                      </button>
+                    ) : null}
+                    {questionIndex < dailyPlan.ordered.length - 1 ? (
+                      <button
+                        type="button"
+                        className="text-button"
+                        onClick={() => setQuestionIndex((i) => i + 1)}
+                      >
+                        {t("Prossima domanda →")}
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              </fieldset>
+            </div>
           </div>
         ) : null}
 
@@ -906,10 +982,11 @@ export function HolidayGuidedWizard({
           <div className="guided-pane">
             <div className="profile-badge-header">
               <div>
-                <h3>Passo 5 · Il tuo Ritratto di Natale</h3>
+                <h3>{t("Passo 5 · Il tuo Ritratto di Natale")}</h3>
                 <p className="guided-hint">
-                  Combina le tue risposte, l’attività, i timbri e i giochi. Puoi
-                  modificare il testo e scegliere se mostrarlo al gruppo.
+                  {t(
+                    "Combina le tue risposte, l’attività, i timbri e i giochi. Puoi modificare il testo e scegliere se mostrarlo al gruppo.",
+                  )}
                 </p>
               </div>
               <Button
@@ -917,32 +994,37 @@ export function HolidayGuidedWizard({
                 variant="ghost"
                 disabled={busy}
                 onClick={() =>
-                  setField("customDescription", computed.generatedDescription)
+                  setField(
+                    "customDescription",
+                    formatPortraitDescription(computed.descriptionParts, t),
+                  )
                 }
               >
                 <RefreshCw size={15} aria-hidden="true" />
-                Rigenera dalle mie scelte
+                {t("Rigenera dalle mie scelte")}
               </Button>
             </div>
 
             <div className="guided-confidence-bar">
               <div>
                 <strong>
-                  Le tue scelte aiutano a personalizzare il ritratto
+                  {t("Le tue scelte aiutano a personalizzare il ritratto")}
                 </strong>
               </div>
             </div>
 
             <Field
-              label="Descrizione della persona (modificabile)"
-              hint="Lascia invariato o riscrivi come preferisci presentarti al gruppo."
+              label={t("Descrizione della persona (modificabile)")}
+              hint={t(
+                "Lascia invariato o riscrivi come preferisci presentarti al gruppo.",
+              )}
             >
               <textarea
                 rows={3}
                 maxLength={1200}
                 value={
                   value?.customDescription ||
-                  computed.generatedDescription ||
+                  formatPortraitDescription(computed.descriptionParts, t) ||
                   ""
                 }
                 onChange={(event) =>
@@ -961,8 +1043,9 @@ export function HolidayGuidedWizard({
                 }
               />
               <span>
-                Approva e rendi visibile il ritratto natalizio (testo, immagine,
-                grafico e personaggi) ai miei gruppi
+                {t(
+                  "Approva e rendi visibile il ritratto natalizio (testo, immagine, grafico e personaggi) ai miei gruppi",
+                )}
               </span>
             </label>
 
@@ -970,18 +1053,23 @@ export function HolidayGuidedWizard({
               name={profile.name || user?.name}
               nickname={profile.nickname || user?.nickname}
               quote={value?.quote}
-              activity={value?.activity}
+              activity={
+                value?.activityPreset
+                  ? t(value.activityPreset)
+                  : value?.activity
+              }
               spiritScene={computed.spiritScene}
               topCharacter={computed.topCharacter}
             />
 
-            <h4>I tuoi tratti natalizi</h4>
+            <h4>{t("I tuoi tratti natalizi")}</h4>
             <TasteRadarChart tastes={computed.tastes} />
 
-            <h4>I tuoi personaggi di Natale</h4>
+            <h4>{t("I tuoi personaggi di Natale")}</h4>
             <MovieCharacterComparison
               characterMatches={computed.characterMatches}
               matchingExplanation={computed.matchingExplanation}
+              privateSignalParts={computed.privateSignalParts}
             />
           </div>
         ) : null}
@@ -997,7 +1085,7 @@ export function HolidayGuidedWizard({
               onClick={() => setStep((s) => s - 1)}
             >
               <ArrowLeft size={16} aria-hidden="true" />
-              Indietro
+              {t("Indietro")}
             </Button>
           ) : null}
           {step < wizardSteps.length - 1 ? (
@@ -1007,7 +1095,7 @@ export function HolidayGuidedWizard({
               disabled={busy}
               onClick={() => setStep((s) => s + 1)}
             >
-              Salta questo passo
+              {t("Salta questo passo")}
             </button>
           ) : null}
         </div>
@@ -1019,15 +1107,15 @@ export function HolidayGuidedWizard({
               disabled={busy}
               onClick={() => setStep((s) => s + 1)}
             >
-              Continua
+              {t("Continua")}
               <ArrowRight size={16} aria-hidden="true" />
             </Button>
           ) : (
             <Button type="button" busy={busy} disabled={busy} onClick={onSave}>
               <Check size={16} aria-hidden="true" />
               {isDaily
-                ? "Approva e salva per oggi"
-                : "Salva spirito di Natale e ritratto"}
+                ? t("Approva e salva per oggi")
+                : t("Salva spirito di Natale e ritratto")}
             </Button>
           )}
         </div>
@@ -1080,10 +1168,12 @@ export function GroupMemberPortraitCard({
         setGuess("");
         setFeedback(
           res.correct
-            ? "🎉 Risposta esatta! Hai indovinato l’indovinello del giorno!"
+            ? t("🎉 Risposta esatta! Hai indovinato l’indovinello del giorno!")
             : res.hasAnswer
-              ? "Risposta inviata! Non è la parola esatta, ma il tuo tentativo è stato notificato."
-              : "La tua risposta all’indovinello è stata inviata!",
+              ? t(
+                  "Risposta inviata! Non è la parola esatta, ma il tuo tentativo è stato notificato.",
+                )
+              : t("La tua risposta all’indovinello è stata inviata!"),
         );
       } else {
         setNoteText("");
@@ -1102,9 +1192,9 @@ export function GroupMemberPortraitCard({
         <p className="member-status-pill">
           <span aria-hidden="true">{mood.emoji} </span>
           {status.dailyMood.date === romeToday()
-            ? "Oggi mi sento come"
-            : "Ultimo stato"}{" "}
-          {mood.label}
+            ? t("Oggi mi sento come")
+            : t("Ultimo stato")}{" "}
+          {t(mood.label)}
         </p>
       )}
       <div className="member-portrait-header">
@@ -1131,7 +1221,7 @@ export function GroupMemberPortraitCard({
           </div>
           {status.activity ? (
             <p className="member-status-pill">
-              <strong>In corso:</strong> {status.activity}
+              <strong>{t("In corso:")}</strong> {status.activity}
             </p>
           ) : null}
           {status.quote ? (
@@ -1142,7 +1232,7 @@ export function GroupMemberPortraitCard({
 
       {status.iconMessage?.length ? (
         <div className="member-icon-message-box">
-          <span className="eyebrow">Messaggio via icone</span>
+          <span className="eyebrow">{t("Messaggio via icone")}</span>
           <div className="icon-sequence-display">
             {status.iconMessage
               .map((id) => holidayIconMap.get(id)?.emoji || "🎄")
@@ -1154,7 +1244,7 @@ export function GroupMemberPortraitCard({
 
       {Object.keys(status.answers || {}).length > 0 ? (
         <div className="member-daily-answers">
-          <span className="eyebrow">Scelte e Domande del giorno</span>
+          <span className="eyebrow">{t("Scelte e Domande del giorno")}</span>
           <dl className="member-answers-grid">
             {holidayQuestions.map((q) => {
               const chosen = q.options.find(
@@ -1163,8 +1253,8 @@ export function GroupMemberPortraitCard({
               if (!chosen) return null;
               return (
                 <div key={q.id}>
-                  <dt>{q.shortLabel}</dt>
-                  <dd>{chosen.label}</dd>
+                  <dt>{t(q.shortLabel)}</dt>
+                  <dd>{t(chosen.label)}</dd>
                 </div>
               );
             })}
@@ -1174,7 +1264,7 @@ export function GroupMemberPortraitCard({
 
       {status.riddle ? (
         <div className="member-riddle-box">
-          <span className="eyebrow">Indovinello del giorno</span>
+          <span className="eyebrow">{t("Indovinello del giorno")}</span>
           <p className="riddle-question-text">{status.riddle}</p>
           {status.riddleHint ? (
             <div>
@@ -1184,7 +1274,7 @@ export function GroupMemberPortraitCard({
                 onClick={() => setShowHint(!showHint)}
               >
                 <HelpCircle size={15} aria-hidden="true" />
-                {showHint ? "Nascondi indizio" : "Mostra un indizio"}
+                {showHint ? t("Nascondi indizio") : t("Mostra un indizio")}
               </button>
               {showHint ? (
                 <p className="profile-footnote">{status.riddleHint}</p>
@@ -1201,19 +1291,21 @@ export function GroupMemberPortraitCard({
                 }
               }}
             >
-              <Field label="Prova a indovinare (notifica chi l’ha scritto)">
+              <Field
+                label={t("Prova a indovinare (notifica chi l’ha scritto)")}
+              >
                 <input
                   type="text"
                   maxLength={120}
                   required
-                  placeholder="Scrivi la tua soluzione…"
+                  placeholder={t("Scrivi la tua soluzione…")}
                   value={guess}
                   disabled={busy}
                   onChange={(event) => setGuess(event.target.value)}
                 />
               </Field>
               <Button type="submit" busy={busy} disabled={!guess.trim()}>
-                <Send size={15} aria-hidden="true" /> Invia risposta
+                <Send size={15} aria-hidden="true" /> {t("Invia risposta")}
               </Button>
             </form>
           ) : null}
@@ -1224,14 +1316,18 @@ export function GroupMemberPortraitCard({
         <>
           <div className="member-portrait-description">
             <div className="profile-badge-header">
-              <span className="eyebrow">Ritratto di Natale</span>
+              <span className="eyebrow">{t("Ritratto di Natale")}</span>
               {portrait.matchingExplanation?.provisional && (
                 <span className="quiet">
-                  Un primo ritratto, ancora in aggiornamento
+                  {t("Un primo ritratto, ancora in aggiornamento")}
                 </span>
               )}
             </div>
-            <p>{portrait.finalDescription}</p>
+            <p>
+              {portrait.descriptionParts
+                ? formatPortraitDescription(portrait.descriptionParts, t)
+                : portrait.finalDescription}
+            </p>
             <FestiveProgressBadge
               progress={
                 portrait.festiveProgress ||
@@ -1250,10 +1346,10 @@ export function GroupMemberPortraitCard({
             topCharacter={portrait.topCharacter}
           />
 
-          <h4>Tratti natalizi</h4>
+          <h4>{t("Tratti natalizi")}</h4>
           <TasteRadarChart tastes={portrait.tastes} />
 
-          <h4>Personaggi di Natale più affini</h4>
+          <h4>{t("Personaggi di Natale più affini")}</h4>
           <MovieCharacterComparison
             characterMatches={portrait.characterMatches}
             matchingExplanation={portrait.matchingExplanation}
@@ -1261,32 +1357,35 @@ export function GroupMemberPortraitCard({
           />
         </>
       ) : (
-        <p className="quiet">Il ritratto non è condiviso con il gruppo.</p>
+        <p className="quiet">
+          {t("Il ritratto non è condiviso con il gruppo.")}
+        </p>
       )}
 
       {!isMe ? (
         <div className="member-send-note-box">
           <h4>
-            <MessageSquareHeart size={18} aria-hidden="true" /> Manda un
-            messaggio natalizio con icona
+            <MessageSquareHeart size={18} aria-hidden="true" />{" "}
+            {t("Manda un messaggio natalizio con icona")}
           </h4>
           <p className="profile-footnote">
-            Scegli un’icona e lascia un saluto o un indizio: se ha attivato gli
-            avvisi, riceverà una notifica via email o Telegram.
+            {t(
+              "Scegli un’icona e lascia un saluto o un indizio: se ha attivato gli avvisi, riceverà una notifica via email o Telegram.",
+            )}
           </p>
           <div className="chip-suggestions">
             {quickReactions.map((r) => (
               <button
-                key={r.text}
+                key={t(r.text)}
                 type="button"
                 className="suggestion-chip"
                 disabled={busy}
                 onClick={() => {
                   setNoteIcon(r.icon);
-                  setNoteText(r.text);
+                  setNoteText(t(r.text));
                 }}
               >
-                {r.text}
+                {t(r.text)}
               </button>
             ))}
           </div>
@@ -1303,7 +1402,7 @@ export function GroupMemberPortraitCard({
             }}
           >
             <div className="form-grid">
-              <Field label="Icona natalizia">
+              <Field label={t("Icona natalizia")}>
                 <select
                   value={noteIcon}
                   disabled={busy}
@@ -1311,17 +1410,17 @@ export function GroupMemberPortraitCard({
                 >
                   {holidayIcons.map(({ id, emoji, label }) => (
                     <option key={id} value={id}>
-                      {emoji} {label}
+                      {emoji} {t(label)}
                     </option>
                   ))}
                 </select>
               </Field>
-              <Field label="Il tuo messaggio o commento">
+              <Field label={t("Il tuo messaggio o commento")}>
                 <input
                   type="text"
                   maxLength={200}
                   required
-                  placeholder="Es. Bellissimo il maglione con la renna!"
+                  placeholder={t("Es. Bellissimo il maglione con la renna!")}
                   value={noteText}
                   disabled={busy}
                   onChange={(event) => setNoteText(event.target.value)}
@@ -1329,7 +1428,8 @@ export function GroupMemberPortraitCard({
               </Field>
             </div>
             <Button type="submit" variant="outline" busy={busy}>
-              <Send size={15} aria-hidden="true" /> Invia al compagno di gruppo
+              <Send size={15} aria-hidden="true" />{" "}
+              {t("Invia al compagno di gruppo")}
             </Button>
           </form>
         </div>
@@ -1340,7 +1440,7 @@ export function GroupMemberPortraitCard({
 
       {memberInteractions.length > 0 ? (
         <div className="member-interactions-feed">
-          <h4>Risposte agli indovinelli e pensieri ricevuti</h4>
+          <h4>{t("Risposte agli indovinelli e pensieri ricevuti")}</h4>
           <ul className="member-interactions-list">
             {memberInteractions.slice(0, 8).map((item) => (
               <li key={item.id}>

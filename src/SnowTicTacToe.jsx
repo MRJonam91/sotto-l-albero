@@ -1,3 +1,4 @@
+import { t } from "./i18n.js";
 import { Circle, PawPrint, Snowflake, TreePine } from "lucide-react";
 import { evaluateBoard } from "../shared/snowTicTacToe.js";
 import "./snow-tris.css";
@@ -6,7 +7,7 @@ export default function SnowTicTacToe({
   challenge,
   onMove,
   busy,
-  opponentName = "il pupazzo di neve",
+  opponentName = t("il pupazzo di neve"),
 }) {
   const { board, myMark = "X", status } = challenge;
   const result = evaluateBoard(board);
@@ -14,34 +15,35 @@ export default function SnowTicTacToe({
   const myTurn = challenge.myTurn ?? result.turn === myMark;
   const finished = result.done || expired;
   const message = expired
-    ? "Il tempo per questa partita è scaduto."
+    ? t("Il tempo per questa partita è scaduto.")
     : result.draw
-      ? "Pareggio! La neve è piena di impronte."
+      ? t("Pareggio! La neve è piena di impronte.")
       : result.winner
         ? result.winner === myMark
-          ? "Hai fatto tris!"
-          : `Ha fatto tris ${opponentName}.`
+          ? t("Hai fatto tris!")
+          : t("Ha fatto tris {opponentName}.", { opponentName })
         : busy
-          ? "Posiamo il segno sulla neve…"
+          ? t("Posiamo il segno sulla neve…")
           : myTurn
-            ? "Tocca a te: scegli una casella libera."
-            : `Aspettiamo la mossa di ${opponentName}.`;
+            ? t("Tocca a te: scegli una casella libera.")
+            : t("Aspettiamo la mossa di {opponentName}.", { opponentName });
   return (
     <div className="snow-tris">
       <div className="snow-tris-scene" aria-hidden="true">
         <TreePine className="snow-tris-tree" />
         <Snowflake />
-        <span>Una piccola radura, tre segni in fila.</span>
+        <span>{t("Una piccola radura, tre segni in fila.")}</span>
         <TreePine />
       </div>
       <p className="snow-tris-legend">
-        Tu: {myMark === "X" ? "impronte (X)" : "palline (O)"} · Tre in fila, in
-        colonna o in diagonale.
+        {t("Tu: {state} · Tre in fila, in colonna o in diagonale.", {
+          state: myMark === "X" ? t("impronte (X)") : t("palline (O)"),
+        })}
       </p>
       <div
         className="snow-tris-board"
         role="group"
-        aria-label="Tris sulla neve, nove caselle"
+        aria-label={t("Tris sulla neve, nove caselle")}
       >
         {board.map((mark, position) => (
           <button
@@ -49,7 +51,16 @@ export default function SnowTicTacToe({
             type="button"
             className="snow-tris-cell"
             data-winning={result.line.includes(position)}
-            aria-label={`Riga ${Math.floor(position / 3) + 1}, colonna ${(position % 3) + 1}: ${mark === "X" ? "impronta X" : mark === "O" ? "pallina O" : "libera"}`}
+            aria-label={t("Riga {row}, colonna {column}: {state}", {
+              row: Math.floor(position / 3) + 1,
+              column: (position % 3) + 1,
+              state:
+                mark === "X"
+                  ? t("impronta X")
+                  : mark === "O"
+                    ? t("pallina O")
+                    : t("libera"),
+            })}
             disabled={busy || finished || !myTurn || !!mark}
             onClick={() => onMove({ position })}
           >

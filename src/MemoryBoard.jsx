@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { t, getLocale } from "./i18n.js";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import {
   Bell,
   Check,
@@ -70,7 +71,7 @@ function CardFaces({ name, paired, position }) {
         {face && (
           <>
             <CardArt key={face} name={face} />
-            <span className="memory-symbol">{face}</span>
+            <span className="memory-symbol">{t(face)}</span>
           </>
         )}
         {paired && (
@@ -91,6 +92,7 @@ export default function MemoryBoard({
   busy,
   onMove,
 }) {
+  const instructionsId = useId();
   const moveCallback = useRef(onMove);
   const inFlight = useRef(false);
   const attemptedCover = useRef(null);
@@ -143,18 +145,39 @@ export default function MemoryBoard({
   const symbols = cards.map((card) => card.name ?? card.symbol);
   const visible = symbols.filter((name, index) => name && !cards[index].paired);
   const pairCount = cards.filter((card) => card.paired).length / 2;
-  const count = `${pairCount} ${pairCount === 1 ? "coppia trovata" : "coppie trovate"} su ${cards.length / 2}.`;
+  const count =
+    pairCount === 1
+      ? t("1 coppia trovata su {total}.", { total: cards.length / 2 })
+      : t("{pairCount} coppie trovate su {total}.", {
+          pairCount,
+          total: cards.length / 2,
+        });
   const retry = needsCover && coverFailure === revision;
   let feedback = count;
-  if (done) feedback = "Hai trovato tutte le coppie!";
+  if (done) feedback = t("Hai trovato tutte le coppie!");
   else if (retry)
-    feedback = "Le carte sono ancora scoperte. Riprova a coprirle.";
+    feedback = t("Le carte sono ancora scoperte. Riprova a coprirle.");
   else if (needsCover)
-    feedback = `${visible.join(" e ")}. Le carte si ricoprono tra poco.`;
-  else if (visible.length) feedback = `${visible[0]}. Gira un’altra carta.`;
+    feedback = t("{cards}. Le carte si ricoprono tra poco.", {
+      cards: new Intl.ListFormat(getLocale()).format(
+        visible.map((symbol) => t(symbol)),
+      ),
+    });
+  else if (visible.length)
+    feedback = t("{card}. Gira un’altra carta.", { card: t(visible[0]) });
 
   return (
-    <div className="memory-board" role="group" aria-label="Tavolo del Memory">
+    <div
+      className="memory-board"
+      role="group"
+      aria-label={t("Tavolo del Memory")}
+      aria-describedby={instructionsId}
+    >
+      <p id={instructionsId} className="memory-keyboard-help">
+        {t(
+          "Usa le frecce per muoverti tra le carte. Premi Invio o Spazio per girarne una.",
+        )}
+      </p>
       <ol className="memory-grid">
         {cards.map(({ paired }, index) => {
           const name = symbols[index];
@@ -165,9 +188,12 @@ export default function MemoryBoard({
                 ? "mismatch"
                 : "visible"
               : "covered";
-          const description = name
-            ? `${name.toLocaleLowerCase("it")}${paired ? ", coppia trovata" : ""}`
-            : "coperta";
+          const symbol = name && t(name).toLocaleLowerCase(getLocale());
+          const description = symbol
+            ? paired
+              ? t("{symbol}, coppia trovata", { symbol })
+              : symbol
+            : t("coperta");
           const unavailable = !!name || needsCover || busy || done;
           return (
             <li key={index}>
@@ -177,7 +203,10 @@ export default function MemoryBoard({
                 }}
                 className={`memory-card ${state}`}
                 type="button"
-                aria-label={`Carta ${index + 1}, ${description}`}
+                aria-label={t("Carta {number}, {description}", {
+                  number: index + 1,
+                  description,
+                })}
                 aria-disabled={unavailable}
                 onKeyDown={(event) => moveFocus(event, index)}
                 onClick={() => {
@@ -205,7 +234,7 @@ export default function MemoryBoard({
           busy={busy}
           onClick={coverCards}
         >
-          Copri le carte
+          {t("Copri le carte")}
         </Button>
       ) : null}
     </div>

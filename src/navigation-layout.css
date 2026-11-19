@@ -1,0 +1,221 @@
+.groups-toolbar,
+.groups-collectibles,
+.games-heading-actions,
+.event-next-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.groups-toolbar {
+  justify-content: space-between;
+  margin-block: 0 20px;
+}
+
+.groups-collectibles {
+  min-width: 0;
+}
+
+.groups-collectibles .hunt-object {
+  position: static;
+}
+
+.event-next-actions {
+  margin-block: 18px 24px;
+}
+
+.event-overview,
+.guest-list,
+.wishlist-shopping,
+.games-play-area {
+  min-width: 0;
+}
+
+.event-columns {
+  align-items: start;
+  gap: clamp(22px, 4vw, 58px);
+}
+
+.event-page .tabs {
+  border-radius: 10px 10px 0 0;
+  gap: 0 8px;
+}
+
+.event-page .tabs button {
+  min-height: 46px;
+  border-radius: 6px 6px 0 0;
+  padding-inline: 12px;
+  text-wrap: pretty;
+}
+
+.event-page .tabs button.selected {
+  background: #214137;
+}
+
+.section-jump-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.section-jump-links a {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--gold);
+  text-decoration: none;
+}
+
+.section-jump-links a:hover {
+  background: #214137;
+  text-decoration: underline;
+}
+
+.event-page [id^="event-"],
+.competition [id^="competition-"],
+#wishlist-shopping {
+  scroll-margin-block-start: 16px;
+}
+
+.wishlist-shopping {
+  margin-top: clamp(30px, 6vw, 64px);
+  padding-top: clamp(20px, 3vw, 36px);
+  border-top: 1px solid var(--line);
+}
+
+.wishlist-shop-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
+.games-play-area:not([hidden]) {
+  margin-block: 14px 32px;
+  padding-block-end: 24px;
+  border-bottom: 1px solid var(--line);
+  scroll-margin-block-start: 12px;
+}
+
+#competition-ranking {
+  margin-top: clamp(24px, 4vw, 44px);
+}
+
+.site-affiliate-info,
+.site-affiliate-info p {
+  display: none;
+}
+
+.site-affiliate-info {
+  flex-basis: 100%;
+  min-width: 0;
+  text-align: start;
+  color: #f0e1c4;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.site-affiliate-info p {
+  margin: 2px 0 0;
+}
+
+.site-affiliate-info.affiliate-active,
+.site-affiliate-info.affiliate-active #amazon-site-information,
+.site:has(.recipient-wishes [data-amazon-affiliate]) .site-affiliate-info,
+.site:has(.recipient-wishes [data-amazon-affiliate="site"])
+  #amazon-site-information,
+.site:has(.recipient-wishes [data-amazon-affiliate="external"])
+  #amazon-external-information {
+  display: block;
+}
+
+.site:has(.affiliate-active, .recipient-wishes [data-amazon-affiliate])
+  .site-footer {
+  flex-wrap: wrap;
+}
+
+.site:has(.recipient-wishes [data-amazon-affiliate]) .site-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 4;
+  gap: 6px 18px;
+  padding-block: 10px;
+  background: #102822;
+  border-top: 1px solid #967952;
+}
+
+.site:has(.recipient-wishes [data-amazon-affiliate])
+  .site-footer
+  > span:first-of-type {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .auth-layout {
+    padding-top: 20px;
+    gap: 20px;
+  }
+
+  .auth-intro h1 {
+    font-size: clamp(32px, 7.2vw, 46px);
+    margin-bottom: 10px;
+  }
+
+  .event-page .event-heading {
+    margin-block: 6px 14px;
+    gap: 8px;
+  }
+
+  .event-page .event-heading h1 {
+    font-size: clamp(36px, 9vw, 48px);
+  }
+
+  .event-page .event-facts {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
+    gap: 6px 12px;
+    padding-bottom: 12px;
+  }
+
+  .event-page .event-facts > span:first-child {
+    grid-area: 1 / 1;
+  }
+
+  .event-page .event-facts > span:nth-child(2) {
+    grid-area: 1 / 2 / 3;
+    align-self: center;
+  }
+
+  .event-page .event-facts > span:last-child {
+    grid-area: 2 / 1;
+  }
+
+  .event-page .event-facts svg {
+    flex: none;
+    width: 15px;
+    height: 15px;
+  }
+
+  .event-page .tabs {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 132px), 1fr));
+    gap: 4px;
+    margin-bottom: 20px;
+  }
+
+  .event-page .tabs button {
+    text-align: start;
+    padding: 6px 8px;
+  }
+
+  .event-page .tabs svg {
+    flex-shrink: 0;
+  }
+}

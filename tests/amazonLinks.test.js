@@ -122,7 +122,9 @@ describe("Amazon wishlist links", () => {
         },
       }),
     );
-    expect(markup).toContain("Link affiliato Amazon");
+    expect(markup).toContain("Apri su Amazon");
+    expect(markup).toContain('aria-describedby="amazon-external-information"');
+    expect(markup).not.toContain("Link affiliato Amazon");
     expect(markup).toContain('rel="sponsored noopener noreferrer"');
     expect(markup).toContain(
       "Ritiro a Torino &lt;script&gt;alert(1)&lt;/script&gt;",

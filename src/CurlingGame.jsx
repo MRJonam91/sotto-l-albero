@@ -1,3 +1,4 @@
+import { subscribeLocale, t } from "./i18n.js";
 import { useEffect, useRef, useState } from "react";
 import { createCurlingGame } from "./curlingEngine.js";
 import { api } from "./api.js";
@@ -22,9 +23,7 @@ export default function CurlingGame({ onClose }) {
     } catch (error) {
       if (alive.current) {
         setSaveError(true);
-        setParticipation(
-          `Partita conclusa. Partecipazione non salvata: ${error.message}`,
-        );
+        setParticipation(error.message);
       }
     } finally {
       if (alive.current) setSaving(false);
@@ -34,6 +33,8 @@ export default function CurlingGame({ onClose }) {
     alive.current = true;
     const dispose = createCurlingGame(root.current, {
       onComplete: saveParticipation,
+      translate: t,
+      subscribeLocale,
     });
     return () => {
       alive.current = false;
@@ -44,55 +45,62 @@ export default function CurlingGame({ onClose }) {
     <section
       ref={root}
       className="curling-game holiday-game paper"
-      aria-label="Curling dei regali"
+      aria-label={t("Curling dei regali")}
     >
       <div className="f1-intro">
         <span className="f1-eyebrow">
-          IL CORTILE DELLA LANTERNA · CONTRO IL COMPUTER
+          {t("IL CORTILE DELLA LANTERNA · CONTRO IL COMPUTER")}
         </span>
-        <h2 id="curling-title">Un regalo sul ghiaccio.</h2>
+        <h2 id="curling-title">{t("Un regalo sul ghiaccio.")}</h2>
         <p>
-          Trascina il pacco verso di te, prendi la mira e lascia andare. Vicino
-          alla luce vale di più. E puoi spostare i regali del computer.
+          {t(
+            "Trascina il pacco verso di te, prendi la mira e lascia andare. Vicino alla luce vale di più. E puoi spostare i regali del computer.",
+          )}
         </p>
       </div>
       <div className="f1-score" aria-live="polite">
-        <b data-score="">Tu: 0 · Computer: 0</b>
+        <b data-score="" />
         <span data-turn=""></span>
       </div>
       <div className="f1-rink">
         <canvas
-          aria-label="Pista di curling. Anelli in alto, lancio in basso. Usa il pulsante pacco per trascinare oppure i comandi da tastiera."
+          aria-label={t(
+            "Pista di curling. Anelli in alto, lancio in basso. Usa il pulsante pacco per trascinare oppure i comandi da tastiera.",
+          )}
           tabIndex="0"
         ></canvas>
         <button
           className="f1-handle"
           data-handle=""
-          aria-label="Pacco: trascina verso di te e rilascia per lanciare. Escape annulla."
+          aria-label={t(
+            "Pacco: trascina verso di te e rilascia per lanciare. Escape annulla.",
+          )}
         >
           <span></span>
         </button>
-        <span className="f1-instruction">TIRA VERSO DI TE · POI LASCIA</span>
+        <span className="f1-instruction">
+          {t("TIRA VERSO DI TE · POI LASCIA")}
+        </span>
       </div>
       <p className="curling-status" data-status="" role="status"></p>
       <div className="controls">
         <button className="primary" data-launch="">
-          Lancia con questa mira
+          {t("Lancia con questa mira")}
         </button>
-        <button data-cancel="">Annulla mira</button>
-        <button data-reset="">Rivincita</button>
+        <button data-cancel="">{t("Annulla mira")}</button>
+        <button data-reset="">{t("Rivincita")}</button>
       </div>
       <details className="f1-settings">
-        <summary>Gioca da tastiera · regola la mira</summary>
+        <summary>{t("Gioca da tastiera · regola la mira")}</summary>
         <div className="controls">
-          <button data-left="" aria-label="Mira a sinistra">
-            ← Mira
+          <button data-left="" aria-label={t("Mira a sinistra")}>
+            {t("← Mira")}
           </button>
-          <button data-right="" aria-label="Mira a destra">
-            Mira →
+          <button data-right="" aria-label={t("Mira a destra")}>
+            {t("Mira →")}
           </button>
           <label>
-            Angolo{" "}
+            {t("Angolo ")}
             <input
               data-angle=""
               type="range"
@@ -103,7 +111,7 @@ export default function CurlingGame({ onClose }) {
             <output data-angle-out="">0°</output>
           </label>
           <label>
-            Forza{" "}
+            {t("Forza ")}
             <input
               data-force=""
               type="range"
@@ -115,26 +123,32 @@ export default function CurlingGame({ onClose }) {
           </label>
         </div>
         <p>
-          Frecce ← →: mira. ↑ ↓: forza. Invio: lancia. Esc: annulla. Il cerchio
-          tratteggiato mostra l’arresto previsto senza urti. Anelli: 3, 2, 1
-          punti; sulla linea vale l’esterno. Un rimbalzo laterale è permesso, il
-          secondo elimina il pacco. I punti cambiano anche dopo gli urti.
+          {t(
+            "Frecce ← →: mira. ↑ ↓: forza. Invio: lancia. Esc: annulla. Il cerchio tratteggiato mostra l’arresto previsto senza urti. Anelli: 3, 2, 1 punti; sulla linea vale l’esterno. Un rimbalzo laterale è permesso, il secondo elimina il pacco. I punti cambiano anche dopo gli urti.",
+          )}
         </p>
       </details>
       <p className="profile">
-        Sei tiri alternati · tre pacchi per te e tre per il computer · nella
-        rivincita cambia chi comincia. Una partita conclusa contribuisce al
-        ritratto come partecipazione dichiarata dal dispositivo: non salviamo
-        punteggi e non assegniamo punti in classifica.
+        {t(
+          "Sei tiri alternati · tre pacchi per te e tre per il computer · nella rivincita cambia chi comincia. Una partita conclusa contribuisce al ritratto come partecipazione dichiarata dal dispositivo: non salviamo punteggi e non assegniamo punti in classifica.",
+        )}
       </p>
-      {participation && <p role="status">{participation}</p>}
+      {participation && (
+        <p role="status">
+          {saveError
+            ? t("Partita conclusa. Partecipazione non salvata: {message}", {
+                message: t(participation),
+              })
+            : t(participation)}
+        </p>
+      )}
       {saveError && (
         <button type="button" disabled={saving} onClick={saveParticipation}>
-          Riprova a salvare la partecipazione
+          {t("Riprova a salvare la partecipazione")}
         </button>
       )}
       <button type="button" className="button ghost" onClick={onClose}>
-        Torna ai giochi
+        {t("Torna ai giochi")}
       </button>
     </section>
   );

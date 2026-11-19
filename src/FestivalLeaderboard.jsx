@@ -1,9 +1,11 @@
+import { t } from "./i18n.js";
 import { useId, useState } from "react";
 import { Sparkles } from "lucide-react";
 import Avatar from "./Avatar.jsx";
 import NameTag from "./NameTag.jsx";
 import ScoreVessel from "./ScoreVessel.jsx";
 import { Button, Field, Modal } from "./ui.jsx";
+import { stampAwards } from "../shared/stamps.js";
 
 const views = {
   ornaments: "Palline di Natale",
@@ -26,35 +28,58 @@ const scoreLabels = {
 function ScoreBreakdown({ row, onClose }) {
   const stampPoints = row.stampPoints ?? 0;
   const stampCount = stampPoints / 5;
+  const completions = row.stampCompletions || 0;
   return (
-    <Modal title={`Dettaglio punti di ${row.name}`} onClose={onClose}>
+    <Modal
+      title={t("Dettaglio punti di {name}", { name: row.name })}
+      onClose={onClose}
+    >
       <p>
-        Conta il miglior risultato di ogni prova. Ogni timbro della caccia al
-        tesoro vale 5 punti, una volta sola.
+        {t(
+          "Conta il miglior risultato di ogni prova. I timbri della caccia valgono 5 punti ciascuno. Quiz e Memory contano per i bonus raccolta.",
+        )}
       </p>
       <dl className="competition-breakdown">
         {Object.entries(scoreLabels).map(([game, title]) => (
           <div key={game}>
-            <dt>{title}</dt>
-            <dd>{row.scores?.[game] ?? row[game] ?? 0} punti</dd>
+            <dt>{t(title)}</dt>
+            <dd>
+              {t("{value} punti", {
+                value: row.scores?.[game] ?? row[game] ?? 0,
+              })}
+            </dd>
           </div>
         ))}
         <div>
-          <dt>Timbri distinti ({stampCount} × 5)</dt>
-          <dd>{stampPoints} punti</dd>
+          <dt>{t("Timbri distinti ({stampCount} × 5)", { stampCount })}</dt>
+          <dd>{t("{stampPoints} punti", { stampPoints })}</dd>
         </div>
+        {[
+          [completions & 1, "Raccolta base", stampAwards.base],
+          [completions & 2, "Timbri giornalieri", stampAwards.seasonal],
+          [completions === 3, "Album completo", stampAwards.all],
+        ]
+          .filter(([earned]) => Boolean(earned))
+          .map(([, label, points]) => (
+            <div key={label}>
+              <dt>{t(label)}</dt>
+              <dd>{t("+{points} punti bonus", { points })}</dd>
+            </div>
+          ))}
         {row.adjustment !== 0 && row.adjustment != null && (
           <div>
-            <dt>Modifiche dell’organizzatore</dt>
+            <dt>{t("Modifiche dell’organizzatore")}</dt>
             <dd>
-              {row.adjustment > 0 ? "+" : ""}
-              {row.adjustment} punti
+              {t("{state}{adjustment} punti", {
+                state: row.adjustment > 0 ? "+" : "",
+                adjustment: row.adjustment,
+              })}
             </dd>
           </div>
         )}
         <div className="competition-breakdown-total">
-          <dt>Totale in classifica</dt>
-          <dd>{row.score} punti</dd>
+          <dt>{t("Totale in classifica")}</dt>
+          <dd>{t("{score} punti", { score: row.score })}</dd>
         </div>
       </dl>
     </Modal>
@@ -110,9 +135,9 @@ export default function FestivalLeaderboard({
           )}
           <span
             className="competition-rank"
-            aria-label={`Posizione ${row.rank}`}
+            aria-label={t("Posizione {rank}", { rank: row.rank })}
           >
-            {row.rank}º
+            {row.rank}
           </span>
           <Avatar
             userId={row.userId}
@@ -121,7 +146,7 @@ export default function FestivalLeaderboard({
           />
           <strong className="competition-name">
             {row.name}
-            {row.userId === userId ? " (tu)" : ""}
+            {row.userId === userId ? t(" (tu)") : ""}
             {memberById.get(row.userId)?.badge ? (
               <>
                 {" "}
@@ -140,25 +165,27 @@ export default function FestivalLeaderboard({
               </small>
             ) : null}
           </strong>
-          <strong className="competition-points">{row.score} pt</strong>
+          <strong className="competition-points">
+            {t("{score} pt", { score: row.score })}
+          </strong>
           <div className="competition-row-actions">
             <Button
               type="button"
               variant="ghost"
-              aria-label={`Dettaglio punti di ${row.name}`}
+              aria-label={t("Dettaglio punti di {name}", { name: row.name })}
               onClick={() => setDetailsId(row.userId)}
             >
-              Dettaglio punti
+              {t("Dettaglio punti")}
             </Button>
             {onAdjust && (
               <Button
                 type="button"
                 variant="outline"
-                aria-label={`Modifica punti di ${row.name}`}
+                aria-label={t("Modifica punti di {name}", { name: row.name })}
                 disabled={busy}
                 onClick={() => onAdjust(row)}
               >
-                Modifica
+                {t("Modifica")}
               </Button>
             )}
           </div>
@@ -173,14 +200,15 @@ export default function FestivalLeaderboard({
     >
       <div className="competition-standings-head">
         <div>
-          <h3 id={heading}>Classifica di gruppo</h3>
+          <h3 id={heading}>{t("Classifica di gruppo")}</h3>
           <p>
-            Una clessidra per ogni partecipante confermato. Il livello mostra i
-            punti di ciascuno rispetto al primo in classifica.
+            {t(
+              "Una clessidra per ogni partecipante confermato. Il livello mostra i punti di ciascuno rispetto al primo in classifica.",
+            )}
           </p>
         </div>
         <div className="vessel-tools">
-          <Field label="Visualizzazione della classifica">
+          <Field label={t("Visualizzazione della classifica")}>
             <select
               value={view}
               onChange={(event) => {
@@ -195,7 +223,7 @@ export default function FestivalLeaderboard({
             >
               {Object.entries(views).map(([value, label]) => (
                 <option key={value} value={value}>
-                  {label}
+                  {t(label)}
                 </option>
               ))}
             </select>
@@ -207,20 +235,23 @@ export default function FestivalLeaderboard({
               variant="ghost"
               onClick={() => setReplay((previous) => previous + 1)}
             >
-              <Sparkles size={16} aria-hidden="true" /> Rianima le clessidre
+              <Sparkles size={16} aria-hidden="true" />
+              {t("Rianima le clessidre")}
             </Button>
           )}
         </div>
       </div>
       {!rows.length ? (
-        <p>La classifica mostrerà le persone con un’iscrizione approvata.</p>
+        <p>
+          {t("La classifica mostrerà le persone con un’iscrizione approvata.")}
+        </p>
       ) : view === "list" ? (
         list
       ) : (
         <div
           className="competition-vessels"
           role="region"
-          aria-label="Clessidre della classifica"
+          aria-label={t("Clessidre della classifica")}
           tabIndex={0}
         >
           {list}

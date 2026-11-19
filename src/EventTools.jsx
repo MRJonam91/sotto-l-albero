@@ -1,3 +1,4 @@
+import { t } from "./i18n.js";
 import { useRef, useState } from "react";
 import { api } from "./api.js";
 import { Button, Field, Notice } from "./ui.jsx";
@@ -57,44 +58,47 @@ export default function EventTools({ event, locked, action }) {
 
   return (
     <section className="admin-section">
-      <h2>Account e avvisi</h2>
+      <h2>{t("Account e avvisi")}</h2>
       {!locked && (
         <details className="disclosure">
-          <summary>Prepara un account</summary>
+          <summary>{t("Prepara un account")}</summary>
           <p>
-            Per entrare basta un codice via email. Chi ha già un account entra
-            nel gruppo con lo stesso profilo.
+            {t(
+              "Per entrare basta un codice via email. Chi ha già un account entra nel gruppo con lo stesso profilo.",
+            )}
           </p>
           <form onSubmit={prepareAccount}>
             <div className="form-grid">
               <Field
-                label="Nome della persona"
+                label={t("Nome della persona")}
                 name="name"
                 maxLength={80}
                 required
               />
               <Field
-                label="Email della persona"
+                label={t("Email della persona")}
                 name="email"
                 type="email"
                 maxLength={254}
                 required
               />
             </div>
-            <Button busy={preparing}>Prepara il posto</Button>
+            <Button busy={preparing}>{t("Prepara il posto")}</Button>
           </form>
         </details>
       )}
       <details className="disclosure">
-        <summary>Scrivi al gruppo</summary>
-        <p>Riceverà il messaggio chi ha attivato gli avvisi nel profilo.</p>
+        <summary>{t("Scrivi al gruppo")}</summary>
+        <p>
+          {t("Riceverà il messaggio chi ha attivato gli avvisi nel profilo.")}
+        </p>
         <form onSubmit={announce}>
-          <Field label="Messaggio per i partecipanti">
+          <Field label={t("Messaggio per i partecipanti")}>
             <textarea name="message" maxLength={1000} rows={4} required />
           </Field>
           <Notice error>{error}</Notice>
-          <Notice>{notice}</Notice>
-          <Button busy={sending}>Invia al gruppo</Button>
+          <Notice>{t(notice)}</Notice>
+          <Button busy={sending}>{t("Invia al gruppo")}</Button>
         </form>
       </details>
     </section>

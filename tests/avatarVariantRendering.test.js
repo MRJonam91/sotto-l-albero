@@ -158,6 +158,24 @@ it("never lets a delayed illustrated request replace a newly selected classic re
   expect(classic).toHaveBeenCalledTimes(1);
 });
 
+it("uses the selected brush strength for both preview and export, caching each grade separately", async () => {
+  const { images, createCanvas } = setup();
+  const { drawAvatar, preloadSelectedAvatarTemplate } =
+    await import("../src/avatarCanvas.js");
+  const base = { scene: "elf", variant: "front" };
+  const ready = preloadSelectedAvatarTemplate(base);
+  images[0].onload();
+  await ready;
+  const input = portrait();
+  for (const paintStrength of [0.35, 1, 0.35]) {
+    for (const size of [256, 1024])
+      drawAvatar(createCanvas(), input, { ...base, paintStrength }, size);
+  }
+  expect(grade.mock.calls.map((call) => call[3].paintStrength)).toEqual([
+    0.35, 1,
+  ]);
+});
+
 it("waits for the selected overlay before thumbnail encoding, without preloading other variants", async () => {
   const { images, createCanvas } = setup();
   const encoded = vi.fn();
@@ -250,6 +268,15 @@ it("restores only segmented hair above hatless glass artwork while hats retain t
   const guard = canvas.ctx.rect.mock.calls.at(-1);
   expect(guard[1] + guard[3]).toBeLessThanOrEqual(170); // bottom of face, above the collar
 
+  for (const scene of ["cozy", "ornament"]) {
+    const loaded = preloadSelectedAvatarTemplate({ scene, variant: "front" });
+    images.at(-1).onload();
+    await loaded;
+    const hatless = createCanvas();
+    drawAvatar(hatless, input, { scene, variant: "front", zoom: 1 });
+    expect(hatless.ctx.drawImage, scene).toHaveBeenCalledTimes(3);
+    expect(hatless.ctx.ellipse, scene).toHaveBeenCalled();
+  }
   const hatReady = preloadSelectedAvatarTemplate({
     scene: "elf",
     variant: "front",
@@ -282,7 +309,10 @@ it("uses the continuous forehead-and-hair cap instead of leaving a sky band betw
     scene: "snowglobe",
     variant: "front",
     zoom: 1,
+    paintStrength: 1,
   });
+  expect(grade).toHaveBeenCalledTimes(1);
+  expect(grade.mock.calls[0][3].paintStrength).toBe(1);
   const allDraws = contexts.flatMap((context) => context.drawImage.mock.calls);
   expect(
     allDraws.filter((call) => call[0] === input.source.headCapMask),

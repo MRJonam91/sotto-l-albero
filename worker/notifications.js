@@ -1,3 +1,4 @@
+import { mailText } from "./mailText.js";
 import { all, first, run, sendMail } from "./auth.js";
 import {
   digest,
@@ -22,11 +23,6 @@ const dateLabels = {
   draw_at: "Estrazione",
   gift_at: "Scambio dei regali",
 };
-const romeDate = new Intl.DateTimeFormat("it-IT", {
-  timeZone: "Europe/Rome",
-  dateStyle: "long",
-  timeStyle: "short",
-});
 const romeClock = new Intl.DateTimeFormat("en-GB", {
   timeZone: "Europe/Rome",
   year: "numeric",
@@ -326,7 +322,7 @@ async function enqueueChallenges(db, now, enabled, { year }) {
 async function eligibility(db, job) {
   return first(
     db,
-    `SELECT e.*,u.email,u.notify_email,u.notify_telegram,u.telegram_chat_id
+    `SELECT e.*,u.email,u.locale,u.notify_email,u.notify_telegram,u.telegram_chat_id
     FROM events e JOIN users u ON u.id=?
     WHERE e.id=? AND (
       EXISTS(SELECT 1 FROM members m WHERE m.event_id=e.id AND m.user_id=u.id AND m.status='approved')
@@ -340,12 +336,20 @@ async function eligibility(db, job) {
 }
 
 async function content(db, job, event, now) {
+  const t = (key, values) => mailText(event.locale, key, values);
+  const eventName = { event: event.name };
+  const displayDate = (value) =>
+    new Intl.DateTimeFormat(event.locale || "it", {
+      timeZone: "Europe/Rome",
+      dateStyle: "long",
+      timeStyle: "short",
+    }).format(new Date(value));
   const payload = JSON.parse(job.payload);
   switch (job.kind) {
     case "announce":
       if (event.status !== "archived")
         return {
-          title: `Un avviso per ${event.name}`,
+          title: t("Un avviso per {event}", eventName),
           message: payload.message,
         };
       break;
@@ -373,17 +377,21 @@ async function content(db, job, event, now) {
               .slice(0, 8)
               .map(({ name, invited }) =>
                 invited
-                  ? `${name} ha accettato l’invito.`
-                  : `${name} chiede di partecipare.`,
+                  ? t("{name} ha accettato l’invito.", { name })
+                  : t("{name} chiede di partecipare.", { name }),
               );
             if (requests.length > 8)
-              lines.push(`Altre richieste da leggere: ${requests.length - 8}.`);
+              lines.push(
+                t("Altre richieste da leggere: {count}.", {
+                  count: requests.length - 8,
+                }),
+              );
             return {
-              title: `Iscrizioni a ${event.name}`,
+              title: t("Iscrizioni a {event}", eventName),
               message: [
                 ...lines,
                 "",
-                "Apri l’elenco per confermare le richieste.",
+                t("Apri l’elenco per confermare le richieste."),
               ].join("\n"),
               section: "event-members",
             };
@@ -395,9 +403,10 @@ async function content(db, job, event, now) {
             )
               break;
             return {
-              title: `Dai il benvenuto a chi partecipa a ${event.name}`,
-              message:
+              title: t("Dai il benvenuto a chi partecipa a {event}", eventName),
+              message: t(
                 "Aggiungi due righe per accogliere il gruppo o spiegare come vi scambierete i regali.",
+              ),
               section: "event-settings",
             };
           }
@@ -407,8 +416,15 @@ async function content(db, job, event, now) {
           )
             break;
           return {
-            title: `Le iscrizioni per ${event.name} chiudono a breve`,
-            message: `Il termine è il ${romeDate.format(new Date(payload.date))} (ora italiana). Controlla le richieste in attesa e verifica date e budget.${event.description.trim() ? "" : " Puoi ancora aggiungere un messaggio di benvenuto."}`,
+            title: t("Le iscrizioni per {event} chiudono a breve", eventName),
+            message:
+              t(
+                "Il termine è il {date} (ora italiana). Controlla le richieste in attesa e verifica date e budget.",
+                { date: displayDate(payload.date) },
+              ) +
+              (event.description.trim()
+                ? ""
+                : " " + t("Puoi ancora aggiungere un messaggio di benvenuto.")),
             section: "event-settings",
           };
         }
@@ -422,8 +438,11 @@ async function content(db, job, event, now) {
       ) {
         const label = dateLabels[payload.field];
         return {
-          title: `Promemoria per ${event.name}`,
-          message: `${label} il ${romeDate.format(new Date(payload.date))} (ora italiana).`,
+          title: t("Promemoria per {event}", eventName),
+          message: t("{label} il {date} (ora italiana).", {
+            label: t(label),
+            date: displayDate(payload.date),
+          }),
         };
       }
       break;
@@ -434,8 +453,16 @@ async function content(db, job, event, now) {
       const rank = rows.find((row) => row.userId === job.user_id);
       if (rank)
         return {
-          title: `La classifica di ${event.name}`,
-          message: `Questa settimana hai ${rank.score} ${rank.score === 1 ? "punto" : "punti"}. Sei al ${rank.rank}º posto su ${rows.length}.`,
+          title: t("La classifica di {event}", eventName),
+          message: t(
+            "Questa settimana hai {score} {unit}. Sei al {rank}º posto su {total}.",
+            {
+              score: rank.score,
+              unit: t(rank.score === 1 ? "punto" : "punti"),
+              rank: rank.rank,
+              total: rows.length,
+            },
+          ),
         };
       break;
     }
@@ -446,8 +473,8 @@ async function content(db, job, event, now) {
         Date.parse(event.gift_at) >= now
       ) {
         return {
-          title: `Le sfide di ${event.name} sono aperte`,
-          message: "Il quiz, il memory e le prove del gruppo ti aspettano.",
+          title: t("Le sfide di {event} sono aperte", eventName),
+          message: t("Il quiz, il memory e le prove del gruppo ti aspettano."),
         };
       }
       break;
@@ -465,8 +492,11 @@ async function content(db, job, event, now) {
       );
       if (duel)
         return {
-          title: `Un duello per ${event.name}`,
-          message: `${duel.name} ti ha invitato a una sfida. Apri l’evento per giocare.`,
+          title: t("Un duello per {event}", eventName),
+          message: t(
+            "{name} ti ha invitato a una sfida. Apri l’evento per giocare.",
+            { name: duel.name },
+          ),
         };
       break;
     }
@@ -486,11 +516,12 @@ async function content(db, job, event, now) {
       )
         break;
       return {
-        title: `La tua lettera per ${event.name}`,
-        message:
+        title: t("La tua lettera per {event}", eventName),
+        message: t(
           "I nomi sono stati estratti. Apri la tua lettera per scoprire in privato a chi farai il regalo.",
+        ),
         tab: "reveal",
-        linkLabel: "Apri la tua lettera",
+        linkLabel: t("Apri la tua lettera"),
       };
     }
   }
@@ -542,7 +573,7 @@ async function deliver(env, job, now) {
     return false;
   if (job.channel === "email") {
     const message = escapeHtml(letter.message).replaceAll("\n", "<br>");
-    const html = `<p>${message}</p>${link ? `<p><a href="${escapeHtml(link)}">${escapeHtml(letter.linkLabel || "Apri l’evento")}</a></p>` : ""}`;
+    const html = `<p>${message}</p>${link ? `<p><a href="${escapeHtml(link)}">${escapeHtml(letter.linkLabel || mailText(event.locale, "Apri l’evento"))}</a></p>` : ""}`;
     await sendMail(
       env,
       event.email,

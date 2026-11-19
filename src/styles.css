@@ -2128,6 +2128,305 @@ input[type="datetime-local"] {
 .invite-notification-hint .button {
   min-height: 44px;
 }
+.locale-control {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  color: var(--paper);
+}
+.locale-control svg {
+  position: absolute;
+  left: 11px;
+  pointer-events: none;
+  color: var(--gold);
+}
+.locale-control select {
+  min-height: 44px;
+  max-width: 100%;
+  padding: 0 5px 0 33px;
+  color: inherit;
+  background: #15352e;
+  border: 1px solid #84754e;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  color-scheme: dark;
+}
+.site-header:has(.header-caption) {
+  padding-block: 12px;
+}
+.site-header nav button {
+  white-space: normal;
+  line-height: 1.35;
+}
+.site-header nav button:hover {
+  color: #ffe4a9;
+}
+.hero-actions,
+.hero-links {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+.hero-actions .button {
+  text-decoration: none;
+}
+.hero-links {
+  margin-top: 8px;
+}
+.hero-links .hunt-link,
+.hero-links .santa-rules-link {
+  margin: 0;
+  text-align: start;
+}
+.events-section {
+  scroll-margin-block-start: 18px;
+}
+.events-standalone {
+  padding-top: clamp(28px, 5vw, 64px);
+}
+.events-standalone h1 {
+  margin: 0;
+  font-size: clamp(2.25rem, 5vw, 4rem);
+  overflow-wrap: anywhere;
+}
+.events-standalone > .button {
+  margin-top: 16px;
+}
+.group-filter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 31rem;
+  margin-bottom: 1.25rem;
+  padding-inline: 14px;
+  border: 1px solid #788674;
+  border-radius: 7px;
+  background: #102d26;
+  color: var(--gold);
+}
+.group-filter input {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  border: 0;
+  color: var(--paper);
+  background: transparent;
+  font-size: 1rem;
+  color-scheme: dark;
+}
+.group-filter input::placeholder {
+  color: #b8c5bb;
+}
+.group-name {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--gold);
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+.group-no-match .text-button {
+  margin-inline-start: 12px;
+}
+.auth-layout {
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.85fr);
+  align-items: stretch;
+  gap: clamp(22px, 4vw, 64px);
+  min-height: auto;
+  padding: clamp(28px, 6vw, 72px) 0;
+}
+.auth-intro {
+  isolation: isolate;
+  position: relative;
+  padding: clamp(24px, 3.5vw, 52px);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #0c211c;
+}
+.auth-intro::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    linear-gradient(180deg, #0b211ef5 0%, #0b211edb 42%, #0b211e0d 76%),
+    url("/hero.webp") right bottom / cover no-repeat;
+}
+.auth-intro h1 {
+  max-width: 17ch;
+  font-size: clamp(2.8rem, 4.45vw, 4.45rem);
+  margin-block: 18px 12px;
+}
+.auth-intro > p {
+  max-width: 40ch;
+  color: #f1eee0;
+}
+.auth-note {
+  display: flex;
+  width: fit-content;
+  margin-top: 26px;
+  padding: 10px 13px;
+  border-radius: 5px;
+  color: #e0e7db;
+  background: #102821e8;
+  font-size: 0.8rem;
+}
+.auth-form {
+  align-self: center;
+  width: 100%;
+  max-width: none;
+  padding: clamp(24px, 3.4vw, 46px);
+  border-radius: 10px;
+  border-top: 5px solid #a33b43;
+}
+.auth-form h2 {
+  margin-right: 46px;
+}
+.auth-form > p,
+.auth-form > small,
+.auth-form .field {
+  font-size: 0.9rem;
+}
+.auth-form > small {
+  font-size: 0.8rem;
+  color: #605544;
+}
+.auth-form .paper-stamp {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 42px;
+  border: 2px dotted #a04c40;
+  transform: rotate(7deg);
+}
+@media (min-width: 761px) and (max-width: 1100px) {
+  .hero-copy {
+    width: 61%;
+  }
+  .hero:after {
+    background: linear-gradient(90deg, #0b201d 0%, #0b201df5 33%, #0b201db3 55%, transparent 81%),
+      linear-gradient(0deg, #0b201d, transparent 18%);
+  }
+}
+@media (min-width: 1201px) {
+  .site-header {
+    gap: clamp(16px, 2vw, 32px);
+  }
+  .site-header nav {
+    gap: clamp(12px, 1.45vw, 24px);
+    padding-inline-start: 21px;
+  }
+}
+@media (max-width: 760px) {
+  .auth-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    padding-block: 20px;
+  }
+  .auth-intro {
+    padding: 22px;
+  }
+  .auth-intro::before {
+    background:
+      linear-gradient(90deg, #0b211ef5 9%, #0b211edc 55%, #0b211e55),
+      url("/hero.webp") right center / cover no-repeat;
+  }
+  .auth-intro h1 {
+    margin-block: 8px;
+    font-size: clamp(2.1rem, 7.2vw, 3rem);
+  }
+  .auth-intro > p {
+    line-height: 1.55;
+  }
+  .auth-note {
+    margin-top: 10px;
+    background: #0b211ebf;
+    padding: 5px 0;
+  }
+  .events-standalone .section-title {
+    flex-wrap: wrap;
+  }
+  .hero-actions,
+  .hero-links {
+    gap: 0 8px;
+  }
+  .hero {
+    min-height: auto;
+    padding-bottom: 122px;
+  }
+  .hero:after {
+    background: linear-gradient(
+      180deg,
+      #0b201d 0%,
+      #0b201d 40%,
+      #0b201dc9 66%,
+      transparent 83%,
+      #0b201d 100%
+    );
+  }
+  .hero .hidden-star {
+    bottom: 50px;
+  }
+  .row-action,
+  .event-dates,
+  .event-row .status {
+    font-size: 0.75rem;
+  }
+  .letter-strip p,
+  footer {
+    font-size: 0.82rem;
+  }
+}
+@media (max-width: 480px) {
+  .site-header {
+    padding: 12px 12px 8px;
+    gap: 5px;
+  }
+  .brand {
+    gap: 4px;
+  }
+  .brand > svg {
+    width: 22px;
+  }
+  .brand > span {
+    font-size: clamp(23px, 6vw, 28px);
+  }
+  .header-tools {
+    gap: 2px;
+  }
+  .locale-control svg {
+    display: none;
+  }
+  .locale-control select {
+    padding-inline: 4px 0;
+    font-size: 0.8rem;
+  }
+  .site-header nav {
+    border-top: 1px solid var(--line);
+    margin-top: 5px;
+    gap: 2px;
+    padding-top: 4px;
+  }
+  .site-header nav button {
+    padding: 5px 3px;
+    border-radius: 6px;
+  }
+  .site-header nav button.selected {
+    background: #1c3e32;
+    color: #ffe4a9;
+  }
+  .site-header nav button.selected:after {
+    left: 24%;
+    right: 24%;
+    bottom: 3px;
+  }
+  .hero-actions .button {
+    padding-inline: 12px;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   *,
   *:before,

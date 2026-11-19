@@ -1,3 +1,4 @@
+import { t } from "./i18n.js";
 import { useEffect, useId, useRef, useState } from "react";
 import {
   CandyCane,
@@ -905,20 +906,22 @@ export function AmbientEffectsModal({ effects, onChange, onClose }) {
   }
 
   return (
-    <Modal title="Atmosfera di Natale" onClose={onClose} wide>
+    <Modal title={t("Atmosfera di Natale")} onClose={onClose} wide>
       <p>
-        Scegli quanta neve vuoi vedere scendere e aggiungi altri effetti
-        natalizi in sottofondo.
+        {t(
+          "Scegli quanta neve vuoi vedere scendere e aggiungi altri effetti natalizi in sottofondo.",
+        )}
       </p>
       {reducedMotion && (
         <p className="notice" role="status">
-          Il dispositivo usa la riduzione dei movimenti: le animazioni restano
-          in pausa, ma puoi comunque salvare le tue preferenze.
+          {t(
+            "Il dispositivo usa la riduzione dei movimenti: le animazioni restano in pausa, ma puoi comunque salvare le tue preferenze.",
+          )}
         </p>
       )}
 
       <div className="ambient-section">
-        <h3 id={snowGroupLabelId}>Intensità della neve</h3>
+        <h3 id={snowGroupLabelId}>{t("Intensità della neve")}</h3>
         <div
           className="snow-level-grid"
           role="radiogroup"
@@ -937,7 +940,7 @@ export function AmbientEffectsModal({ effects, onChange, onClose }) {
               >
                 <span className="ambient-choice-head">
                   <Snowflake size={16} aria-hidden="true" />
-                  <strong>{level.label}</strong>
+                  <strong>{t(level.label)}</strong>
                   {selected && (
                     <Check
                       size={15}
@@ -946,7 +949,7 @@ export function AmbientEffectsModal({ effects, onChange, onClose }) {
                     />
                   )}
                 </span>
-                <small>{level.description}</small>
+                <small>{t(level.description)}</small>
               </button>
             );
           })}
@@ -954,7 +957,7 @@ export function AmbientEffectsModal({ effects, onChange, onClose }) {
       </div>
 
       <div className="ambient-section">
-        <h3 id={extrasLabelId}>Altri effetti natalizi</h3>
+        <h3 id={extrasLabelId}>{t("Altri effetti natalizi")}</h3>
         <div
           className="effect-toggle-grid"
           role="group"
@@ -973,7 +976,7 @@ export function AmbientEffectsModal({ effects, onChange, onClose }) {
               >
                 <span className="ambient-choice-head">
                   <Icon size={17} aria-hidden="true" />
-                  <strong>{effect.label}</strong>
+                  <strong>{t(effect.label)}</strong>
                   {active && (
                     <Check
                       size={15}
@@ -982,7 +985,7 @@ export function AmbientEffectsModal({ effects, onChange, onClose }) {
                     />
                   )}
                 </span>
-                <small>{effect.description}</small>
+                <small>{t(effect.description)}</small>
               </button>
             );
           })}
@@ -996,10 +999,10 @@ export function AmbientEffectsModal({ effects, onChange, onClose }) {
           onClick={turnOffAll}
           disabled={activeCount === 0}
         >
-          Spegni tutto
+          {t("Spegni tutto")}
         </Button>
         <Button type="button" onClick={onClose}>
-          Fatto
+          {t("Fatto")}
         </Button>
       </div>
     </Modal>

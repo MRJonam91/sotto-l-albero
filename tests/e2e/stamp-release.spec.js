@@ -47,7 +47,7 @@ test("nuovi timbri diluiti, raccolta dal sito e sorpresa rileggibile da mobile",
   });
   expect(early.status()).toBe(409);
 
-  await page.goto("/profilo");
+  await page.goto("/profilo#album");
   const series = page.getByRole("region", { name: "Aspettando i pacchi" });
   await expect(series).toContainText("1 di 10");
   await expect(series).toContainText("Prossima uscita");
@@ -60,7 +60,7 @@ test("nuovi timbri diluiti, raccolta dal sito e sorpresa rileggibile da mobile",
   await expect(dialog).toContainText("Timbro raccolto");
   await page.keyboard.press("Escape");
   await expect(page.locator('[data-stamp="office_ipod"]')).toHaveCount(0);
-  await page.goto("/profilo");
+  await page.goto("/profilo#album");
   await expect(
     series.getByRole("button", { name: /Rileggi la sorpresa/ }),
   ).toBeVisible();

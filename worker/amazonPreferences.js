@@ -2,10 +2,18 @@ import { first, run } from "./auth.js";
 import { HttpError, json, safeText } from "./security.js";
 import { validAmazonTag } from "../shared/amazonLinks.js";
 
-export function amazonPreferencesAllowed(user, env) {
-  const authorizedEmail = String(env?.AMAZON_AFFILIATE_EMAIL || "")
+function authorizedAmazonEmail(env) {
+  return String(env?.AMAZON_AFFILIATE_EMAIL || "")
     .trim()
     .toLowerCase();
+}
+
+export function siteAmazonAffiliation(env) {
+  return env?.AMAZON_AFFILIATE_SCOPE === "site";
+}
+
+export function amazonPreferencesAllowed(user, env) {
+  const authorizedEmail = authorizedAmazonEmail(env);
   return (
     !!authorizedEmail &&
     String(user?.email || "")
@@ -25,7 +33,31 @@ export async function loadAmazonPreferences(db, user, env) {
     allowed: true,
     tag: preference?.tag || "",
     enabled: preference?.enabled === 1,
+    ...(siteAmazonAffiliation(env) ? { scope: "site" } : {}),
   };
+}
+
+export async function loadSiteAmazonTags(db, env) {
+  const email = authorizedAmazonEmail(env);
+  if (!siteAmazonAffiliation(env) || !email) return new Map();
+  const preference = await first(
+    db,
+    "SELECT p.tag FROM amazon_preferences p JOIN users u ON u.id=p.user_id WHERE u.email=? AND p.enabled=1",
+    email,
+  );
+  if (!validAmazonTag(preference?.tag)) return new Map();
+
+  const tags = new Map([["amazon.it", preference.tag]]);
+  try {
+    const extraTags = JSON.parse(env.AMAZON_AFFILIATE_TAGS || "{}");
+    for (const [marketplace, tag] of Object.entries(extraTags ?? {})) {
+      if (marketplace !== "amazon.it" && validAmazonTag(tag))
+        tags.set(marketplace, tag);
+    }
+  } catch {
+    // A malformed optional mapping cannot invalidate the primary tracking ID.
+  }
+  return tags;
 }
 
 export async function amazonPreferencesRoute(request, env, body, user) {
@@ -56,5 +88,10 @@ export async function amazonPreferencesRoute(request, env, body, user) {
     Number(body.enabled),
     new Date().toISOString(),
   );
-  return json({ allowed: true, tag, enabled: body.enabled });
+  return json({
+    allowed: true,
+    tag,
+    enabled: body.enabled,
+    ...(siteAmazonAffiliation(env) ? { scope: "site" } : {}),
+  });
 }

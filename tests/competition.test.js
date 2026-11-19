@@ -9,6 +9,8 @@ import { quizQuestions } from "../shared/quizQuestions.js";
 import { practiceRoute } from "../worker/practice.js";
 import { eventRoute } from "../worker/events.js";
 import { stampRoute } from "../worker/stamps.js";
+import { baseStampIds } from "../shared/stamps.js";
+import { releaseStampIds } from "../shared/stampRollout.js";
 import {
   christmasMovies,
   createMovieQuestions,
@@ -16,6 +18,7 @@ import {
 
 const eventMigration = "0009_event_competition.sql";
 const stampMigration = "0012_stamp_ranking_cutoff.sql";
+const stampBonusMigration = "0023_stamp_completion_bonus.sql";
 
 function applyMigration(sql, file) {
   sql.exec(
@@ -473,6 +476,60 @@ describe("competition", () => {
     }
   });
 
+  it("awards each collection once and preserves the earned bonuses on archive", async () => {
+    const add = env.DB.sql.prepare(
+      "INSERT OR IGNORE INTO user_stamps(user_id,stamp,collected_at) VALUES (?,?,?)",
+    );
+    const instant = Date.now();
+    const find = async (id, eventId = "event") =>
+      (await api(owner, "", undefined, eventId)).leaderboard.find(
+        (row) => row.userId === id,
+      );
+    for (const stamp of baseStampIds) add.run(anna.id, stamp, instant);
+    for (const stamp of releaseStampIds) add.run(bea.id, stamp, instant);
+    expect(await find(anna.id)).toMatchObject({
+      stampPoints: 50,
+      stampCompletions: 1,
+      stampBonusPoints: 10,
+      score: 60,
+    });
+    expect(await find(bea.id)).toMatchObject({
+      stampPoints: 50,
+      stampCompletions: 2,
+      stampBonusPoints: 10,
+      score: 60,
+    });
+    const route = "/api/events/event/archive";
+    await eventRoute(
+      new Request("https://albero.example" + route, { method: "POST" }),
+      env,
+      route,
+      {},
+      owner,
+    );
+    for (const stamp of releaseStampIds) add.run(anna.id, stamp, instant);
+    add.run(anna.id, releaseStampIds[0], instant);
+    expect(await find(anna.id)).toMatchObject({
+      stampPoints: 50,
+      stampCompletions: 1,
+      stampBonusPoints: 10,
+      score: 60,
+    });
+    expect(await find(anna.id, "copy")).toMatchObject({
+      stampPoints: 100,
+      stampCompletions: 3,
+      stampBonusPoints: 25,
+      score: 125,
+    });
+    env.DB.sql.exec(
+      "UPDATE events SET gift_at='2025-12-24T00:00:00Z' WHERE id='copy'",
+    );
+    expect(await find(anna.id, "copy")).toMatchObject({
+      stampCompletions: 0,
+      stampBonusPoints: 0,
+    });
+  });
+
   it("uses the Rome New Year cutoff for closed standings and for a later reset", async () => {
     const year = new Date(event.gift_at).getUTCFullYear();
     const cutoff = Date.parse(`${year}-12-31T23:00:00.000Z`);
@@ -827,6 +884,7 @@ it("moves legacy scores to one eligible event and keeps duels on their original 
     `);
     applyMigration(legacy.sql, eventMigration);
     applyMigration(legacy.sql, stampMigration);
+    applyMigration(legacy.sql, stampBonusMigration);
     expect(await getLeaderboard(legacy, { id: "first" })).toMatchObject([
       { userId: "anna", score: 250 },
     ]);
@@ -879,6 +937,7 @@ it("preserves undated stamps for legacy archives and excludes new ones after the
       INSERT INTO user_stamps(user_id,stamp) VALUES('anna','star');
     `);
     applyMigration(legacy.sql, stampMigration);
+    applyMigration(legacy.sql, stampBonusMigration);
     const { archived_at } = legacy.sql
       .prepare("SELECT archived_at FROM events WHERE id='old'")
       .get();

@@ -102,6 +102,40 @@ describe("avatar face mask", () => {
     expect(faceMask(categories, width, height)).toBeNull();
   });
 
+  it("retains the temples and ears below the eyes on a hatless portrait", () => {
+    const { width, height, categories, paint } = scene();
+    paint(10, 6, 20, 24, 3);
+    paint(8, 12, 2, 8, 2); // left ear, touching facial skin
+    paint(30, 12, 2, 8, 2);
+    const result = faceMask(categories, width, height, {
+      includeHair: true,
+      includeNeck: true,
+      headCapLine: 14,
+      chin: [20, 29],
+    });
+    expect(result.headCapAlpha[18 * width + 8]).toBe(255);
+    expect(result.headCapAlpha[18 * width + 11]).toBe(255);
+    expect(result.headCapAlpha[18 * width + 31]).toBe(255);
+    expect(result.headCapAlpha[20 * width + 20]).toBe(0); // central lower face stays behind the artwork
+    expect(result.headCapAlpha[18 * width + 7]).toBe(0); // background beside the ear stays transparent
+    expect(result.headCapAlpha[28 * width + 11]).toBe(0);
+  });
+
+  it("keeps a high collar directly under the detected chin inside the costume", () => {
+    const { width, height, categories, paint } = scene();
+    paint(10, 7, 16, 17, 3);
+    paint(6, 24, 24, 11, 4);
+    const mask = faceMask(categories, width, height, {
+      includeNeck: true,
+      chin: [18, 23],
+      headCapLine: 12,
+    });
+    expect(mask.alpha[27 * width + 18]).toBe(255);
+    expect(mask.alpha[27 * width + 9]).toBe(0);
+    expect(mask.alpha[33 * width + 18]).toBe(0);
+    expect(mask.headCapAlpha[27 * width + 18]).toBe(0);
+  });
+
   it("applies warm vintage portrait grading and antique medallion grain on CPU", () => {
     const w = 16;
     const h = 16;
@@ -119,4 +153,31 @@ describe("avatar face mask", () => {
     applyAntiqueMedallionFinish(data, w, h, 6);
     expect(data[mid + 3]).toBe(255);
   });
+});
+
+it("keeps a detected person's glasses and connected cap in the upper-head layer", () => {
+  const { width, height, categories, paint } = scene();
+  paint(10, 9, 16, 18, 3);
+  paint(10, 14, 16, 2, 5); // eyewear separates two patches of facial skin
+  paint(8, 4, 20, 5, 5); // cap attached to this face
+  paint(3, 3, 3, 2, 5); // unrelated object
+  paint(10, 27, 18, 8, 4);
+  const mask = faceMask(categories, width, height, {
+    includeHair: true,
+    headCapLine: 16,
+    faceOval: [
+      [17, 9],
+      [25, 12],
+      [25, 22],
+      [18, 26],
+      [10, 22],
+      [10, 13],
+    ],
+  });
+  expect(mask).not.toBeNull();
+  expect(mask.alpha[14 * width + 18]).toBe(255);
+  expect(mask.headCapAlpha[7 * width + 18]).toBe(255);
+  expect(mask.alpha[4 * width + 4]).toBe(0);
+  expect(mask.alpha[30 * width + 18]).toBe(0);
+  expect(mask.hairAlpha[7 * width + 18]).toBe(0);
 });

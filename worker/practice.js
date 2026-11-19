@@ -163,6 +163,7 @@ function advanceQuiz(state, choice, timeout, now) {
     return {
       choice: -1,
       answer,
+      title: options[answer], note,
       text: `Tempo scaduto! La risposta era ${options[answer]}. ${note}`,
     };
   }
@@ -175,6 +176,7 @@ function advanceQuiz(state, choice, timeout, now) {
   return {
     choice,
     answer,
+    title: options[answer], note,
     text: `${choice === answer ? "Esatto!" : `La risposta è ${options[answer]}.`} ${note}`,
   };
 }

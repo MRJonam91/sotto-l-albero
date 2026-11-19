@@ -1,3 +1,4 @@
+import { gameT, t, getLocale } from "./i18n.js";
 import {
   lazy,
   Suspense,
@@ -20,12 +21,18 @@ import {
   Stamp,
   Star,
 } from "lucide-react";
-import { isStampAvailable, stamps } from "../shared/stamps.js";
+import {
+  baseStampIds,
+  isStampAvailable,
+  stampAwards,
+  stamps,
+} from "../shared/stamps.js";
+import { releaseStampIds } from "../shared/stampRollout.js";
 import HolidayFigure from "./HolidayFigure.jsx";
 import SeasonalStampIcon from "./SeasonalStampIcon.jsx";
 import MemoryBoard from "./MemoryBoard.jsx";
 import MovieClueStage from "./MovieClueStage.jsx";
-import { Button, Notice } from "./ui.jsx";
+import { Button, Field, Notice } from "./ui.jsx";
 import { api } from "./api.js";
 import { treasureStories } from "./treasureStories.js";
 import { gameCatalog, gameModeLabels } from "../shared/gameCatalog.js";
@@ -97,7 +104,7 @@ export function TimedTreasures({ section, onDiscover, collection }) {
           type="button"
           className="hunt-sighting"
           data-stamp={id}
-          aria-label={`Scopri ${stamp.name}`}
+          aria-label={t("Scopri {stamp}", { stamp: t(stamp.name) })}
           onClick={() => onDiscover(id)}
         >
           <StampIcon id={id} size={30} />
@@ -113,10 +120,10 @@ export function StampReward({ id, collection }) {
     <div className="stamp-reward">
       <p role="status">
         {collected
-          ? `Timbro raccolto: ${stamps[id].name}.`
+          ? t("Timbro raccolto: {stamp}.", { stamp: t(stamps[id].name) })
           : collection.saving
-            ? "Stiamo salvando il timbro…"
-            : "C’è un timbro per il tuo album."}
+            ? t("Stiamo salvando il timbro…")
+            : t("C’è un timbro per il tuo album.")}
       </p>
       <Notice error>{collection.error}</Notice>
       {!collected && (
@@ -125,102 +132,148 @@ export function StampReward({ id, collection }) {
           onClick={() => collection.collect(id)}
           disabled={collection.saving}
         >
-          <Stamp size={18} aria-hidden="true" /> Raccogli il timbro
+          <Stamp size={18} aria-hidden="true" />
+          {t("Raccogli il timbro")}
         </Button>
       )}
     </div>
   );
 }
 
-export function StampAlbum({ user, collection, onLogout, onStory, children }) {
-  const baseIds = Object.keys(stamps).filter((id) => !stamps[id].seasonal);
-  const seasonalIds = Object.keys(stamps).filter(
-    (id) =>
-      stamps[id].seasonal &&
-      (collection.ids.includes(id) ||
-        collection.release?.availableIds?.includes(id)),
+export function StampAlbum({ collection, onStory }) {
+  const collected = new Set(collection.ids);
+  const baseCount = baseStampIds.filter((id) => collected.has(id)).length;
+  const seasonalCount = releaseStampIds.filter((id) =>
+    collected.has(id),
+  ).length;
+  const seasonalIds = releaseStampIds.filter(
+    (id) => collected.has(id) || collection.release?.availableIds?.includes(id),
   );
   const showSeries = collection.release?.enabled || seasonalIds.length > 0;
+  const fullCount = baseCount + seasonalCount;
+  const fullTotal = baseStampIds.length + releaseStampIds.length;
   return (
-    <section className="holiday-page" aria-labelledby="profile-heading">
+    <section className="stamp-album paper" aria-labelledby="stamp-album-title">
       <div className="holiday-heading">
         <div>
-          <h1 id="profile-heading">Il mio profilo</h1>
-          <p>Ciao, {user.name}. Qui trovi i timbri delle tue feste.</p>
+          <h2 id="stamp-album-title">{t("Album dei timbri")}</h2>
+          <p>
+            {t(
+              "Segui i ritornelli. Alcune figure sbucano solo a certe ore (seguiamo l’ora italiana). Se trovi una citazione o una scena, puoi rileggerla da qui.",
+            )}
+          </p>
         </div>
-        <Button type="button" variant="ghost" onClick={onLogout}>
-          Esci
-        </Button>
+        <span className="stamp-count" role="status">
+          {collection.loaded
+            ? t("{count} di {total} timbri", {
+                count: fullCount,
+                total: showSeries ? fullTotal : baseStampIds.length,
+              })
+            : collection.error
+              ? t("Album non disponibile")
+              : t("Caricamento album…")}
+        </span>
       </div>
-      {children}
-      <div className="stamp-album paper">
-        <div className="holiday-heading">
-          <div>
-            <h2>Album dei timbri</h2>
-            <p>
-              Segui i ritornelli. Alcune figure sbucano solo a certe ore
-              (seguiamo l’ora italiana). Se trovi una citazione o una scena,
-              puoi rileggerla da qui.
-            </p>
-          </div>
-          <span className="stamp-count" role="status">
-            {collection.loaded
-              ? `${collection.ids.length} di ${baseIds.length + (showSeries ? 10 : 0)} timbri`
-              : collection.error
-                ? "Album non disponibile"
-                : "Caricamento album…"}
-          </span>
+      <Notice error>{collection.error}</Notice>
+      {collection.loaded && (
+        <div className="stamp-milestones">
+          <h3>{t("Bonus raccolta")}</h3>
+          <ul role="list">
+            {[
+              [
+                "Raccolta base",
+                baseCount,
+                baseStampIds.length,
+                stampAwards.base,
+              ],
+              ...(showSeries
+                ? [
+                    [
+                      "Timbri giornalieri",
+                      seasonalCount,
+                      releaseStampIds.length,
+                      stampAwards.seasonal,
+                    ],
+                    ["Album completo", fullCount, fullTotal, stampAwards.all],
+                  ]
+                : []),
+            ].map(([label, count, total, points]) => (
+              <li
+                key={label}
+                className={count === total ? "stamp-milestone-complete" : ""}
+              >
+                <strong>{t(label)}</strong>
+                <span>
+                  {count === total
+                    ? t("Bonus ottenuto · +{points} punti", { points })
+                    : t("{count} su {total} · bonus +{points}", {
+                        count,
+                        total,
+                        points,
+                      })}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p>
+            {t(
+              "I bonus valgono per le classifiche delle edizioni aperte. Il coinvolgimento del ritratto usa un conteggio separato, con un massimo di 12 timbri.",
+            )}
+          </p>
         </div>
-        <Notice error>{collection.error}</Notice>
-        <StampGrid ids={baseIds} collection={collection} onStory={onStory} />
-        {showSeries && (
-          <section
-            className="stamp-release"
-            aria-labelledby="stamp-release-heading"
-          >
-            <h3 id="stamp-release-heading">Aspettando i pacchi</h3>
-            {collection.release?.eventName ? (
-              <>
-                <p>
-                  {collection.release.availableCount} di 10 nuove sorprese
-                  disponibili. Film e cartoni ti accompagnano fino all’apertura
-                  dei pacchi.
-                </p>
-                {collection.release.nextDate ? (
-                  <p className="stamp-release-next">
-                    Prossima uscita: {stampDate(collection.release.nextDate)} ·
-                    ora italiana.
-                  </p>
-                ) : (
-                  <p>
-                    La serie è tutta disponibile. I timbri sbloccati restano da
-                    scoprire.
-                  </p>
-                )}
-              </>
-            ) : (
+      )}
+      <h3>{t("Raccolta base")}</h3>
+      <StampGrid ids={baseStampIds} collection={collection} onStory={onStory} />
+      {showSeries && (
+        <section
+          className="stamp-release"
+          aria-labelledby="stamp-release-heading"
+        >
+          <h3 id="stamp-release-heading">{t("Aspettando i pacchi")}</h3>
+          {collection.release?.eventName ? (
+            <>
               <p>
-                Dieci nuove sorprese si sbloccano nei giorni prima dello
-                scambio. Appariranno quando partecipi a un evento con iscrizione
-                approvata.
+                {t(
+                  "{availableCount} di 10 nuove sorprese disponibili. Film e cartoni ti accompagnano fino all’apertura dei pacchi.",
+                  { availableCount: collection.release.availableCount },
+                )}
               </p>
-            )}
-            {seasonalIds.length > 0 && (
-              <StampGrid
-                ids={seasonalIds}
-                collection={collection}
-                onStory={onStory}
-              />
-            )}
-          </section>
-        )}
-      </div>
+              {collection.release.nextDate ? (
+                <p className="stamp-release-next">
+                  {t("Prossima uscita: {date} · ora italiana.", {
+                    date: stampDate(collection.release.nextDate),
+                  })}
+                </p>
+              ) : (
+                <p>
+                  {t(
+                    "La serie è tutta disponibile. I timbri sbloccati restano da scoprire.",
+                  )}
+                </p>
+              )}
+            </>
+          ) : (
+            <p>
+              {t(
+                "Dieci nuove sorprese si sbloccano nei giorni prima dello scambio. Appariranno quando partecipi a un evento con iscrizione approvata.",
+              )}
+            </p>
+          )}
+          {seasonalIds.length > 0 && (
+            <StampGrid
+              ids={seasonalIds}
+              collection={collection}
+              onStory={onStory}
+            />
+          )}
+        </section>
+      )}
     </section>
   );
 }
 
 function stampDate(value) {
-  return new Intl.DateTimeFormat("it-IT", {
+  return new Intl.DateTimeFormat(getLocale(), {
     day: "numeric",
     month: "long",
     timeZone: "UTC",
@@ -245,32 +298,34 @@ function StampGrid({ ids, collection, onStory }) {
                 <HelpCircle size={26} aria-hidden="true" />
               )}
             </div>
-            <h3>{collected ? stamp.name : "Timbro da scoprire"}</h3>
+            <h3>{collected ? t(stamp.name) : t("Timbro da scoprire")}</h3>
             {!collected && stamp.window && (
-              <span className="stamp-time">A orario</span>
+              <span className="stamp-time">{t("A orario")}</span>
             )}
             {collected ? (
               <>
                 <p>
                   {["quiz", "memory"].includes(id)
-                    ? "Raccolto"
-                    : "Raccolto · 5 punti"}
+                    ? t("Raccolto")
+                    : t("Raccolto · 5 punti")}
                 </p>
                 {(treasureStories[id] || stamp.story) && (
                   <button
                     type="button"
                     className="text-button"
-                    aria-label={`Rileggi la sorpresa: ${stamp.name}`}
+                    aria-label={t("Rileggi la sorpresa: {stamp}", {
+                      stamp: t(stamp.name),
+                    })}
                     onClick={() => onStory(id)}
                   >
-                    Rileggi la sorpresa
+                    {t("Rileggi la sorpresa")}
                   </button>
                 )}
               </>
             ) : (
               <details>
-                <summary>Mostra il ritornello</summary>
-                <p className="stamp-verse">{stamp.hint}</p>
+                <summary>{t("Mostra il ritornello")}</summary>
+                <p className="stamp-verse">{t(stamp.hint)}</p>
               </details>
             )}
           </li>
@@ -347,10 +402,20 @@ function PracticeNotice({ game }) {
         busy={game.busy}
         onClick={game.resume}
       >
-        Riprendi la partita
+        {t("Riprendi la partita")}
       </Button>
     </>
   ) : null;
+}
+
+function quizFeedback(answer) {
+  if (!answer) return t("Scegli una risposta.");
+  if (answer.note == null) return t(answer.text);
+  const values = { title: gameT(answer.title), note: gameT(answer.note) };
+  if (answer.choice === -1)
+    return t("Tempo scaduto! La risposta era {title}. {note}", values);
+  if (answer.choice === answer.answer) return t("Esatto! {note}", values);
+  return t("La risposta è {title}. {note}", values);
 }
 
 function Quiz({ collection }) {
@@ -391,19 +456,22 @@ function Quiz({ collection }) {
     <div className="holiday-game paper">
       <PracticeNotice game={game} />
       {!state ? (
-        <p role="status">Prepariamo le domande…</p>
+        <p role="status">{t("Prepariamo le domande…")}</p>
       ) : question ? (
         <>
           <div className="quiz-timer-wrap">
             <div className="quiz-timer-header">
               <span className="game-progress">
-                Domanda {state.index + 1} di {state.total}
+                {t("Domanda {number} di {total}", {
+                  number: state.index + 1,
+                  total: state.total,
+                })}
               </span>
               <span
                 role="timer"
                 className={`quiz-timer-count ${timeLeft <= 5 ? "urgent" : ""}`}
               >
-                ⏱️ {timeLeft}s
+                {t("⏱️ {timeLeft}s", { timeLeft })}
               </span>
             </div>
             <div className="quiz-timer-track" aria-hidden="true">
@@ -414,7 +482,7 @@ function Quiz({ collection }) {
             </div>
           </div>
           <h2 ref={heading} tabIndex={-1}>
-            {question.title}
+            {gameT(question.title)}
           </h2>
           <div className="quiz-options">
             {question.options.map((label, i) => (
@@ -427,13 +495,13 @@ function Quiz({ collection }) {
                   if (!next && !game.busy) game.step({ choice: i }, setNext);
                 }}
               >
-                {label}
+                {gameT(label)}
                 {answer?.answer === i && <Check size={18} aria-hidden="true" />}
               </button>
             ))}
           </div>
           <p className="game-feedback" role="status">
-            {answer?.text || "Scegli una risposta."}
+            {quizFeedback(answer)}
           </p>
           {next && (
             <Button
@@ -448,17 +516,20 @@ function Quiz({ collection }) {
                 }
               }}
             >
-              {next.done ? "Vedi il risultato" : "Prossima domanda"}
+              {next.done ? t("Vedi il risultato") : t("Prossima domanda")}
             </Button>
           )}
         </>
       ) : (
         <>
           <h2 ref={heading} tabIndex={-1}>
-            Quiz completato
+            {t("Quiz completato")}
           </h2>
           <p>
-            Hai indovinato {state.score} risposte su {state.total}.
+            {t("Hai indovinato {score} risposte su {total}.", {
+              score: state.score,
+              total: state.total,
+            })}
           </p>
           <StampReward id="quiz" collection={collection} />
           <Button
@@ -467,7 +538,7 @@ function Quiz({ collection }) {
             busy={game.busy}
             onClick={game.reset}
           >
-            Rigioca
+            {t("Rigioca")}
           </Button>
         </>
       )}
@@ -515,19 +586,22 @@ function FilmQuiz() {
     <div className="holiday-game paper">
       <PracticeNotice game={game} />
       {!state ? (
-        <p role="status">Prepariamo la pellicola…</p>
+        <p role="status">{t("Prepariamo la pellicola…")}</p>
       ) : question ? (
         <>
           <div className="quiz-timer-wrap">
             <div className="quiz-timer-header">
               <span className="game-progress">
-                Film {state.index + 1} di {state.total}
+                {t("Film {number} di {total}", {
+                  number: state.index + 1,
+                  total: state.total,
+                })}
               </span>
               <span
                 role="timer"
                 className={`quiz-timer-count ${timeLeft <= 5 ? "urgent" : ""}`}
               >
-                ⏱️ {timeLeft}s
+                {t("⏱️ {timeLeft}s", { timeLeft })}
               </span>
             </div>
             <div className="quiz-timer-track" aria-hidden="true">
@@ -538,7 +612,7 @@ function FilmQuiz() {
             </div>
           </div>
           <h2 ref={heading} tabIndex={-1}>
-            {question.title}
+            {gameT(question.title)}
           </h2>
           <MovieClueStage
             index={state.index}
@@ -566,7 +640,7 @@ function FilmQuiz() {
                     if (!next && !game.busy) game.step({ choice: i }, setNext);
                   }}
                 >
-                  {label}
+                  {gameT(label)}
                   {answer?.answer === i && (
                     <Check size={18} aria-hidden="true" />
                   )}
@@ -588,16 +662,25 @@ function FilmQuiz() {
             >
               <strong className="movie-trivia-status">
                 {answer.correct
-                  ? `Esatto! È proprio ${answer.title} (${answer.year}).`
+                  ? t("Esatto! È proprio {title} ({year}).", {
+                      title: gameT(answer.title),
+                      year: answer.year,
+                    })
                   : answer.choice === -1
-                    ? `Tempo scaduto! Il film era ${answer.title} (${answer.year}).`
-                    : `Risposta esatta: ${answer.title} (${answer.year}).`}
+                    ? t("Tempo scaduto! Il film era {title} ({year}).", {
+                        title: gameT(answer.title),
+                        year: answer.year,
+                      })
+                    : t("Risposta esatta: {title} ({year}).", {
+                        title: gameT(answer.title),
+                        year: answer.year,
+                      })}
               </strong>
-              <p>{answer.note}</p>
+              <p>{gameT(answer.note)}</p>
             </div>
           ) : (
             <p className="game-feedback" role="status">
-              Osserva le icone e scegli uno dei quattro film.
+              {t("Osserva le icone e scegli uno dei quattro film.")}
             </p>
           )}
           {next && (
@@ -613,22 +696,24 @@ function FilmQuiz() {
                 }
               }}
             >
-              {next.done ? "Vedi il risultato" : "Prossimo film"}
+              {next.done ? t("Vedi il risultato") : t("Prossimo film")}
             </Button>
           )}
         </>
       ) : (
         <>
           <h2 ref={heading} tabIndex={-1}>
-            Partita completata
+            {t("Partita completata")}
           </h2>
           <div className="movie-score-card">
             <span className="movie-score-badge">
               {state.score} / {state.total}
             </span>
             <p>
-              Hai indovinato {state.score} film su {state.total} dal catalogo
-              dei 100 film di Natale.
+              {t(
+                "Hai indovinato {score} film su {total} dal catalogo dei 100 film di Natale.",
+                { score: state.score, total: state.total },
+              )}
             </p>
           </div>
           <Button
@@ -637,7 +722,7 @@ function FilmQuiz() {
             busy={game.busy}
             onClick={game.reset}
           >
-            Rigioca
+            {t("Rigioca")}
           </Button>
         </>
       )}
@@ -651,18 +736,19 @@ function Memory({ collection }) {
 
   return (
     <div className="holiday-game paper" aria-busy={game.busy}>
-      <h2>Memory di Natale</h2>
+      <h2>{t("Memory di Natale")}</h2>
       <p>
-        Gira due carte alla volta. Quando trovi una coppia, le carte restano
-        scoperte.
+        {t(
+          "Gira due carte alla volta. Quando trovi una coppia, le carte restano scoperte.",
+        )}
       </p>
       <PracticeNotice game={game} />
       {!state ? (
-        <p role="status">Mescoliamo le carte…</p>
+        <p role="status">{t("Mescoliamo le carte…")}</p>
       ) : (
         <>
           {state.done && state.cards.length !== 16 ? (
-            <p role="status">Hai trovato tutte le coppie!</p>
+            <p role="status">{t("Hai trovato tutte le coppie!")}</p>
           ) : (
             <MemoryBoard
               cards={state.cards}
@@ -680,7 +766,7 @@ function Memory({ collection }) {
             busy={game.busy}
             onClick={game.reset}
           >
-            Nuova partita
+            {t("Nuova partita")}
           </Button>
         </>
       )}
@@ -733,23 +819,27 @@ export function HolidayGames({
   return (
     <section className="holiday-page" aria-labelledby="games-heading">
       <div className="holiday-heading">
-        <h1 id="games-heading">Giochi di Natale</h1>
+        <h1 id="games-heading">{t("Giochi di Natale")}</h1>
       </div>
       <div className="holiday-game paper games-access">
         {access === "checking" ? (
-          <p role="status">Controlliamo se puoi giocare…</p>
+          <p role="status">{t("Controlliamo se puoi giocare…")}</p>
         ) : (
           <>
             <LockKeyhole size={26} aria-hidden="true" />
             <h2>
               {access === "denied"
-                ? "Ci vediamo dopo l’iscrizione"
-                : "I giochi sono momentaneamente indisponibili"}
+                ? t("Ci vediamo dopo l’iscrizione")
+                : t("I giochi sono momentaneamente indisponibili")}
             </h2>
             <p>
               {access === "denied"
-                ? "Per giocare serve un’iscrizione approvata a un Secret Santa. Se hai già accettato l’invito, aspetta che l’organizzatore ti confermi."
-                : "Non siamo riusciti a verificare la tua iscrizione. Riprova tra poco."}
+                ? t(
+                    "Per giocare serve un’iscrizione approvata a un Secret Santa. Se hai già accettato l’invito, aspetta che l’organizzatore ti confermi.",
+                  )
+                : t(
+                    "Non siamo riusciti a verificare la tua iscrizione. Riprova tra poco.",
+                  )}
             </p>
             <Button
               type="button"
@@ -759,7 +849,7 @@ export function HolidayGames({
                 setAttempt((current) => current + 1);
               }}
             >
-              Verifica di nuovo
+              {t("Verifica di nuovo")}
             </Button>
           </>
         )}
@@ -775,18 +865,24 @@ function PracticeChallenge({ gameId }) {
   return (
     <section
       className="practice-challenge holiday-game paper"
-      aria-label={`Allenamento: ${definition.name}`}
+      aria-label={t("Allenamento: {name}", { name: t(definition.name) })}
       aria-busy={game.busy}
     >
-      <h2>{definition.name}</h2>
-      <p>Allenamento libero: non usa tentativi e non modifica la classifica.</p>
+      <h2>{t(definition.name)}</h2>
+      <p>
+        {t(
+          "Allenamento libero: non usa tentativi e non modifica la classifica.",
+        )}
+      </p>
       <PracticeNotice game={game} />
       {!state ? (
-        <p role="status">Prepariamo la partita…</p>
+        <p role="status">{t("Prepariamo la partita…")}</p>
       ) : (
         <>
           {state.challenge && (!state.done || gameId === "tris") ? (
-            <Suspense fallback={<p role="status">Carichiamo il gioco…</p>}>
+            <Suspense
+              fallback={<p role="status">{t("Carichiamo il gioco…")}</p>}
+            >
               <PracticeGameChallenge
                 key={gameId}
                 challenge={state.challenge}
@@ -798,11 +894,13 @@ function PracticeChallenge({ gameId }) {
           {state.done ? (
             <p role="status">
               {gameId === "tris"
-                ? "Partita conclusa."
-                : "Allenamento completato."}{" "}
+                ? t("Partita conclusa.")
+                : t("Allenamento completato.")}{" "}
               {gameId !== "tris" && Number.isFinite(state.score)
-                ? `Risultato: ${state.score}/100. La classifica non cambia.`
-                : "Puoi riprovare liberamente."}
+                ? t("Risultato: {score}/100. La classifica non cambia.", {
+                    score: state.score,
+                  })
+                : t("Puoi riprovare liberamente.")}
             </p>
           ) : null}
           <Button
@@ -811,7 +909,7 @@ function PracticeChallenge({ gameId }) {
             busy={game.busy}
             onClick={game.reset}
           >
-            Nuovo allenamento
+            {t("Nuovo allenamento")}
           </Button>
         </>
       )}
@@ -826,7 +924,20 @@ function Games({ collection, onAlbum, onDiscover, onGroups, onCompete }) {
       ? requested
       : null;
   });
+  const [mode, setMode] = useState("");
   const playArea = useRef(null);
+  const opener = useRef(null);
+  const filter = useRef(null);
+  function closeGame() {
+    setGame(null);
+    const target = opener.current?.isConnected
+      ? opener.current
+      : filter.current;
+    target?.focus();
+  }
+  const choices = mode
+    ? gameCatalog.filter((entry) => entry.modes.includes(mode))
+    : gameCatalog;
   useEffect(() => {
     if (game) {
       playArea.current?.focus({ preventScroll: true });
@@ -837,66 +948,132 @@ function Games({ collection, onAlbum, onDiscover, onGroups, onCompete }) {
     <section className="holiday-page" aria-labelledby="games-heading">
       <div className="holiday-heading">
         <div>
-          <h1 id="games-heading">Giochi di Natale</h1>
+          <h1 id="games-heading">{t("Giochi di Natale")}</h1>
           <p>
-            Gli stessi nove giochi che trovi nel gruppo. Scegli l’allenamento,
-            il computer o una modalità con gli amici. Le sfide a punti hanno tre
-            tentativi per gioco; gli allenamenti non li consumano.
+            {t(
+              "Allenati, gioca con un amico o fai punti per la classifica del gruppo.",
+            )}
           </p>
         </div>
-        <Button type="button" variant="outline" onClick={onAlbum}>
-          <Stamp size={18} aria-hidden="true" /> Il mio album
-        </Button>
+        <div className="games-heading-actions">
+          <Button type="button" variant="outline" onClick={onAlbum}>
+            <Stamp size={18} aria-hidden="true" />
+            {t("Il mio album")}
+          </Button>
+          <Button type="button" variant="ghost" onClick={onGroups}>
+            {t("Vai ai miei gruppi")}
+          </Button>
+        </div>
       </div>
-      <Button type="button" variant="ghost" onClick={onGroups}>
-        Vai ai miei gruppi
-      </Button>
+      <div
+        ref={playArea}
+        tabIndex={-1}
+        hidden={!game}
+        className="games-play-area"
+      >
+        {game === "quiz" && <Quiz collection={collection} />}
+        {game === "memory" && <Memory collection={collection} />}
+        {game === "film" && <FilmQuiz />}
+        {game === "curling" && (
+          <Suspense
+            fallback={<p role="status">{t("Prepariamo il ghiaccio…")}</p>}
+          >
+            <CurlingGame onClose={closeGame} />
+          </Suspense>
+        )}
+        {game && !["quiz", "memory", "curling", "film"].includes(game) && (
+          <PracticeChallenge key={game} gameId={game} />
+        )}
+        {game && game !== "curling" && (
+          <Button type="button" variant="ghost" onClick={closeGame}>
+            {t("Torna ai giochi")}
+          </Button>
+        )}
+      </div>
+      <div className="game-mode-filter">
+        <Field label={t("Come vuoi giocare?")}>
+          <select
+            ref={filter}
+            value={mode}
+            onChange={(event) => setMode(event.target.value)}
+          >
+            <option value="">{t("Tutte le modalità")}</option>
+            {Object.entries(gameModeLabels).map(([key, label]) => (
+              <option key={key} value={key}>
+                {t(label)}
+              </option>
+            ))}
+          </select>
+        </Field>
+      </div>
       <div className="game-choices game-catalog">
-        {gameCatalog.map((entry) => (
+        {choices.map((entry) => (
           <article
             className="game-catalog-item"
             key={entry.id}
             data-game-id={entry.id}
-            aria-label={entry.name}
+            aria-label={t(entry.name)}
           >
-            <Button
-              type="button"
-              variant="outline"
-              aria-pressed={game === entry.id}
-              onClick={() => setGame(entry.id)}
-            >
-              {entry.name}
-            </Button>
-            <p>{entry.description}</p>
+            {mode === "ranked" || mode === "friends" ? (
+              <h2>{t(entry.name)}</h2>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                aria-describedby={`mode-${entry.id} description-${entry.id}`}
+                aria-pressed={game === entry.id}
+                onClick={(event) => {
+                  opener.current = event.currentTarget;
+                  setGame(entry.id);
+                }}
+              >
+                {t(entry.name)}
+                <span id={`mode-${entry.id}`} hidden>
+                  {t(
+                    gameModeLabels[
+                      entry.modes.includes("computer") ? "computer" : "practice"
+                    ],
+                  )}
+                </span>
+              </Button>
+            )}
+            <p id={`description-${entry.id}`}>{t(entry.description)}</p>
             <small>
-              {entry.modes.map((mode) => gameModeLabels[mode]).join(" · ")}
-              {entry.ranked === false ? " · senza classifica" : ""}
+              {entry.modes.map((mode) => t(gameModeLabels[mode])).join(" · ")}
+              {entry.ranked === false ? t(" · senza classifica") : ""}
             </small>
             {entry.id === "curling" && (
               <p className="game-participation-note">
-                La partita conclusa contribuisce al ritratto, senza punti.
+                {t(
+                  "La partita conclusa contribuisce al ritratto, senza punti.",
+                )}
               </p>
             )}
-            {entry.ranked && (
+            {entry.ranked && (!mode || mode === "ranked") && (
               <Button
                 type="button"
                 variant="ghost"
-                aria-label={`Gioca per punti: ${entry.name}`}
+                aria-label={t("Gioca per punti: {name}", {
+                  name: t(entry.name),
+                })}
                 onClick={() => (onCompete || onGroups)(entry.id)}
               >
-                Sfida a punti
+                {t("Sfida a punti")}
               </Button>
             )}
-            {entry.modes.includes("friends") && (
-              <Button
-                type="button"
-                variant="ghost"
-                aria-label={`Sfida un amico a ${entry.name}`}
-                onClick={() => (onCompete || onGroups)(entry.id, "friends")}
-              >
-                Con un amico
-              </Button>
-            )}
+            {entry.modes.includes("friends") &&
+              (!mode || mode === "friends") && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  aria-label={t("Sfida un amico a {name}", {
+                    name: t(entry.name),
+                  })}
+                  onClick={() => (onCompete || onGroups)(entry.id, "friends")}
+                >
+                  {t("Con un amico")}
+                </Button>
+              )}
           </article>
         ))}
         <TimedTreasures
@@ -904,24 +1081,6 @@ function Games({ collection, onAlbum, onDiscover, onGroups, onCompete }) {
           collection={collection}
           onDiscover={onDiscover}
         />
-      </div>
-      <div ref={playArea} tabIndex={-1}>
-        {game === "quiz" && <Quiz collection={collection} />}
-        {game === "memory" && <Memory collection={collection} />}
-        {game === "film" && <FilmQuiz />}
-        {game === "curling" && (
-          <Suspense fallback={<p role="status">Prepariamo il ghiaccio…</p>}>
-            <CurlingGame onClose={() => setGame(null)} />
-          </Suspense>
-        )}
-        {game && !["quiz", "memory", "curling", "film"].includes(game) && (
-          <PracticeChallenge key={game} gameId={game} />
-        )}
-        {!game && (
-          <p className="quiet">
-            Nove giochi, un solo posto per trovarli. Da dove cominciamo?
-          </p>
-        )}
       </div>
     </section>
   );

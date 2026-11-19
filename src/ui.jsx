@@ -1,4 +1,5 @@
-import { useEffect, useId, useRef } from "react";
+import { cloneElement, isValidElement, useEffect, useId, useRef } from "react";
+import { t } from "./i18n.js";
 import { X, LoaderCircle } from "lucide-react";
 export function Button({
   children,
@@ -21,10 +22,27 @@ export function Button({
   );
 }
 export function Field({ label, hint, children, ...props }) {
+  const hintId = useId();
+  const labelId = useId();
+  const describedBy = hint
+    ? {
+        "aria-describedby": [
+          children?.props?.["aria-describedby"] || props["aria-describedby"],
+          hintId,
+        ]
+          .filter(Boolean)
+          .join(" "),
+      }
+    : {};
   return (
     <label className="field">
-      <span>{label}</span>
-      {children || <input {...props} />} {hint ? <small>{hint}</small> : null}
+      <span id={labelId}>{label}</span>
+      {isValidElement(children)
+        ? cloneElement(children, { "aria-labelledby": labelId, ...describedBy })
+        : children || (
+            <input aria-labelledby={labelId} {...props} {...describedBy} />
+          )}
+      {hint ? <small id={hintId}>{hint}</small> : null}
     </label>
   );
 }
@@ -34,7 +52,7 @@ export function Notice({ children, error }) {
       className={`notice ${error ? "error" : ""}`}
       role={error ? "alert" : "status"}
     >
-      {children}
+      {typeof children === "string" ? t(children) : children}
     </p>
   ) : null;
 }
@@ -64,7 +82,12 @@ export function Modal({ title, onClose, children, wide = false }) {
     >
       <div className="modal-head">
         <h2 id={titleId}>{title}</h2>
-        <button className="icon-button" aria-label="Chiudi" onClick={onClose}>
+        <button
+          type="button"
+          className="icon-button"
+          aria-label={t("Chiudi")}
+          onClick={onClose}
+        >
           <X />
         </button>
       </div>

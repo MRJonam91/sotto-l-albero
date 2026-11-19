@@ -1,3 +1,4 @@
+import { t } from "./i18n.js";
 import {
   useState,
   useEffect,
@@ -34,11 +35,7 @@ import { holidayIconMap } from "../shared/holidayPortrait.js";
 import EventTools from "./EventTools.jsx";
 import DrawExplanation from "./DrawExplanation.jsx";
 import GiftBrowser from "./GiftBrowser.jsx";
-import {
-  hasAmazonAffiliateTag,
-  isAmazonUrl,
-  productSearchLinks,
-} from "../shared/amazonLinks.js";
+import { isAmazonUrl, productSearchLinks } from "../shared/amazonLinks.js";
 import "./amazon-wishlist.css";
 const Reveal = lazy(() => import("./Reveal.jsx"));
 const Competition = lazy(() => import("./Competition.jsx"));
@@ -69,6 +66,11 @@ export default function Event({
     [renamingGroup, setRenamingGroup] = useState(false),
     [selectedMemberId, setSelectedMemberId] = useState(null);
   const loadId = useRef(0);
+  const adminFocus = useRef(
+    initialTab === "admin" ? location.hash.slice(1) : "",
+  );
+  const [riddlesOnly, setRiddlesOnly] = useState(false);
+  const [letterVisited, setLetterVisited] = useState(initialTab === "wishlist");
   const isAdmin = data?.event.isAdmin;
   const tab = selectedTab === "admin" && !isAdmin ? "overview" : selectedTab;
   const load = useCallback(async () => {
@@ -92,11 +94,21 @@ export default function Event({
     load().catch((e) => setError(e.message));
   }, [load]);
   useEffect(() => {
-    if (tab !== "admin" || initialTab !== "admin") return;
-    const section = location.hash.slice(1);
-    if (!["event-settings", "event-members"].includes(section)) return;
-    document.getElementById(section)?.focus();
-  }, [initialTab, tab]);
+    if (tab !== "admin" || !data) return;
+    const target = adminFocus.current;
+    if (
+      ![
+        "event-settings",
+        "event-members",
+        "event-invites",
+        "event-draw",
+        "event-matches",
+      ].includes(target)
+    )
+      return;
+    document.getElementById(target)?.focus();
+    adminFocus.current = "";
+  }, [data, tab]);
   useEffect(() => {
     if (!data || data.event.status === "archived") return;
     const t = setInterval(() => {
@@ -125,7 +137,7 @@ export default function Event({
     return (
       <div className="loading">
         <Notice error>{error}</Notice>
-        {!error ? "Caricamento dell’evento…" : null}
+        {!error ? t("Caricamento dell’evento…") : null}
       </div>
     );
   const { event, members = [] } = data;
@@ -133,59 +145,61 @@ export default function Event({
     (m) => m.userId === user.id || m.id === user.id || m.email === user.email,
   );
   const approved = members.filter((m) => activeMember(m.status));
+  const visibleMembers = members.filter((m) => m.status !== "removed");
+  const riddleMembers = visibleMembers.filter((m) => m.holidayStatus?.riddle);
+  const showRiddles = riddlesOnly && riddleMembers.length > 0;
+  const inGroup = own && activeMember(own.status);
+  const namesReady = ["drawn", "archived"].includes(event.status);
   const tabs = [
-    ["overview", "L’evento", Users],
-    ["wishlist", "La mia lettera", Mail],
+    ["overview", t("L’evento"), Users],
+    ["wishlist", t("La mia lettera"), Mail],
     ...(event.isAdmin || own?.status === "approved"
-      ? [["reveal", "Il nome segreto", Gift]]
+      ? [["reveal", t("Il nome segreto"), Gift]]
       : []),
     ...(event.isAdmin || own?.status === "approved"
-      ? [["competition", "Sfide e classifica", Trophy]]
+      ? [["competition", t("Sfide e classifica"), Trophy]]
       : []),
-    ...(event.isAdmin ? [["admin", "Organizza", Settings2]] : []),
+    ...(event.isAdmin ? [["admin", t("Organizza"), Settings2]] : []),
   ];
   return (
     <article className="event-page">
       <div className="event-heading">
         <div>
-          <div className="event-heading-title-row">
-            <span className="eyebrow">{event.groupName || event.name}</span>
-            {event.isAdmin ? (
-              <button
-                type="button"
-                className="text-button"
-                onClick={() => setRenamingGroup(true)}
-              >
-                Modifica nome gruppo
-              </button>
-            ) : null}
-          </div>
+          {event.groupName && event.groupName !== event.name && (
+            <div className="event-heading-title-row">
+              <span className="eyebrow">{event.groupName}</span>
+            </div>
+          )}
           <h1>{event.name}</h1>
         </div>
         <span className="status">{statusLabel(event.status)}</span>
       </div>
       <div className="event-facts">
         <span>
-          <Gift /> {money(event.budget)} <small>a persona</small>
+          <Gift /> {money(event.budget)} <small>{t("a persona")}</small>
         </span>
         <span>
           <CalendarDays />{" "}
           <span>
             {date(event.drawAt)}
-            <small>Estrazione</small>
+            <small>{t("Estrazione")}</small>
           </span>
         </span>
         <span>
-          <Users /> {approved.length} <small>partecipanti</small>
+          <Users /> {approved.length}{" "}
+          <small>
+            {approved.length === 1 ? t("partecipante") : t("partecipanti")}
+          </small>
         </span>
       </div>
-      <nav className="tabs" aria-label="Sezioni dell’evento">
+      <nav className="tabs" aria-label={t("Sezioni dell’evento")}>
         {tabs.map(([value, label, Icon]) => (
           <button
             key={value}
             className={tab === value ? "selected" : ""}
             aria-current={tab === value ? "page" : undefined}
             onClick={() => {
+              if (value === "wishlist") setLetterVisited(true);
               setTab(value);
               setError("");
               setNotice("");
@@ -196,35 +210,82 @@ export default function Event({
           </button>
         ))}
       </nav>
-      <Notice error>{error || event.error}</Notice>
-      <Notice>{notice}</Notice>
+      <Notice error>{t(error) || event.error}</Notice>
+      <Notice>{t(notice)}</Notice>
       {tab === "overview" ? (
         <div className="event-columns">
-          <section>
-            <h2>Lo scambio di Natale</h2>
+          <section className="event-overview">
+            <h2>{t("Lo scambio di Natale")}</h2>
             <p className="event-description">
               {event.description ||
-                "Prepara un regalo per la persona che hai pescato. Il resto è una sorpresa."}
+                t(
+                  "Prepara un regalo per la persona che hai pescato. Il resto è una sorpresa.",
+                )}
             </p>
+            {inGroup ? (
+              <div className="event-next-actions">
+                {namesReady && (
+                  <Button onClick={() => setTab("reveal")}>
+                    <Gift size={17} aria-hidden="true" /> {t("Apri la busta")}
+                    <ArrowRight size={17} aria-hidden="true" />
+                  </Button>
+                )}
+                <Button
+                  variant={namesReady ? "outline" : undefined}
+                  onClick={() => {
+                    setLetterVisited(true);
+                    setTab("wishlist");
+                  }}
+                >
+                  {own.hasWishlist
+                    ? t("Modifica la tua lettera")
+                    : t("Scrivi la tua lettera")}
+                  <ArrowRight size={17} aria-hidden="true" />
+                </Button>
+                {event.status !== "archived" && (
+                  <Button variant="ghost" onClick={() => setTab("competition")}>
+                    <Trophy size={17} aria-hidden="true" />{" "}
+                    {t("Gioca con il gruppo")}
+                  </Button>
+                )}
+              </div>
+            ) : null}
+            {!inGroup && event.isAdmin && (
+              <div className="event-next-actions">
+                <Button
+                  onClick={() => {
+                    adminFocus.current = namesReady
+                      ? "event-matches"
+                      : "event-invites";
+                    setTab("admin");
+                  }}
+                >
+                  {namesReady
+                    ? t("Vedi gli abbinamenti")
+                    : t("Invita una persona")}
+                  <ArrowRight size={17} aria-hidden="true" />
+                </Button>
+              </div>
+            )}
             <dl className="details-list">
               <div>
-                <dt>Iscrizioni fino al</dt>
+                <dt>{t("Iscrizioni fino al")}</dt>
                 <dd>{date(event.closeAt)}</dd>
               </div>
               <div>
-                <dt>Ci scambiamo i regali</dt>
+                <dt>{t("Ci scambiamo i regali")}</dt>
                 <dd>{date(event.giftAt)}</dd>
               </div>
               <div>
-                <dt>Il tuo posto</dt>
+                <dt>{t("Il tuo posto")}</dt>
                 <dd>
                   {own
                     ? activeMember(own.status)
-                      ? "Ci sei anche tu"
+                      ? t("Ci sei anche tu")
                       : own.status === "pending"
-                        ? "In attesa di conferma"
-                        : "Iscrizione chiusa"
-                    : "Stai organizzando senza partecipare"}
+                        ? t("In attesa di conferma")
+                        : t("Iscrizione chiusa")
+                    : t("Stai organizzando senza partecipare")}
                 </dd>
               </div>
             </dl>
@@ -242,105 +303,122 @@ export default function Event({
                   )
                 }
               >
-                Partecipo anch’io <Plus size={16} />
+                {t("Partecipo anch’io")} <Plus size={16} />
               </Button>
-            ) : null}
-            {own && activeMember(own.status) ? (
-              <div className="button-row">
-                <Button onClick={() => setTab("wishlist")}>
-                  Scrivi la tua lettera <ArrowRight size={17} />
-                </Button>
-                {event.status !== "archived" && (
-                  <Button
-                    variant="outline"
-                    onClick={() => setTab("competition")}
-                  >
-                    <Trophy size={17} aria-hidden="true" /> Gioca con il gruppo
-                  </Button>
-                )}
-              </div>
             ) : null}
             <p className="privacy-note">
               <LockKeyhole size={16} />
-              Ogni partecipante vede il nome che ha pescato. Chi organizza può
-              consultare tutti gli abbinamenti.
+              {t(
+                "Ogni partecipante vede il nome che ha pescato. Chi organizza può consultare tutti gli abbinamenti.",
+              )}
             </p>
           </section>
           <aside className="paper guest-list">
-            <span className="eyebrow">Attorno all’albero</span>
-            <h2>Il gruppo</h2>
+            <h2>{t("Il gruppo")}</h2>
             <p>
-              Apri il ritratto di una persona per vedere stato, tratti e
-              personaggi condivisi.
+              {t(
+                "Apri il ritratto di una persona per vedere stato, tratti e personaggi condivisi.",
+              )}
             </p>
-            {members.length ? (
-              members
-                .filter((m) => m.status !== "removed")
-                .map((m) => (
-                  <div className="guest" key={m.id}>
-                    <Avatar userId={m.userId} name={m.name} avatar={m.avatar} />
-                    <span>
-                      <span className="guest-identity">
-                        <span>{m.name}</span>
-                        {m.nickname && !m.badge ? (
-                          <small className="guest-realname">
-                            @{m.nickname}
-                          </small>
-                        ) : null}
-                        {m.badge ? (
-                          <NameTag
-                            badge={m.badge}
-                            name={m.name}
-                            nickname={m.nickname}
-                            badgeText={m.badgeText}
-                            size="sm"
-                          />
-                        ) : null}
-                      </span>
-                      <small>
-                        {m.status === "pending"
-                          ? "In attesa di conferma"
-                          : m.hasWishlist
-                            ? "Ha lasciato qualche indizio"
-                            : "La lettera è ancora da scrivere"}
-                      </small>
-                      {m.holidayStatus?.activity ? (
-                        <small>{m.holidayStatus.activity}</small>
+            <div className="group-actions">
+              {riddleMembers.length > 0 && (
+                <button
+                  type="button"
+                  className="guest-portrait-trigger"
+                  aria-pressed={showRiddles}
+                  onClick={() => setRiddlesOnly(!showRiddles)}
+                >
+                  {t("Solo chi ha un indovinello ({count})", {
+                    count: riddleMembers.length,
+                  })}
+                </button>
+              )}
+              {event.isAdmin &&
+                !["drawn", "archived"].includes(event.status) && (
+                  <button
+                    type="button"
+                    className="guest-portrait-trigger"
+                    onClick={() => {
+                      adminFocus.current = "event-invites";
+                      setTab("admin");
+                    }}
+                  >
+                    <Mail size={15} aria-hidden="true" />{" "}
+                    {t("Invita una persona")}
+                  </button>
+                )}
+            </div>
+            {visibleMembers.length ? (
+              (showRiddles ? riddleMembers : visibleMembers).map((m) => (
+                <div className="guest" key={m.id}>
+                  <Avatar userId={m.userId} name={m.name} avatar={m.avatar} />
+                  <span>
+                    <span className="guest-identity">
+                      <span>{m.name}</span>
+                      {m.nickname && !m.badge ? (
+                        <small className="guest-realname">@{m.nickname}</small>
                       ) : null}
-                      {m.holidayStatus?.iconMessage?.length ? (
-                        <small>
-                          {m.holidayStatus.iconMessage
-                            .map((iconId) => holidayIconMap.get(iconId)?.emoji)
-                            .join(" ")}
-                        </small>
-                      ) : null}
-                      {m.status === "approved" ||
-                      m.portrait ||
-                      m.holidayStatus?.riddle ||
-                      m.holidayStatus?.activity ? (
-                        <button
-                          type="button"
-                          className="guest-portrait-trigger"
-                          aria-label={`Vedi il ritratto di ${m.name}`}
-                          onClick={() => setSelectedMemberId(m.userId)}
-                        >
-                          {m.holidayStatus?.riddle
-                            ? "Indovinello e ritratto"
-                            : "Vedi stato e ritratto"}
-                        </button>
+                      {m.badge ? (
+                        <NameTag
+                          badge={m.badge}
+                          name={m.name}
+                          nickname={m.nickname}
+                          badgeText={m.badgeText}
+                          size="sm"
+                        />
                       ) : null}
                     </span>
-                    {m.hasWishlist ? <Mail size={17} /> : null}
-                  </div>
-                ))
+                    <small>
+                      {m.status === "pending"
+                        ? t("In attesa di conferma")
+                        : m.hasWishlist
+                          ? t("Ha lasciato qualche indizio")
+                          : t("La lettera è ancora da scrivere")}
+                    </small>
+                    {m.holidayStatus?.activity ? (
+                      <small>{m.holidayStatus.activity}</small>
+                    ) : null}
+                    {m.holidayStatus?.iconMessage?.length ? (
+                      <small>
+                        {m.holidayStatus.iconMessage
+                          .map((iconId) => holidayIconMap.get(iconId)?.emoji)
+                          .join(" ")}
+                      </small>
+                    ) : null}
+                    {m.status === "approved" ||
+                    m.portrait ||
+                    m.holidayStatus?.riddle ||
+                    m.holidayStatus?.activity ? (
+                      <button
+                        type="button"
+                        className="guest-portrait-trigger"
+                        aria-label={t(
+                          m.holidayStatus?.riddle
+                            ? "Vedi l’indovinello e il ritratto di {name}"
+                            : "Vedi il ritratto di {name}",
+                          {
+                            name: m.name,
+                          },
+                        )}
+                        onClick={() => setSelectedMemberId(m.userId)}
+                      >
+                        {m.holidayStatus?.riddle
+                          ? t("Indovinello e ritratto")
+                          : t("Vedi stato e ritratto")}
+                      </button>
+                    ) : null}
+                  </span>
+                  {m.hasWishlist ? <Mail size={17} /> : null}
+                </div>
+              ))
             ) : (
-              <p>Qui vedrai chi accetta l’invito.</p>
+              <p>{t("Qui vedrai chi accetta l’invito.")}</p>
             )}
           </aside>
         </div>
       ) : null}
-      {tab === "wishlist" ? (
-        own && activeMember(own.status) ? (
+      {inGroup && (letterVisited || tab === "wishlist") ? (
+        <div hidden={tab !== "wishlist"}>
           <Wishlist
             initial={data.wishlist || []}
             id={id}
@@ -352,21 +430,27 @@ export default function Event({
               );
             }}
           />
-        ) : (
-          <div className="empty-state">
-            <Mail />
-            <h2>Una lettera per chi partecipa.</h2>
-            <p>
-              {own?.status === "pending"
-                ? "Potrai scrivere la lettera appena chi organizza conferma il tuo posto."
-                : "Partecipa allo scambio per lasciare qualche idea a chi ti farà il regalo."}
-            </p>
-          </div>
-        )
+        </div>
+      ) : tab === "wishlist" ? (
+        <div className="empty-state">
+          <Mail />
+          <h2>{t("Una lettera per chi partecipa.")}</h2>
+          <p>
+            {own?.status === "pending"
+              ? t(
+                  "Potrai scrivere la lettera appena chi organizza conferma il tuo posto.",
+                )
+              : t(
+                  "Partecipa allo scambio per lasciare qualche idea a chi ti farà il regalo.",
+                )}
+          </p>
+        </div>
       ) : null}
       {tab === "reveal" ? (
         <Suspense
-          fallback={<div className="loading">Prepariamo la tua sorpresa…</div>}
+          fallback={
+            <div className="loading">{t("Prepariamo la tua sorpresa…")}</div>
+          }
         >
           <Reveal
             key={`${user.id}:${id}:${event.version}`}
@@ -416,7 +500,9 @@ export default function Event({
       {selectedMemberId &&
       members.find((m) => m.userId === selectedMemberId) ? (
         <Modal
-          title={`Spirito di Natale · ${members.find((m) => m.userId === selectedMemberId).name}`}
+          title={t("Spirito di Natale · {name}", {
+            name: members.find((m) => m.userId === selectedMemberId).name,
+          })}
           onClose={() => setSelectedMemberId(null)}
           wide
         >
@@ -438,7 +524,9 @@ export default function Event({
       ) : null}
       {tab === "competition" &&
       (event.isAdmin || own?.status === "approved") ? (
-        <Suspense fallback={<p role="status">Carichiamo la classifica…</p>}>
+        <Suspense
+          fallback={<p role="status">{t("Carichiamo la classifica…")}</p>}
+        >
           <Competition
             event={event}
             user={user}
@@ -448,8 +536,8 @@ export default function Event({
         </Suspense>
       ) : null}
       {confirm ? (
-        <Modal title={confirm.title} onClose={() => setConfirm(null)}>
-          <p>{confirm.text}</p>
+        <Modal title={t(confirm.title)} onClose={() => setConfirm(null)}>
+          <p>{t(confirm.text)}</p>
           <form
             onSubmit={async (e) => {
               e.preventDefault();
@@ -464,7 +552,7 @@ export default function Event({
             }}
           >
             {confirm.path === "cancel" ? (
-              <Field label="Cosa è successo?">
+              <Field label={t("Cosa è successo?")}>
                 <textarea name="reason" required maxLength={500} rows={3} />
               </Field>
             ) : null}
@@ -474,9 +562,9 @@ export default function Event({
                 type="button"
                 onClick={() => setConfirm(null)}
               >
-                Torna indietro
+                {t("Torna indietro")}
               </Button>
-              <Button busy={busy}>{confirm.button}</Button>
+              <Button busy={busy}>{t(confirm.button)}</Button>
             </div>
           </form>
         </Modal>
@@ -497,6 +585,23 @@ function Wishlist({ initial, id, budget, onSaved }) {
   const [product, setProduct] = useState({ title: "", url: "" });
   const [productError, setProductError] = useState("");
   const [amazonPreferences, setAmazonPreferences] = useState(null);
+  const editor = useRef(null);
+  const newWishIndex = useRef(null);
+  useEffect(() => {
+    if (newWishIndex.current === null) return;
+    editor.current?.elements
+      .namedItem(`wish-title-${newWishIndex.current}`)
+      ?.focus();
+    newWishIndex.current = null;
+  }, [items.length]);
+  function addWish(type) {
+    if (busy || items.length >= 30) return;
+    newWishIndex.current = items.length;
+    setItems((current) => [
+      ...current,
+      { type, title: "", description: "", url: "", hint: "", answer: "" },
+    ]);
+  }
   useEffect(() => {
     let active = true;
     api("/preferences/amazon")
@@ -534,180 +639,48 @@ function Wishlist({ initial, id, budget, onSaved }) {
     <section className="wishlist">
       <div className="content-heading">
         <div>
-          <h2>Cosa ti farebbe piacere?</h2>
+          <h2>{t("Cosa ti farebbe piacere?")}</h2>
           <p>
-            Lascia qualche idea a chi ti farà il regalo. Basta un titolo, un
-            colore o qualcosa che ti piacerebbe provare.
+            {t(
+              "Lascia qualche idea a chi ti farà il regalo. Basta un titolo, un colore o qualcosa che ti piacerebbe provare.",
+            )}
           </p>
         </div>
-        <Button
-          variant="outline"
-          disabled={items.length >= 30}
-          onClick={() =>
-            setItems((a) => [
-              ...a,
-              {
-                type: "object",
-                title: "",
-                description: "",
-                url: "",
-                hint: "",
-                answer: "",
-              },
-            ])
-          }
-        >
-          <Plus size={17} />
-          Aggiungi un desiderio
-        </Button>
-      </div>
-      <GiftBrowser
-        eventId={id}
-        budget={budget}
-        selectedUrls={items.map((item) => item.url)}
-        disabled={busy || items.length >= 30}
-        onAdd={(product) => {
-          if (
-            items.length >= 30 ||
-            items.some((item) => item.url === product.url)
-          )
-            return false;
-          setItems((all) => [
-            ...all,
-            {
-              type: "object",
-              title: product.title,
-              url: product.url,
-              description: "",
-              hint: "",
-              answer: "",
-            },
-          ]);
-          return true;
-        }}
-      />
-      <details className="wish-shopping paper">
-        <summary>Hai già un link o vuoi cercare in altri negozi?</summary>
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (searchReady)
-              window.open(searchUrl, "_blank", "noopener,noreferrer");
-          }}
-        >
-          <div className="wish-search-fields">
-            <Field
-              label="Cosa cerchi?"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              maxLength={200}
-              placeholder="Per esempio, tazza blu"
-            />
-            <Field label="Dove cercare">
-              <select
-                value={provider}
-                onChange={(event) => setProvider(event.target.value)}
-              >
-                <option value="amazon">Amazon.it</option>
-                <option value="etsy">Etsy</option>
-                <option value="toyscenter">
-                  Toys Center · ricerca sul web
-                </option>
-                <option value="web">Tutto il web</option>
-                <option value="local">Negozi in una città</option>
-              </select>
-            </Field>
-            <Button type="submit" variant="outline" disabled={!searchReady}>
-              Cerca ↗
-            </Button>
-          </div>
-          {provider === "local" ? (
-            <Field
-              label="Città dello scambio"
-              value={searchCity}
-              onChange={(event) => setSearchCity(event.target.value)}
-              maxLength={80}
-              placeholder="Dove vi scambierete i regali?"
-              hint="La ricerca usa questa città; non richiediamo la tua posizione."
-            />
-          ) : null}
-        </form>
-        <p className="wish-search-note">
-          La ricerca si apre in una nuova scheda. Scegli sul sito del negozio,
-          copia il link e torna qui per aggiungerlo. Non verifichiamo prezzi,
-          disponibilità, spedizione o ritiro.
-        </p>
-        <details className="wish-manual">
-          <summary>Aggiungi un prodotto con nome e link</summary>
-          <form
-            onSubmit={(event) => {
-              event.preventDefault();
-              setProductError("");
-              if (items.length >= 30) {
-                setProductError("Puoi lasciare fino a 30 desideri.");
-                return;
-              }
-              try {
-                const url = new URL(product.url);
-                if (
-                  !["https:", "http:"].includes(url.protocol) ||
-                  !product.title.trim()
-                )
-                  throw new Error();
-                setItems((all) => [
-                  ...all,
-                  {
-                    type: "object",
-                    title: product.title.trim(),
-                    url: url.href,
-                    description: "",
-                    hint: "",
-                    answer: "",
-                  },
-                ]);
-                setProduct({ title: "", url: "" });
-              } catch {
-                setProductError(
-                  "Inserisci il nome del prodotto e un link che inizi con https:// o http://.",
-                );
-              }
-            }}
+        <div className="button-row wish-actions">
+          <Button
+            variant="outline"
+            disabled={busy || items.length >= 30}
+            onClick={() => addWish("object")}
           >
-            <Field
-              label="Nome del prodotto"
-              value={product.title}
-              onChange={(event) =>
-                setProduct({ ...product, title: event.target.value })
+            <Plus size={17} aria-hidden="true" /> {t("Aggiungi un desiderio")}
+          </Button>
+          <Button
+            variant="outline"
+            disabled={busy || items.length >= 30}
+            onClick={() => addWish("hint")}
+          >
+            {t("Lascia un indizio")}
+          </Button>
+          {!!items.length && (
+            <button
+              type="button"
+              className="text-button"
+              onClick={() =>
+                editor.current?.elements.namedItem("wish-title-0")?.focus()
               }
-              required
-              maxLength={150}
-            />
-            <Field
-              label="Link del prodotto o del negozio"
-              type="url"
-              value={product.url}
-              onChange={(event) =>
-                setProduct({ ...product, url: event.target.value })
-              }
-              required
-              placeholder="https://"
-              hint="Puoi usare Amazon, Etsy, Toys Center o qualsiasi altro negozio, anche locale."
-            />
-            <Notice error>{productError}</Notice>
-            <Button
-              type="submit"
-              variant="outline"
-              disabled={items.length >= 30 || busy}
             >
-              Aggiungi alla lettera
-            </Button>
-            <p className="wish-search-note">
-              Poi premi “Salva la lettera” per conservare tutti i desideri.
-            </p>
-          </form>
-        </details>
-      </details>
-      <form onSubmit={save}>
+              {t("Vai ai tuoi desideri ({count})", { count: items.length })}
+            </button>
+          )}
+          <a
+            className="text-button wishlist-shop-link"
+            href="#wishlist-shopping"
+          >
+            <Gift size={16} aria-hidden="true" /> {t("Idee regalo")}
+          </a>
+        </div>
+      </div>
+      <form onSubmit={save} ref={editor}>
         {items.length ? (
           items.map((item, i) => (
             <div className="wish-editor paper" key={item.id || i}>
@@ -715,14 +688,14 @@ function Wishlist({ initial, id, budget, onSaved }) {
                 <span className="letter-number">
                   {String(i + 1).padStart(2, "0")}
                 </span>
-                <Field label="Che tipo di desiderio?">
+                <Field label={t("Che tipo di desiderio?")}>
                   <select
                     value={item.type}
                     onChange={(e) => update(i, "type", e.target.value)}
                   >
-                    {Object.entries(types).map(([v, t]) => (
+                    {Object.entries(types).map(([v, label]) => (
                       <option key={v} value={v}>
-                        {t}
+                        {t(label)}
                       </option>
                     ))}
                   </select>
@@ -730,47 +703,53 @@ function Wishlist({ initial, id, budget, onSaved }) {
                 <button
                   type="button"
                   className="icon-button"
-                  aria-label={`Rimuovi desiderio ${i + 1}`}
+                  aria-label={t("Rimuovi desiderio {number}", {
+                    number: i + 1,
+                  })}
                   onClick={() => setItems((a) => a.filter((_, n) => n !== i))}
                 >
                   <Trash2 size={18} />
                 </button>
               </div>
               <Field
+                name={`wish-title-${i}`}
                 label={
                   item.type === "riddle"
-                    ? "Il tuo indovinello"
-                    : "Dagli un nome"
+                    ? t("Il tuo indovinello")
+                    : item.type === "hint"
+                      ? t("Il tuo indizio")
+                      : t("Dagli un nome")
                 }
                 value={item.title}
                 onChange={(e) => update(i, "title", e.target.value)}
                 maxLength={150}
                 required
                 placeholder={
-                  item.type === "theme"
-                    ? "Per esempio, una serata con un buon libro"
-                    : "Per esempio, una tazza blu"
+                  item.type === "theme" || item.type === "hint"
+                    ? t("Per esempio, una serata con un buon libro")
+                    : t("Per esempio, una tazza blu")
                 }
               />
-              <Field label="Racconta qualcosa in più">
+              <Field label={t("Racconta qualcosa in più")}>
                 <textarea
                   value={item.description || ""}
                   onChange={(e) => update(i, "description", e.target.value)}
                   rows={2}
                   maxLength={1500}
-                  placeholder="Un colore, una taglia, un dettaglio utile…"
+                  placeholder={t("Un colore, una taglia, un dettaglio utile…")}
                 />
               </Field>
               {item.type === "object" ? (
                 <>
                   <Field
-                    label="Un link, se ti va"
+                    label={t("Un link, se ti va")}
                     type="url"
                     value={item.url || ""}
                     onChange={(e) => update(i, "url", e.target.value)}
                     placeholder="https://"
                   />
                   {amazonPreferences?.allowed &&
+                  amazonPreferences.scope !== "site" &&
                   amazonPreferences.enabled &&
                   amazonPreferences.tag &&
                   isAmazonUrl(item.url) ? (
@@ -783,25 +762,23 @@ function Wishlist({ initial, id, budget, onSaved }) {
                         }
                       />
                       <span>
-                        Applica il mio tracking ID Amazon a questo prodotto
-                        quando salvo la lettera
+                        {t(
+                          "Applica il mio tracking ID Amazon a questo prodotto quando salvo la lettera",
+                        )}
                       </span>
                     </label>
                   ) : null}
                   {/^https:\/\/(?:www\.)?amzn\.to\//i.test(item.url || "") &&
-                  amazonPreferences?.allowed ? (
+                  amazonPreferences?.allowed &&
+                  amazonPreferences.scope !== "site" ? (
                     <small className="wish-affiliate-disclosure">
-                      Per applicare il tuo codice, apri il link breve e copia
-                      qui il link completo di Amazon.
-                    </small>
-                  ) : null}
-                  {hasAmazonAffiliateTag(item.url) ? (
-                    <small className="wish-affiliate-disclosure">
-                      Link affiliato Amazon
+                      {t(
+                        "Per applicare il tuo codice, apri il link breve e copia qui il link completo di Amazon.",
+                      )}
                     </small>
                   ) : null}
                   <details className="wish-pickup">
-                    <summary>Ritiro in negozio (facoltativo)</summary>
+                    <summary>{t("Ritiro in negozio (facoltativo)")}</summary>
                     <label className="wish-affiliate">
                       <input
                         type="checkbox"
@@ -815,19 +792,21 @@ function Wishlist({ initial, id, budget, onSaved }) {
                         }
                       />
                       <span>
-                        Questo desiderio richiede il ritiro in negozio
+                        {t("Questo desiderio richiede il ritiro in negozio")}
                       </span>
                     </label>
                     {item.fulfillment === "pickup" ? (
                       <Field
-                        label="Città del ritiro"
+                        label={t("Città del ritiro")}
                         value={item.pickupCity || ""}
                         onChange={(event) =>
                           update(i, "pickupCity", event.target.value)
                         }
                         required
                         maxLength={80}
-                        hint="Scegli una città comoda per lo scambio. Usa la descrizione per indicare negozio e dettagli da verificare."
+                        hint={t(
+                          "Scegli una città comoda per lo scambio. Usa la descrizione per indicare negozio e dettagli da verificare.",
+                        )}
                       />
                     ) : null}
                   </details>
@@ -836,18 +815,20 @@ function Wishlist({ initial, id, budget, onSaved }) {
               {["riddle", "hint"].includes(item.type) ? (
                 <>
                   <Field
-                    label="Un aiuto per chi prova a indovinare"
+                    label={t("Un aiuto per chi prova a indovinare")}
                     value={item.hint || ""}
                     onChange={(e) => update(i, "hint", e.target.value)}
                     maxLength={1000}
                   />
                   {item.type === "riddle" ? (
                     <Field
-                      label="La soluzione"
+                      label={t("La soluzione")}
                       value={item.answer || ""}
                       onChange={(e) => update(i, "answer", e.target.value)}
                       maxLength={1000}
-                      hint="Chi ti fa il regalo può aprire la soluzione quando vuole."
+                      hint={t(
+                        "Chi ti fa il regalo può aprire la soluzione quando vuole.",
+                      )}
                     />
                   ) : null}
                 </>
@@ -857,21 +838,182 @@ function Wishlist({ initial, id, budget, onSaved }) {
         ) : (
           <div className="empty-state">
             <Mail />
-            <h3>Il foglio è tutto tuo.</h3>
+            <h3>{t("Il foglio è tutto tuo.")}</h3>
             <p>
-              Comincia da qualcosa che ti piace, ti serve o ti incuriosisce.
+              {t(
+                "Comincia da qualcosa che ti piace, ti serve o ti incuriosisce.",
+              )}
             </p>
           </div>
         )}
         <Notice error>{error}</Notice>
         <div className="form-actions">
-          <small>La lettera è visibile a te e a chi ti farà il regalo.</small>
+          <small>
+            {t("La lettera è visibile a te e a chi ti farà il regalo.")}
+          </small>
           <Button busy={busy}>
             <Check size={17} />
-            Salva la lettera
+            {t("Salva la lettera")}
           </Button>
         </div>
       </form>
+      <div className="wishlist-shopping">
+        <h2 id="wishlist-shopping">{t("Idee regalo")}</h2>
+        <GiftBrowser
+          eventId={id}
+          budget={budget}
+          selectedUrls={items.map((item) => item.url)}
+          disabled={busy || items.length >= 30}
+          onAdd={(product) => {
+            if (
+              items.length >= 30 ||
+              items.some((item) => item.url === product.url)
+            )
+              return false;
+            setItems((all) => [
+              ...all,
+              {
+                type: "object",
+                title: product.title,
+                url: product.url,
+                description: "",
+                hint: "",
+                answer: "",
+              },
+            ]);
+            return true;
+          }}
+        />
+        <details className="wish-shopping paper">
+          <summary>
+            {t("Hai già un link o vuoi cercare in altri negozi?")}
+          </summary>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (searchReady)
+                window.open(searchUrl, "_blank", "noopener,noreferrer");
+            }}
+          >
+            <div className="wish-search-fields">
+              <Field
+                label={t("Cosa cerchi?")}
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                maxLength={200}
+                placeholder={t("Per esempio, tazza blu")}
+              />
+              <Field label={t("Dove cercare")}>
+                <select
+                  value={provider}
+                  onChange={(event) => setProvider(event.target.value)}
+                >
+                  <option value="amazon">Amazon.it</option>
+                  <option value="etsy">Etsy</option>
+                  <option value="toyscenter">
+                    {t("Toys Center · ricerca sul web")}
+                  </option>
+                  <option value="web">{t("Tutto il web")}</option>
+                  <option value="local">{t("Negozi in una città")}</option>
+                </select>
+              </Field>
+              <Button type="submit" variant="outline" disabled={!searchReady}>
+                {t("Cerca ↗")}
+              </Button>
+            </div>
+            {provider === "local" ? (
+              <Field
+                label={t("Città dello scambio")}
+                value={searchCity}
+                onChange={(event) => setSearchCity(event.target.value)}
+                maxLength={80}
+                placeholder={t("Dove vi scambierete i regali?")}
+                hint={t(
+                  "La ricerca usa questa città; non richiediamo la tua posizione.",
+                )}
+              />
+            ) : null}
+          </form>
+          <p className="wish-search-note">
+            {t(
+              "La ricerca si apre in una nuova scheda. Scegli sul sito del negozio, copia il link e torna qui per aggiungerlo. Non verifichiamo prezzi, disponibilità, spedizione o ritiro.",
+            )}
+          </p>
+          <details className="wish-manual">
+            <summary>{t("Aggiungi un prodotto con nome e link")}</summary>
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                setProductError("");
+                if (items.length >= 30) {
+                  setProductError("Puoi lasciare fino a 30 desideri.");
+                  return;
+                }
+                try {
+                  const url = new URL(product.url);
+                  if (
+                    !["https:", "http:"].includes(url.protocol) ||
+                    !product.title.trim()
+                  )
+                    throw new Error();
+                  setItems((all) => [
+                    ...all,
+                    {
+                      type: "object",
+                      title: product.title.trim(),
+                      url: url.href,
+                      description: "",
+                      hint: "",
+                      answer: "",
+                    },
+                  ]);
+                  setProduct({ title: "", url: "" });
+                } catch {
+                  setProductError(
+                    "Inserisci il nome del prodotto e un link che inizi con https:// o http://.",
+                  );
+                }
+              }}
+            >
+              <Field
+                label={t("Nome del prodotto")}
+                value={product.title}
+                onChange={(event) =>
+                  setProduct({ ...product, title: event.target.value })
+                }
+                required
+                maxLength={150}
+              />
+              <Field
+                label={t("Link del prodotto o del negozio")}
+                type="url"
+                value={product.url}
+                onChange={(event) =>
+                  setProduct({ ...product, url: event.target.value })
+                }
+                required
+                placeholder="https://"
+                hint={t(
+                  "Puoi usare Amazon, Etsy, Toys Center o qualsiasi altro negozio, anche locale.",
+                )}
+              />
+              <Notice error>{t(productError)}</Notice>
+              <Button
+                type="submit"
+                variant="outline"
+                disabled={items.length >= 30 || busy}
+              >
+                {t("Aggiungi alla lettera")}
+              </Button>
+              <p className="wish-search-note">
+                {t(
+                  "Poi premi “Salva la lettera” per conservare tutti i desideri.",
+                )}
+              </p>
+            </form>
+          </details>
+        </details>
+      </div>{" "}
     </section>
   );
 }
@@ -880,10 +1022,11 @@ function GroupRenameModal({ event, busy, onClose, onSubmit }) {
   const [groupName, setGroupName] = useState(event.groupName || event.name);
   const [name, setName] = useState(event.name);
   return (
-    <Modal title="Modifica nome del gruppo" onClose={onClose}>
+    <Modal title={t("Modifica nome del gruppo")} onClose={onClose}>
       <p>
-        Puoi aggiornare in qualsiasi momento il nome del gruppo e il titolo di
-        questa edizione dello scambio.
+        {t(
+          "Puoi aggiornare in qualsiasi momento il nome del gruppo e il titolo di questa edizione dello scambio.",
+        )}
       </p>
       <form
         className="form-stack"
@@ -893,28 +1036,28 @@ function GroupRenameModal({ event, busy, onClose, onSubmit }) {
         }}
       >
         <Field
-          label="Nome del gruppo"
+          label={t("Nome del gruppo")}
           name="groupName"
           maxLength={100}
           required
           value={groupName}
           onChange={(e) => setGroupName(e.target.value)}
-          hint="Resta associato al gruppo anche nelle prossime edizioni."
+          hint={t("Resta associato al gruppo anche nelle prossime edizioni.")}
         />
         <Field
-          label="Nome dello scambio"
+          label={t("Nome dello scambio")}
           name="name"
           maxLength={100}
           required
           value={name}
           onChange={(e) => setName(e.target.value)}
-          hint="Il titolo di questa edizione."
+          hint={t("Il titolo di questa edizione.")}
         />
         <div className="form-actions">
           <Button type="button" variant="ghost" onClick={onClose}>
-            Torna indietro
+            {t("Torna indietro")}
           </Button>
-          <Button busy={busy}>Salva i nomi</Button>
+          <Button busy={busy}>{t("Salva i nomi")}</Button>
         </div>
       </form>
     </Modal>
@@ -932,7 +1075,7 @@ function Admin({
   onRenameGroup,
 }) {
   const { event, members = [], rules = [], invites = [] } = data;
-  const [copied, setCopied] = useState(false),
+  const [copied, setCopied] = useState(""),
     [emails, setEmails] = useState(""),
     [history, setHistory] = useState(""),
     [rule, setRule] = useState({
@@ -951,11 +1094,14 @@ function Admin({
   const link = event.inviteToken
     ? `${location.origin}/invite/${event.inviteToken}`
     : "";
-  async function copy(text) {
+  const copyTimer = useRef(null);
+  useEffect(() => () => clearTimeout(copyTimer.current), []);
+  async function copy(text, source) {
     try {
       await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2500);
+      setCopied(source);
+      clearTimeout(copyTimer.current);
+      copyTimer.current = setTimeout(() => setCopied(""), 2500);
     } catch {
       setError(
         "Non siamo riusciti a copiare. Seleziona il link e copialo a mano.",
@@ -976,6 +1122,16 @@ function Admin({
   const locked = ["drawn", "archived"].includes(event.status);
   return (
     <div className="admin-stack">
+      <nav
+        className="section-jump-links"
+        aria-label={t("Gestione dello scambio")}
+      >
+        {locked && <a href="#event-matches">{t("Abbinamenti")}</a>}
+        <a href="#event-invites">{t("Inviti")}</a>
+        <a href="#event-members">{t("Partecipanti")}</a>
+        <a href="#event-settings">{t("Dettagli dello scambio")}</a>
+        <a href="#event-draw">{t("Estrazione")}</a>
+      </nav>
       {editing ? (
         <EventEdit
           event={event}
@@ -983,366 +1139,15 @@ function Admin({
           onSaved={load}
         />
       ) : null}
-      <section className="content-heading">
-        <div>
-          <h2 id="event-settings" tabIndex={-1}>
-            Dettagli dello scambio
-          </h2>
-          <p>Puoi cambiare date, budget e messaggio fino all’estrazione.</p>
-        </div>
-        <div className="button-row">
-          <Button variant="ghost" type="button" onClick={onRenameGroup}>
-            Rinomina gruppo
-          </Button>
-          <Button
-            variant="outline"
-            disabled={locked}
-            onClick={() => setEditing(true)}
-          >
-            <Settings2 size={16} />
-            Modifica l’evento
-          </Button>
-        </div>
-      </section>
-      <section>
-        <div className="content-heading">
-          <div>
-            <h2>Invita il tuo gruppo.</h2>
-            <p>Condividi il link in chat oppure manda un invito via email.</p>
-          </div>
-          <Mail className="section-icon" />
-        </div>
-        <div className="invite-box">
-          <code>{link || "Link non disponibile"}</code>
-          <div className="button-row">
-            <Button variant="outline" onClick={() => copy(link)}>
-              <Copy size={16} />
-              {copied ? "Copiato" : "Copia link"}
-            </Button>
-            <Button
-              variant="ghost"
-              onClick={() =>
-                copy(
-                  `Facciamo il Secret Santa? Ti aspetto a ${event.name}! Il budget è ${money(event.budget)} a persona. Peschiamo i nomi il ${date(event.drawAt)} e ci scambiamo i regali il ${date(event.giftAt)}. Apri il link per partecipare: ${link}`,
-                )
-              }
-            >
-              Copia il messaggio
-            </Button>
-            <Button
-              variant="ghost"
-              busy={busy}
-              onClick={() =>
-                setConfirm({
-                  title: "Cambiare il link di invito?",
-                  text: "I link di invito già inviati smetteranno di funzionare. Chi si è già iscritto resta nel gruppo.",
-                  path: "rotate-invite",
-                  button: "Cambia il link",
-                })
-              }
-            >
-              <RefreshCw size={15} />
-              Cambia link
-            </Button>
-          </div>
-        </div>
-        <form
-          onSubmit={async (e) => {
-            e.preventDefault();
-            const r = await action(
-              "invites",
-              { emails: [...new Set(emails.split(/[\s,;]+/).filter(Boolean))] },
-              "Gli inviti sono in coda. Puoi controllare lo stato qui sotto.",
-            );
-            if (r) setEmails("");
-          }}
-          className="email-invite"
-        >
-          <Field
-            label="Oppure invita via email"
-            hint="Separa gli indirizzi con una virgola o vai a capo."
-          >
-            <textarea
-              rows={2}
-              value={emails}
-              onChange={(e) => setEmails(e.target.value)}
-              placeholder="amica@esempio.it, amico@esempio.it"
-              required
-            />
-          </Field>
-          <Button busy={busy}>
-            <Send size={16} />
-            Invia gli inviti
-          </Button>
-        </form>
-        {invites.length ? (
-          <details className="disclosure">
-            <summary>
-              Stato degli inviti <ChevronDown size={16} />
-            </summary>
-            {invites.map((i, n) => (
-              <div className="simple-row" key={i.id || n}>
-                <span>{i.email}</span>
-                <span>
-                  {{
-                    queued: "In coda",
-                    sent: "Inviato",
-                    failed: "Da inviare di nuovo",
-                    accepted: "Accettato",
-                  }[i.state || i.status] ||
-                    i.state ||
-                    i.status}
-                </span>
-              </div>
-            ))}
-          </details>
-        ) : null}
-      </section>
-      <EventTools event={event} locked={locked} action={action} />
-      <section className="admin-section">
-        <h2 id="event-members" tabIndex={-1}>
-          Chi partecipa?
-        </h2>
-        {members.length ? (
-          members.map((m) => (
-            <div className="simple-row" key={m.id}>
-              <span>
-                <span className="guest-identity">
-                  <strong>{m.name}</strong>
-                  {m.nickname && !m.badge ? (
-                    <small className="guest-realname">@{m.nickname}</small>
-                  ) : null}
-                  {m.badge ? (
-                    <NameTag
-                      badge={m.badge}
-                      name={m.name}
-                      nickname={m.nickname}
-                      badgeText={m.badgeText}
-                      size="sm"
-                    />
-                  ) : null}
-                </span>
-                <small>{m.email || ""}</small>
-              </span>
-              <span>
-                {m.status === "pending"
-                  ? "Da confermare"
-                  : m.status === "removed"
-                    ? "Non partecipa"
-                    : m.hasWishlist
-                      ? "Lettera pronta"
-                      : "Lettera da scrivere"}
-              </span>
-              <div className="button-row">
-                {m.status === "pending" ? (
-                  <Button
-                    variant="outline"
-                    busy={busy}
-                    onClick={() =>
-                      action(
-                        `members/${m.id}`,
-                        { status: "approved" },
-                        "Posto confermato.",
-                      )
-                    }
-                  >
-                    Conferma
-                  </Button>
-                ) : null}
-                {m.status !== "removed" && !locked ? (
-                  <button
-                    className="text-button"
-                    onClick={() =>
-                      action(
-                        `members/${m.id}`,
-                        { status: "removed" },
-                        "Hai rimosso la persona dallo scambio.",
-                      )
-                    }
-                  >
-                    Rimuovi
-                  </button>
-                ) : null}
-              </div>
-            </div>
-          ))
-        ) : (
-          <p>Nessuna iscrizione per ora. Manda il primo invito.</p>
-        )}
-      </section>
-      <section className="admin-section">
-        <h2>Regole per l’estrazione</h2>
-        <p>
-          Qui puoi escludere o fissare un abbinamento. Per evitare di ripetere
-          gli scambi delle edizioni passate, controlla le impostazioni
-          dell’evento.
-        </p>
-        <form
-          className="rule-form"
-          onSubmit={(e) => {
-            e.preventDefault();
-            saveRules([...rules, rule]);
-          }}
-        >
-          <Field label="Chi fa il regalo">
-            <select
-              required
-              value={rule.giverId}
-              onChange={(e) =>
-                setRule((r) => ({ ...r, giverId: e.target.value }))
-              }
-            >
-              <option value="">Scegli una persona</option>
-              {eligible.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Regola">
-            <select
-              value={rule.type}
-              onChange={(e) => setRule((r) => ({ ...r, type: e.target.value }))}
-            >
-              <option value="exclude">Non deve regalarlo a</option>
-              <option value="fixed">Deve regalarlo a</option>
-            </select>
-          </Field>
-          <Field label="Chi riceve">
-            <select
-              required
-              value={rule.receiverId}
-              onChange={(e) =>
-                setRule((r) => ({ ...r, receiverId: e.target.value }))
-              }
-            >
-              <option value="">Scegli una persona</option>
-              {eligible
-                .filter((m) => m.id !== rule.giverId)
-                .map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name}
-                  </option>
-                ))}
-            </select>
-          </Field>
-          <Button busy={ruleBusy} disabled={locked}>
-            <Plus size={16} />
-            Aggiungi
-          </Button>
-        </form>
-        {rules.map((r, i) => (
-          <div className="simple-row" key={i}>
-            <span>
-              {names[r.giverId] || "Partecipante"}{" "}
-              <span className="quiet">
-                {r.type === "fixed" ? "regala a" : "non regala a"}
-              </span>{" "}
-              {names[r.receiverId] || "Partecipante"}
-            </span>
-            <button
-              className="icon-button"
-              aria-label="Rimuovi regola"
-              disabled={locked}
-              onClick={() => saveRules(rules.filter((_, n) => i !== n))}
-            >
-              <Trash2 size={16} />
-            </button>
-          </div>
-        ))}
-        <details className="disclosure">
-          <summary>
-            Aggiungi gli scambi degli anni passati <ChevronDown size={16} />
-          </summary>
-          <p>
-            Scrivi una coppia per riga. Metti prima l’indirizzo di chi ha fatto
-            il regalo, poi quello di chi l’ha ricevuto. Usa le email con cui si
-            sono iscritti.
-          </p>
-          <form
-            onSubmit={async (e) => {
-              e.preventDefault();
-              const pairs = history
-                .split("\n")
-                .filter((l) => l.trim())
-                .map((l) => {
-                  const [giverEmail, receiverEmail] = l
-                    .split(/[,;\s]+/)
-                    .filter(Boolean);
-                  return { giverEmail, receiverEmail };
-                });
-              const r = await action(
-                "history",
-                { pairs },
-                "Hai aggiunto gli scambi allo storico.",
-              );
-              if (r) setHistory("");
-            }}
-          >
-            <Field label="Scambi passati">
-              <textarea
-                value={history}
-                onChange={(e) => setHistory(e.target.value)}
-                rows={4}
-                placeholder="chi.regala@esempio.it, chi.riceve@esempio.it"
-                required
-              />
-            </Field>
-            <div className="button-row">
-              <Button disabled={locked} busy={busy}>
-                Salva lo storico
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                disabled={locked}
-                onClick={() =>
-                  setConfirm({
-                    title: "Rimuovere gli scambi inseriti a mano?",
-                    text: "Rimuoveremo le coppie che hai aggiunto a mano per questo gruppo. Lo storico delle edizioni organizzate sul sito rimane.",
-                    path: "clear-history",
-                    button: "Rimuovi lo storico importato",
-                  })
-                }
-              >
-                Rimuovi gli scambi importati
-              </Button>
-            </div>
-          </form>
-        </details>
-      </section>
-      <section className="admin-section draw-section">
-        <div>
-          <span className="eyebrow">Un nome per ciascuno</span>
-          <h2>Estrazione dei nomi</h2>
-          <p>
-            L’estrazione parte all’ora che hai scelto. Puoi avviarla anche da
-            qui quando ci sono almeno tre iscritti confermati.
-          </p>
-          <DrawExplanation />
-        </div>
-        <Button
-          busy={busy}
-          disabled={locked || eligible.length < 3}
-          onClick={() =>
-            setConfirm({
-              title: "Estrarre i nomi adesso?",
-              text: "Controlla che il gruppo sia al completo. Assegneremo un nome a ogni partecipante confermato. Per cambiare i partecipanti dovrai annullare l’estrazione.",
-              path: "draw",
-              button: "Sì, estrai i nomi",
-            })
-          }
-        >
-          <Gift size={18} />
-          Estrai i nomi
-        </Button>
-      </section>
       {["drawn", "archived"].includes(event.status) ? (
         <section className="admin-section">
-          <h2>Gli abbinamenti sono pronti.</h2>
+          <h2 id="event-matches" tabIndex={-1}>
+            {t("Gli abbinamenti sono pronti.")}
+          </h2>
           <p>
-            Nell’elenco vedrai chi fa il regalo a chi, anche chi farà il tuo.
+            {t(
+              "Nell’elenco vedrai chi fa il regalo a chi, anche chi farà il tuo.",
+            )}
           </p>
           <Button
             variant="outline"
@@ -1354,7 +1159,9 @@ function Admin({
               }
               if (
                 !window.confirm(
-                  "Vedrai tutti gli abbinamenti, anche chi ti farà il regalo. Vuoi continuare?",
+                  t(
+                    "Vedrai tutti gli abbinamenti, anche chi ti farà il regalo. Vuoi continuare?",
+                  ),
                 )
               )
                 return;
@@ -1381,8 +1188,8 @@ function Admin({
           >
             <LockKeyhole size={16} />
             {assignments
-              ? "Nascondi gli abbinamenti"
-              : "Mostra gli abbinamenti"}
+              ? t("Nascondi gli abbinamenti")
+              : t("Mostra gli abbinamenti")}
           </Button>
           {assignments ? (
             <div className="assignment-list">
@@ -1397,10 +1204,392 @@ function Admin({
           ) : null}
         </section>
       ) : null}
-      <section className="admin-section maintenance">
-        <h2>Archivio e prossima edizione</h2>
+      <section>
+        <div className="content-heading">
+          <div>
+            <h2 id="event-invites" tabIndex={-1}>
+              {t("Invita il tuo gruppo.")}
+            </h2>
+            <p>
+              {t("Condividi il link in chat oppure manda un invito via email.")}
+            </p>
+          </div>
+          <Mail className="section-icon" />
+        </div>
+        <div className="invite-box">
+          <code>{link || t("Link non disponibile")}</code>
+          <div className="button-row">
+            <Button
+              variant="outline"
+              disabled={!link}
+              onClick={() => copy(link, "link")}
+            >
+              <Copy size={16} />
+              {copied === "link" ? t("Copiato") : t("Copia link")}
+            </Button>
+            <Button
+              variant="ghost"
+              disabled={!link}
+              onClick={() =>
+                copy(
+                  t(
+                    "Facciamo il Secret Santa? Ti aspetto a {name}! Il budget è {budget} a persona. Peschiamo i nomi il {draw} e ci scambiamo i regali il {gift}. Apri il link per partecipare: {link}",
+                    {
+                      name: event.name,
+                      budget: money(event.budget),
+                      draw: date(event.drawAt),
+                      gift: date(event.giftAt),
+                      link,
+                    },
+                  ),
+                  "message",
+                )
+              }
+            >
+              {copied === "message" ? t("Copiato") : t("Copia il messaggio")}
+            </Button>
+            <Button
+              variant="ghost"
+              busy={busy}
+              onClick={() =>
+                setConfirm({
+                  title: "Cambiare il link di invito?",
+                  text: "I link di invito già inviati smetteranno di funzionare. Chi si è già iscritto resta nel gruppo.",
+                  path: "rotate-invite",
+                  button: "Cambia il link",
+                })
+              }
+            >
+              <RefreshCw size={15} />
+              {t("Cambia link")}
+            </Button>
+          </div>
+        </div>
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault();
+            const r = await action(
+              "invites",
+              { emails: [...new Set(emails.split(/[\s,;]+/).filter(Boolean))] },
+              "Gli inviti sono in coda. Puoi controllare lo stato qui sotto.",
+            );
+            if (r) setEmails("");
+          }}
+          className="email-invite"
+        >
+          <Field
+            label={t("Oppure invita via email")}
+            hint={t("Separa gli indirizzi con una virgola o vai a capo.")}
+          >
+            <textarea
+              rows={2}
+              value={emails}
+              onChange={(e) => setEmails(e.target.value)}
+              placeholder={t("amica@esempio.it, amico@esempio.it")}
+              required
+            />
+          </Field>
+          <Button busy={busy}>
+            <Send size={16} />
+            {t("Invia gli inviti")}
+          </Button>
+        </form>
+        {invites.length ? (
+          <details className="disclosure">
+            <summary>
+              {t("Stato degli inviti")} <ChevronDown size={16} />
+            </summary>
+            {invites.map((i, n) => (
+              <div className="simple-row" key={i.id || n}>
+                <span>{i.email}</span>
+                <span>
+                  {{
+                    queued: t("In coda"),
+                    sent: t("Inviato"),
+                    failed: t("Da inviare di nuovo"),
+                    accepted: t("Accettato"),
+                  }[i.state || i.status] ||
+                    i.state ||
+                    i.status}
+                </span>
+              </div>
+            ))}
+          </details>
+        ) : null}
+      </section>
+      <EventTools event={event} locked={locked} action={action} />
+      <section className="admin-section">
+        <h2 id="event-members" tabIndex={-1}>
+          {t("Chi partecipa?")}
+        </h2>
+        {members.length ? (
+          members.map((m) => (
+            <div className="simple-row" key={m.id}>
+              <span>
+                <span className="guest-identity">
+                  <strong>{m.name}</strong>
+                  {m.nickname && !m.badge ? (
+                    <small className="guest-realname">@{m.nickname}</small>
+                  ) : null}
+                  {m.badge ? (
+                    <NameTag
+                      badge={m.badge}
+                      name={m.name}
+                      nickname={m.nickname}
+                      badgeText={m.badgeText}
+                      size="sm"
+                    />
+                  ) : null}
+                </span>
+                <small>{m.email || ""}</small>
+              </span>
+              <span>
+                {m.status === "pending"
+                  ? t("Da confermare")
+                  : m.status === "removed"
+                    ? t("Non partecipa")
+                    : m.hasWishlist
+                      ? t("Lettera pronta")
+                      : t("Lettera da scrivere")}
+              </span>
+              <div className="button-row">
+                {m.status === "pending" ? (
+                  <Button
+                    variant="outline"
+                    busy={busy}
+                    onClick={() =>
+                      action(
+                        `members/${m.id}`,
+                        { status: "approved" },
+                        "Posto confermato.",
+                      )
+                    }
+                  >
+                    {t("Conferma")}
+                  </Button>
+                ) : null}
+                {m.status !== "removed" && !locked ? (
+                  <button
+                    className="text-button"
+                    onClick={() =>
+                      action(
+                        `members/${m.id}`,
+                        { status: "removed" },
+                        "Hai rimosso la persona dallo scambio.",
+                      )
+                    }
+                  >
+                    {t("Rimuovi")}
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          ))
+        ) : (
+          <p>{t("Nessuna iscrizione per ora. Manda il primo invito.")}</p>
+        )}
+      </section>
+      <section className="content-heading">
+        <div>
+          <h2 id="event-settings" tabIndex={-1}>
+            {t("Dettagli dello scambio")}
+          </h2>
+          <p>
+            {t("Puoi cambiare date, budget e messaggio fino all’estrazione.")}
+          </p>
+        </div>
+        <div className="button-row">
+          <Button variant="ghost" type="button" onClick={onRenameGroup}>
+            {t("Rinomina gruppo")}
+          </Button>
+          <Button
+            variant="outline"
+            disabled={locked}
+            onClick={() => setEditing(true)}
+          >
+            <Settings2 size={16} />
+            {t("Modifica l’evento")}
+          </Button>
+        </div>
+      </section>
+      <section className="admin-section">
+        <h2>{t("Regole per l’estrazione")}</h2>
         <p>
-          Puoi archiviare questo scambio e ritrovare il gruppo l’anno prossimo.
+          {t(
+            "Qui puoi escludere o fissare un abbinamento. Per evitare di ripetere gli scambi delle edizioni passate, controlla le impostazioni dell’evento.",
+          )}
+        </p>
+        <form
+          className="rule-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            saveRules([...rules, rule]);
+          }}
+        >
+          <Field label={t("Chi fa il regalo")}>
+            <select
+              required
+              value={rule.giverId}
+              onChange={(e) =>
+                setRule((r) => ({ ...r, giverId: e.target.value }))
+              }
+            >
+              <option value="">{t("Scegli una persona")}</option>
+              {eligible.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label={t("Regola")}>
+            <select
+              value={rule.type}
+              onChange={(e) => setRule((r) => ({ ...r, type: e.target.value }))}
+            >
+              <option value="exclude">{t("Non deve regalarlo a")}</option>
+              <option value="fixed">{t("Deve regalarlo a")}</option>
+            </select>
+          </Field>
+          <Field label={t("Chi riceve")}>
+            <select
+              required
+              value={rule.receiverId}
+              onChange={(e) =>
+                setRule((r) => ({ ...r, receiverId: e.target.value }))
+              }
+            >
+              <option value="">{t("Scegli una persona")}</option>
+              {eligible
+                .filter((m) => m.id !== rule.giverId)
+                .map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
+                ))}
+            </select>
+          </Field>
+          <Button busy={ruleBusy} disabled={locked}>
+            <Plus size={16} />
+            {t("Aggiungi")}
+          </Button>
+        </form>
+        {rules.map((r, i) => (
+          <div className="simple-row" key={i}>
+            <span>
+              {names[r.giverId] || t("Partecipante")}{" "}
+              <span className="quiet">
+                {r.type === "fixed" ? t("regala a") : t("non regala a")}
+              </span>{" "}
+              {names[r.receiverId] || t("Partecipante")}
+            </span>
+            <button
+              className="icon-button"
+              aria-label={t("Rimuovi regola")}
+              disabled={locked}
+              onClick={() => saveRules(rules.filter((_, n) => i !== n))}
+            >
+              <Trash2 size={16} />
+            </button>
+          </div>
+        ))}
+        <details className="disclosure">
+          <summary>
+            {t("Aggiungi gli scambi degli anni passati")}{" "}
+            <ChevronDown size={16} />
+          </summary>
+          <p>
+            {t(
+              "Scrivi una coppia per riga. Metti prima l’indirizzo di chi ha fatto il regalo, poi quello di chi l’ha ricevuto. Usa le email con cui si sono iscritti.",
+            )}
+          </p>
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const pairs = history
+                .split("\n")
+                .filter((l) => l.trim())
+                .map((l) => {
+                  const [giverEmail, receiverEmail] = l
+                    .split(/[,;\s]+/)
+                    .filter(Boolean);
+                  return { giverEmail, receiverEmail };
+                });
+              const r = await action(
+                "history",
+                { pairs },
+                "Hai aggiunto gli scambi allo storico.",
+              );
+              if (r) setHistory("");
+            }}
+          >
+            <Field label={t("Scambi passati")}>
+              <textarea
+                value={history}
+                onChange={(e) => setHistory(e.target.value)}
+                rows={4}
+                placeholder={t("chi.regala@esempio.it, chi.riceve@esempio.it")}
+                required
+              />
+            </Field>
+            <div className="button-row">
+              <Button disabled={locked} busy={busy}>
+                {t("Salva lo storico")}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={locked}
+                onClick={() =>
+                  setConfirm({
+                    title: "Rimuovere gli scambi inseriti a mano?",
+                    text: "Rimuoveremo le coppie che hai aggiunto a mano per questo gruppo. Lo storico delle edizioni organizzate sul sito rimane.",
+                    path: "clear-history",
+                    button: "Rimuovi lo storico importato",
+                  })
+                }
+              >
+                {t("Rimuovi gli scambi importati")}
+              </Button>
+            </div>
+          </form>
+        </details>
+      </section>
+      <section className="admin-section draw-section">
+        <div>
+          <span className="eyebrow">{t("Un nome per ciascuno")}</span>
+          <h2 id="event-draw" tabIndex={-1}>
+            {t("Estrazione dei nomi")}
+          </h2>
+          <p>
+            {t(
+              "L’estrazione parte all’ora che hai scelto. Puoi avviarla anche da qui quando ci sono almeno tre iscritti confermati.",
+            )}
+          </p>
+          <DrawExplanation />
+        </div>
+        <Button
+          busy={busy}
+          disabled={locked || eligible.length < 3}
+          onClick={() =>
+            setConfirm({
+              title: "Estrarre i nomi adesso?",
+              text: "Controlla che il gruppo sia al completo. Assegneremo un nome a ogni partecipante confermato. Per cambiare i partecipanti dovrai annullare l’estrazione.",
+              path: "draw",
+              button: "Sì, estrai i nomi",
+            })
+          }
+        >
+          <Gift size={18} />
+          {t("Estrai i nomi")}
+        </Button>
+      </section>
+      <section className="admin-section maintenance">
+        <h2>{t("Archivio e prossima edizione")}</h2>
+        <p>
+          {t(
+            "Puoi archiviare questo scambio e ritrovare il gruppo l’anno prossimo.",
+          )}
         </p>
         <div className="button-row">
           <Button
@@ -1408,8 +1597,8 @@ function Admin({
             busy={busy}
             onClick={async () => {
               const name = window.prompt(
-                "Come chiamiamo il prossimo evento?",
-                event.name + " · nuova edizione",
+                t("Come chiamiamo il prossimo evento?"),
+                event.name + t(" · nuova edizione"),
               );
               if (name?.trim()) {
                 const r = await action(
@@ -1422,7 +1611,7 @@ function Admin({
             }}
           >
             <Copy size={16} />
-            Prepara la prossima edizione
+            {t("Prepara la prossima edizione")}
           </Button>
           <Button
             variant="ghost"
@@ -1438,7 +1627,7 @@ function Admin({
             }
           >
             <Archive size={16} />
-            Archivia
+            {t("Archivia")}
           </Button>
           {event.status === "drawn" ? (
             <Button
@@ -1453,7 +1642,7 @@ function Admin({
                 })
               }
             >
-              Annulla l’estrazione
+              {t("Annulla l’estrazione")}
             </Button>
           ) : null}
         </div>

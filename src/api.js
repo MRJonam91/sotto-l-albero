@@ -1,3 +1,5 @@
+import { getLocale, t, registerGameMessages, clearGameMessages } from "./i18n.js";
+
 export async function api(path, method = "GET", body) {
   let response;
   const sendsBody = method !== "GET" && method !== "HEAD";
@@ -5,7 +7,10 @@ export async function api(path, method = "GET", body) {
     response = await fetch("/api" + path, {
       method,
       credentials: "same-origin",
-      headers: sendsBody ? { "Content-Type": "application/json" } : undefined,
+      headers: {
+        ...(sendsBody && { "Content-Type": "application/json" }),
+        ...(/^\/(?:competition|practice)\//.test(path) && { "X-Game-Languages": "1" }),
+      },
       body: sendsBody ? JSON.stringify(body ?? {}) : undefined,
     });
   } catch {
@@ -19,25 +24,31 @@ export async function api(path, method = "GET", body) {
         status: response.status,
       },
     );
+  if (data.gameMessages) {
+    registerGameMessages(data.gameMessages);
+    delete data.gameMessages;
+  }
+  if (path === "/auth/logout") clearGameMessages();
   return data;
 }
 export const date = (value) =>
   value
-    ? new Intl.DateTimeFormat("it-IT", {
+    ? new Intl.DateTimeFormat(getLocale(), {
         day: "numeric",
         month: "long",
         hour: "2-digit",
         minute: "2-digit",
       }).format(new Date(value))
-    : "Da decidere";
+    : t("Da decidere");
 export const money = (value) =>
-  new Intl.NumberFormat("it-IT", {
+  new Intl.NumberFormat(getLocale(), {
     style: "currency",
     currency: "EUR",
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
   }).format(value || 0);
 export const statusLabel = (value) =>
-  ({
+  t(({
     draft: "Da preparare",
     open: "Iscrizioni aperte",
     closed: "Iscrizioni chiuse",
@@ -46,6 +57,6 @@ export const statusLabel = (value) =>
     cancelled: "Da rifare",
     drawing: "Estrazione in corso",
     error: "Regole da rivedere",
-  })[value] || value;
+  })[value] || value);
 export const activeMember = (value) =>
   ["approved", "confirmed"].includes(value);

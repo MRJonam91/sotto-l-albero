@@ -288,6 +288,8 @@ async function profile(request, env, userId) {
       characterMatches: portrait.characterMatches,
       topCharacter: portrait.topCharacter,
       generatedDescription: portrait.generatedDescription,
+      descriptionParts: portrait.descriptionParts,
+      privateSignalParts: portrait.privateSignalParts,
       finalDescription: portrait.finalDescription,
       spiritScene: portrait.spiritScene,
       matchingExplanation: portrait.matchingExplanation,
@@ -317,9 +319,15 @@ function sanitizeHolidayProfile(
   moodId = null,
 ) {
   const existing = parseHolidayProfile(existingRaw);
-  const parsed = parseHolidayProfile(
-    input && typeof input === "object" ? { ...existing, ...input } : existing,
-  );
+  const next = { ...existing, ...input };
+  if (
+    input &&
+    Object.hasOwn(input, "activity") &&
+    input.activity !== existing.activity &&
+    !Object.hasOwn(input, "activityPreset")
+  )
+    delete next.activityPreset;
+  const parsed = parseHolidayProfile(next);
   const today = romeToday();
   let lastPromptDate = existing.lastPromptDate;
   let lastPromptStatus = existing.lastPromptStatus;
@@ -342,6 +350,7 @@ function sanitizeHolidayProfile(
   return {
     quote: safeText(parsed.quote, 160, false),
     activity: safeText(parsed.activity, 120, false),
+    ...(parsed.activityPreset ? { activityPreset: parsed.activityPreset } : {}),
     iconMessage: parsed.iconMessage,
     iconCaption: safeText(parsed.iconCaption, 120, false),
     riddle: safeText(parsed.riddle, 240, false),
@@ -380,11 +389,10 @@ async function saveDailyCheckin(env, userId, body) {
     body?.holidayProfile &&
     typeof body.holidayProfile === "object"
       ? {
-          ...previous,
           ...body.holidayProfile,
           answers: { ...previous.answers, ...body.holidayProfile.answers },
         }
-      : previous;
+      : null;
   if (action === "complete" && Object.hasOwn(body, "moodId")) {
     if (!holidayMoods.some((mood) => mood.id === body.moodId))
       throw new HttpError("Scegli uno degli stati proposti.");

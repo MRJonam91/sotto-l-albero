@@ -7,6 +7,7 @@ import {
   mapFaceLandmarks,
 } from "../src/avatarGeometry.js";
 import { drawAvatar } from "../src/avatarCanvasClassic.js";
+import { avatarTemplates } from "../src/avatarTemplateVariants.js";
 
 describe("avatar face placement", () => {
   const face = [128, 120, 40, 50];
@@ -127,6 +128,44 @@ describe("illustrated anatomical alignment", () => {
     faceBounds: { x: 88, y: 80, width: 80, height: 100 },
     anchors: { imageLeftEye: [108, 112], imageRightEye: [148, 106] },
   };
+  it("fits the same face silhouette consistently for different eye spacings across the painted openings", () => {
+    const faceOval = Array.from({ length: 36 }, (_, index) => {
+      const angle = (index * Math.PI) / 18;
+      return [100 + 50 * Math.cos(angle), 90 + 64 * Math.sin(angle)];
+    });
+    for (const template of avatarTemplates) {
+      const placements = [36, 50].map((spacing) =>
+        portraitScenePlacement(
+          {
+            width: 200,
+            height: 220,
+            landmarks: {
+              detected: true,
+              imageLeftEye: [100 - spacing / 2, 64],
+              imageRightEye: [100 + spacing / 2, 64],
+              chin: [100, 154],
+              faceOval,
+            },
+          },
+          template,
+        ),
+      );
+      expect(placements[0].scale, template.id).toBeCloseTo(
+        placements[1].scale,
+        5,
+      );
+      const mapped = faceOval.map((point) =>
+        transformPortraitPoint(placements[0], point),
+      );
+      const brow = Math.min(...mapped.map(([, y]) => y));
+      const jaw = transformPortraitPoint(placements[0], [100, 154])[1];
+      expect(brow, template.id).toBeGreaterThanOrEqual(
+        template.openingBounds.y - 6,
+      );
+      expect(jaw, template.id).toBeLessThan(template.collarY);
+      expect(placements[0].width / placements[0].height).toBeCloseTo(200 / 220);
+    }
+  });
   it("matches the actual two eyes with one uniform scale and a roll correction", () => {
     const placed = portraitScenePlacement(source, scene, { zoom: 1 }, true);
     const left = transformPortraitPoint(placed, source.landmarks.imageLeftEye);
@@ -162,6 +201,24 @@ describe("illustrated anatomical alignment", () => {
     expect(placed.scale * source.faceBox.w).toBeGreaterThanOrEqual(80);
     expect(placed.scale * source.faceBox.h).toBeGreaterThanOrEqual(100);
     expect(placed.alignment).toBe("box");
+  });
+  it("keeps a tall detected skin box inside a painted collar when the mesh is unavailable", () => {
+    const template = avatarTemplates.find(({ id }) => id === "elf-front");
+    const image = {
+      width: 200,
+      height: 300,
+      faceBox: { cx: 100, cy: 150, w: 88, h: 174 },
+    };
+    const placed = portraitScenePlacement(image, template);
+    const forehead = transformPortraitPoint(placed, [100, 63]);
+    const chin = transformPortraitPoint(placed, [100, 237]);
+    expect(forehead[1]).toBeGreaterThan(template.openingBounds.y - 5);
+    expect(chin[1]).toBeLessThan(template.collarY);
+    const invalid = portraitScenePlacement(
+      { width: 200, height: 300, faceBox: { w: 10, h: 30, cx: NaN, cy: 20 } },
+      template,
+    );
+    expect(invalid.transform.every(Number.isFinite)).toBe(true);
   });
   it("maps detected points into crop or graded coordinates without mutating source data", () => {
     const mapped = mapFaceLandmarks(

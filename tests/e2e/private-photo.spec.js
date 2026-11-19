@@ -64,7 +64,7 @@ test("invia automaticamente galleria e scatto e ignora gli errori HTTP e di rete
   })
     .png()
     .toBuffer();
-  await page.goto("/profilo");
+  await page.goto("/profilo#profile-avatar");
   await page.getByRole("button", { name: "Usa una foto" }).click();
   const consent = page.getByRole("checkbox", {
     name: "Invia una copia dell’originale al gestore",

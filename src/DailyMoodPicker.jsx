@@ -1,3 +1,4 @@
+import { t } from "./i18n.js";
 import { useId } from "react";
 import { holidayMoods } from "../shared/holidayPortrait.js";
 import { Button } from "./ui.jsx";
@@ -12,10 +13,12 @@ export default function DailyMoodPicker({
   return (
     <div className="daily-mood-picker">
       <p>
-        Una sola scelta per raccontare la giornata. Puoi cambiarla dal profilo.
+        {t(
+          "Una sola scelta per raccontare la giornata. Puoi cambiarla dal profilo.",
+        )}
       </p>
       <fieldset className="daily-mood-options" disabled={busy}>
-        <legend>Oggi mi sento come…</legend>
+        <legend>{t("Oggi mi sento come…")}</legend>
         {holidayMoods.map((mood) => (
           <label
             className="daily-mood-option"
@@ -32,9 +35,9 @@ export default function DailyMoodPicker({
             <span>
               <strong>
                 <span aria-hidden="true">{mood.emoji} </span>
-                {mood.label}
+                {t(mood.label)}
               </strong>
-              <small>{mood.description}</small>
+              <small>{t(mood.description)}</small>
             </span>
           </label>
         ))}
@@ -46,7 +49,7 @@ export default function DailyMoodPicker({
           disabled={!value || busy}
           onClick={onSave}
         >
-          Salva stato
+          {t("Salva stato")}
         </Button>
       </div>
     </div>

@@ -106,3 +106,27 @@
     flex-wrap: wrap;
   }
 }
+.group-actions,
+.wishlist .wish-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.guest-list .group-actions button[aria-pressed="true"] {
+  background: #703b2e;
+  color: #fffaf0;
+}
+.group-actions button {
+  gap: 0.4rem;
+}
+.wishlist .wish-actions > *,
+.event-page .button {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.wish-editor input,
+#event-invites,
+.recipient-wishes h2 {
+  scroll-margin-block: 5rem;
+}

@@ -14,7 +14,10 @@ import {
   Heart,
   Snowflake,
   BookOpen,
+  Globe2,
+  Search,
 } from "lucide-react";
+import { languages, setLocale, t, useLocale } from "./i18n.js";
 import { api, date, money, statusLabel } from "./api.js";
 import { Button, Field, Modal, Notice } from "./ui.jsx";
 import Auth from "./Auth.jsx";
@@ -94,7 +97,24 @@ function focusMain() {
   });
 }
 
+// Keep an explicit guest choice through a visit to the rules or a page refresh.
+// A returning account on a new tab keeps its own saved language.
+const guestLocaleKey = "sotto-albero.guest-language";
+function readGuestChoice() {
+  try {
+    const code = sessionStorage.getItem(guestLocaleKey);
+    return Object.hasOwn(languages, code) ? code : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function App() {
+  const locale = useLocale();
+  const [guestChoice, setGuestChoice] = useState(readGuestChoice);
+  const [savingLocale, setSavingLocale] = useState(false);
+  const [authBusy, setAuthBusy] = useState(false);
+  const [groupQuery, setGroupQuery] = useState("");
   const [session, setSession] = useState(null),
     [loading, setLoading] = useState(true),
     [events, setEvents] = useState([]),
@@ -119,6 +139,30 @@ export default function App() {
     [checkinError, setCheckinError] = useState(""),
     [checkinFeedback, setCheckinFeedback] = useState("");
   const activeEffectsCount = countActiveEffects(effects);
+  function rememberGuestChoice(code) {
+    setGuestChoice(code);
+    try {
+      if (code) sessionStorage.setItem(guestLocaleKey, code);
+      else sessionStorage.removeItem(guestLocaleKey);
+    } catch {
+      // The choice still applies to the open page when storage is unavailable.
+    }
+  }
+  async function changeLanguage(code) {
+    setSavingLocale(true);
+    try {
+      if (session?.user)
+        await api("/preferences/language", "PUT", { locale: code });
+      await setLocale(code);
+      if (!session?.user) {
+        rememberGuestChoice(code);
+      }
+    } catch (failure) {
+      setError(failure.message);
+    } finally {
+      setSavingLocale(false);
+    }
+  }
   function updateEffects(next) {
     setEffects(saveAmbientEffects(next));
   }
@@ -133,10 +177,27 @@ export default function App() {
     }
   }, []);
   useEffect(() => {
+    let active = true;
     api("/me")
-      .then(setSession)
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
+      .then(async (result) => {
+        if (!active) return;
+        if (Object.hasOwn(languages, result.user?.locale)) {
+          await setLocale(result.user.locale).catch(() => {});
+        }
+        if (active) {
+          if (result.user) rememberGuestChoice(null);
+          setSession(result);
+        }
+      })
+      .catch((e) => {
+        if (active) setError(e.message);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
   useEffect(() => {
     if (!token || loading) return;
@@ -166,7 +227,9 @@ export default function App() {
     await api("/auth/logout", "POST");
     setError("");
     setSession((s) => ({ ...s, user: null }));
+    rememberGuestChoice(null);
     setEvents([]);
+    setGroupQuery("");
     setEventId(null);
     setShowInviteNotice(false);
     setCheckinDraft(null);
@@ -255,6 +318,11 @@ export default function App() {
     } else url.hash = `game-${game.id}`;
   }
   function navigate(next, gameId, mode) {
+    if (next === "profile" && gameId && section === "profile") {
+      location.hash = gameId;
+      return;
+    }
+    setGroupQuery("");
     setSection(next);
     const id = shortcutTabs[next] ? eventId : null;
     setEventId(id);
@@ -262,6 +330,7 @@ export default function App() {
     const url = new URL(sectionPaths[next], location.origin);
     if (id) url.searchParams.set("event", id);
     if (next === "challenges") addSelectedGame(url, gameId, mode);
+    if (next === "profile" && gameId) url.hash = gameId;
     history.pushState({}, "", url);
     focusMain();
     if (session?.user && next !== "games" && next !== "profile")
@@ -273,6 +342,7 @@ export default function App() {
   }
   useEffect(() => {
     const back = () => {
+      setGroupQuery("");
       setEventId(currentEventId());
       setEventTab(requestedEventTab() ?? history.state?.eventTab);
       setSection(currentSection());
@@ -283,6 +353,12 @@ export default function App() {
   const shown = events.filter((e) =>
     section === "archive" ? e.status === "archived" : e.status !== "archived",
   );
+  const normalizedQuery = groupQuery.trim().toLocaleLowerCase(locale);
+  const matches = shown.filter((event) =>
+    [event.name, event.groupName].some((value) =>
+      value?.toLocaleLowerCase(locale).includes(normalizedQuery),
+    ),
+  );
   const showDailyCheckin = Boolean(
     session?.user?.dailyCheckin?.pendingToday &&
     !token &&
@@ -291,7 +367,7 @@ export default function App() {
   return (
     <>
       <a className="skip-link" href="#main">
-        Vai al contenuto
+        {t("Vai al contenuto")}
       </a>
       <div className={`site ${effects.snow !== "off" ? "snow-on" : ""}`}>
         <AmbientEffectsOverlay effects={effects} />
@@ -299,74 +375,93 @@ export default function App() {
           <button
             className="brand"
             onClick={() => navigate("events")}
-            aria-label="Sotto l’Albero, pagina iniziale"
+            aria-label={t("Sotto l’Albero, pagina iniziale")}
           >
             <TreePine />
             <span>Sotto l’Albero</span>
           </button>
           {session?.user ? (
-            <nav aria-label="Navigazione principale">
+            <nav aria-label={t("Navigazione principale")}>
               <button
                 className={section === "events" ? "selected" : ""}
                 aria-current={section === "events" ? "page" : undefined}
-                aria-label="I miei eventi"
+                aria-label={t("I miei eventi")}
                 onClick={() => navigate("events")}
               >
-                Eventi
+                {t("Eventi")}
               </button>
               <button
                 className={section === "wishes" ? "selected" : ""}
                 aria-current={section === "wishes" ? "page" : undefined}
-                aria-label="I desideri"
+                aria-label={t("I desideri")}
                 onClick={() => navigate("wishes")}
               >
-                Desideri
+                {t("Desideri")}
               </button>
               <button
                 className={section === "games" ? "selected" : ""}
                 aria-current={section === "games" ? "page" : undefined}
                 onClick={() => navigate("games")}
               >
-                Giochi
+                {t("Giochi")}
               </button>
               <button
                 className={section === "challenges" ? "selected" : ""}
                 aria-current={section === "challenges" ? "page" : undefined}
                 onClick={() => navigate("challenges")}
               >
-                Sfide
+                {t("Sfide")}
               </button>
               <button
                 className={section === "reveal" ? "selected" : ""}
                 aria-current={section === "reveal" ? "page" : undefined}
                 onClick={() => navigate("reveal")}
               >
-                Nome segreto
+                {t("Nome segreto")}
               </button>
               <button
                 className={section === "archive" ? "selected" : ""}
                 aria-current={section === "archive" ? "page" : undefined}
                 onClick={() => navigate("archive")}
               >
-                Archivio
+                {t("Archivio")}
               </button>
             </nav>
           ) : (
             <span className="header-caption">
-              Un regalo. Un nome. Una sorpresa.
+              {t("Un regalo. Un nome. Una sorpresa.")}
             </span>
           )}
           <div className="header-tools">
+            <label className="locale-control">
+              <Globe2 size={17} aria-hidden="true" />
+              <select
+                value={locale}
+                disabled={loading || savingLocale || authBusy}
+                onChange={(event) => changeLanguage(event.target.value)}
+                aria-label={t("Lingua")}
+              >
+                {Object.entries(languages).map(([code, name]) => (
+                  <option key={code} value={code} lang={code}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </label>
             <button
               className={`icon-button snow-control ${activeEffectsCount > 0 ? "active" : ""}`}
               aria-label={
-                activeEffectsCount > 0
-                  ? `Atmosfera di Natale (${activeEffectsCount} ${activeEffectsCount === 1 ? "effetto attivo" : "effetti attivi"})`
-                  : "Atmosfera di Natale (nessun effetto attivo)"
+                activeEffectsCount === 1
+                  ? t("Atmosfera di Natale (1 effetto attivo)")
+                  : activeEffectsCount
+                    ? t("Atmosfera di Natale ({count} effetti attivi)", {
+                        count: activeEffectsCount,
+                      })
+                    : t("Atmosfera di Natale (nessun effetto attivo)")
               }
               aria-haspopup="dialog"
               aria-expanded={effectsOpen}
-              title="Neve ed effetti natalizi"
+              title={t("Neve ed effetti natalizi")}
               onClick={() => setEffectsOpen(true)}
             >
               <Snowflake size={19} aria-hidden="true" />
@@ -380,8 +475,8 @@ export default function App() {
               <button
                 className="profile"
                 onClick={() => navigate("profile")}
-                title="Profilo e album dei timbri"
-                aria-label="Apri il mio profilo"
+                title={t("Profilo e album dei timbri")}
+                aria-label={t("Apri il mio profilo")}
                 aria-current={section === "profile" ? "page" : undefined}
               >
                 <Avatar
@@ -404,7 +499,7 @@ export default function App() {
           <Notice error>{error || (token ? inviteError : "")}</Notice>
           {checkinFeedback ? (
             <div className="daily-checkin-feedback">
-              <span>{checkinFeedback}</span>
+              <span>{t(checkinFeedback)}</span>
               <div className="button-row">
                 <button
                   type="button"
@@ -414,14 +509,14 @@ export default function App() {
                     navigate("profile");
                   }}
                 >
-                  Apri il profilo
+                  {t("Apri il profilo")}
                 </button>
                 <button
                   type="button"
                   className="text-button"
                   onClick={() => setCheckinFeedback("")}
                 >
-                  Chiudi
+                  {t("Chiudi")}
                 </button>
               </div>
             </div>
@@ -429,11 +524,11 @@ export default function App() {
           {showDailyCheckin ? (
             <section
               className="daily-checkin-strip"
-              aria-label="Check-in natalizio di oggi"
+              aria-label={t("Check-in natalizio di oggi")}
             >
               <div className="daily-checkin-strip-copy">
-                <strong>Come ti senti oggi?</strong>
-                <span>Una sola scelta natalizia, se ti va.</span>
+                <strong>{t("Come ti senti oggi?")}</strong>
+                <span>{t("Una sola scelta natalizia, se ti va.")}</span>
               </div>
               <div className="button-row">
                 <Button
@@ -444,7 +539,7 @@ export default function App() {
                     setCheckinOpen(true);
                   }}
                 >
-                  Scegli lo stato
+                  {t("Scegli lo stato")}
                 </Button>
                 <Button
                   type="button"
@@ -452,7 +547,7 @@ export default function App() {
                   disabled={checkinBusy}
                   onClick={() => submitDailyCheckin("skip")}
                 >
-                  Non ora
+                  {t("Non ora")}
                 </Button>
               </div>
               <Notice error>{checkinError}</Notice>
@@ -460,7 +555,7 @@ export default function App() {
           ) : null}
           {showDailyCheckin && checkinOpen ? (
             <Modal
-              title="Oggi mi sento come…"
+              title={t("Oggi mi sento come…")}
               onClose={() => setCheckinOpen(false)}
             >
               <Notice error>{checkinError}</Notice>
@@ -475,32 +570,36 @@ export default function App() {
           {section === "rules" ? (
             <SecretSantaRules />
           ) : loading ? (
-            <div className="loading">Prepariamo le lettere…</div>
+            <div className="loading">{t("Prepariamo le lettere…")}</div>
           ) : (
             <>
               {invite?.requiresSignIn && token && !session?.user ? (
                 <section
                   className="invitation paper"
-                  aria-label="Ritrova il tuo evento"
+                  aria-label={t("Ritrova il tuo evento")}
                 >
-                  <h2>Il tuo evento ti aspetta</h2>
+                  <h2>{t("Il tuo evento ti aspetta")}</h2>
                   <p>
-                    Le iscrizioni sono chiuse. Se hai già aderito, puoi ancora
-                    aprire l’evento.
+                    {t(
+                      "Le iscrizioni sono chiuse. Se hai già aderito, puoi ancora aprire l’evento.",
+                    )}
                   </p>
                   <p>
-                    Accedi qui sotto con la stessa email usata per partecipare.
-                    L’invito chiuso non cancella la tua iscrizione.
+                    {t(
+                      "Accedi qui sotto con la stessa email usata per partecipare. L’invito chiuso non cancella la tua iscrizione.",
+                    )}
                   </p>
                 </section>
               ) : null}
               {invite?.event && token && !eventId ? (
                 <section className="invitation paper">
-                  <span className="eyebrow">Ti aspettiamo</span>
+                  <span className="eyebrow">{t("Ti aspettiamo")}</span>
                   <h2>{invite.event.name}</h2>
                   <p>
-                    {invite.organizerName} ti invita a scambiare un regalo con
-                    il gruppo.
+                    {t(
+                      "{name} ti invita a scambiare un regalo con il gruppo.",
+                      { name: invite.organizerName },
+                    )}
                   </p>
                   <div className="inline-info">
                     <span>
@@ -512,17 +611,17 @@ export default function App() {
                   </div>
                   <p>{invite.event.description}</p>
                   <small>
-                    Chi organizza può vedere e modificare gli abbinamenti. Chi
-                    partecipa vede solo il nome della persona a cui farà il
-                    regalo.
+                    {t(
+                      "Chi organizza può vedere e modificare gli abbinamenti. Chi partecipa vede solo il nome della persona a cui farà il regalo.",
+                    )}
                   </small>
                   {session?.user ? (
                     invite.membership === "approved" || invite.isOwner ? (
                       <div className="invitation-action">
                         <p>
                           {invite.isOwner && !invite.membership
-                            ? "Questo è il tuo evento."
-                            : "Il tuo posto è confermato."}
+                            ? t("Questo è il tuo evento.")
+                            : t("Il tuo posto è confermato.")}
                         </p>
                         <Button
                           onClick={() =>
@@ -534,7 +633,7 @@ export default function App() {
                             )
                           }
                         >
-                          Apri l’evento
+                          {t("Apri l’evento")}
                         </Button>
                       </div>
                     ) : (
@@ -546,15 +645,15 @@ export default function App() {
                         }
                       >
                         {invite.membership === "pending"
-                          ? "Richiesta inviata: ti faremo sapere"
+                          ? t("Richiesta inviata: ti faremo sapere")
                           : invite.closed
-                            ? "Le iscrizioni sono chiuse"
-                            : "Voglio partecipare"}
+                            ? t("Le iscrizioni sono chiuse")
+                            : t("Voglio partecipare")}
                       </Button>
                     )
                   ) : (
                     <p className="invitation-action">
-                      Accedi qui sotto per partecipare.
+                      {t("Accedi qui sotto per partecipare.")}
                     </p>
                   )}
                   {showInviteNotice && session?.user ? (
@@ -562,12 +661,7 @@ export default function App() {
                       key={session.user.id}
                       onConfigure={() => {
                         setShowInviteNotice(false);
-                        navigate("profile");
-                        history.replaceState(
-                          history.state,
-                          "",
-                          "/profilo#telegram",
-                        );
+                        navigate("profile", "telegram");
                       }}
                       onDismiss={() => setShowInviteNotice(false)}
                     />
@@ -577,10 +671,17 @@ export default function App() {
               {!session?.user ? (
                 <Auth
                   preferExisting={!!invite?.requiresSignIn || !!eventId}
+                  chosenLocale={guestChoice}
+                  savingLocale={savingLocale}
+                  busy={authBusy}
+                  setBusy={setAuthBusy}
                   local={session?.local}
                   mailConfigured={session?.mailConfigured}
-                  onLogin={(user) => {
+                  onLogin={async (user) => {
+                    if (Object.hasOwn(languages, user.locale))
+                      await setLocale(user.locale).catch(() => {});
                     setError("");
+                    rememberGuestChoice(null);
                     setSession((s) => ({ ...s, user }));
                   }}
                 />
@@ -593,6 +694,7 @@ export default function App() {
                   user={session.user}
                   onSelect={selectShortcut}
                   onOverview={openEvent}
+                  onGroups={() => navigate("events")}
                   onChange={loadEvents}
                   onStamp={collection.collect}
                 />
@@ -604,7 +706,7 @@ export default function App() {
                       navigate("events");
                     }}
                   >
-                    <ArrowLeft size={16} /> Tutti gli eventi
+                    <ArrowLeft size={16} /> {t("Tutti gli eventi")}
                   </button>
                   <Event
                     key={`${eventId}:${eventTab || "overview"}`}
@@ -623,56 +725,52 @@ export default function App() {
                   />
                 </>
               ) : section === "profile" ? (
-                <StampAlbum
-                  user={session.user}
-                  collection={collection}
-                  onLogout={logout}
-                  onStory={setSecret}
+                <Suspense
+                  fallback={<p role="status">{t("Carichiamo il profilo…")}</p>}
                 >
-                  <Suspense
-                    fallback={<p role="status">Carichiamo il profilo…</p>}
-                  >
-                    <ProfileSettings
-                      user={session.user}
-                      onChange={({
-                        name,
-                        nickname,
-                        badge,
-                        badgeText,
-                        holidayProfile,
-                        dailyCheckin,
-                        phone,
-                        avatar,
-                      }) =>
-                        setSession((previous) =>
-                          previous?.user?.id === session.user.id
-                            ? {
-                                ...previous,
-                                user: {
-                                  ...previous.user,
-                                  ...(name ? { name } : {}),
-                                  nickname:
-                                    nickname !== undefined
-                                      ? nickname
-                                      : previous.user.nickname,
-                                  badge:
-                                    badge !== undefined
-                                      ? badge
-                                      : previous.user.badge,
-                                  badgeText:
-                                    badgeText || previous.user.badgeText,
-                                  ...(holidayProfile ? { holidayProfile } : {}),
-                                  ...(dailyCheckin ? { dailyCheckin } : {}),
-                                  phone,
-                                  avatar,
-                                },
-                              }
-                            : previous,
-                        )
-                      }
-                    />
-                  </Suspense>
-                </StampAlbum>
+                  <ProfileSettings
+                    user={session.user}
+                    onLogout={logout}
+                    album={
+                      <StampAlbum collection={collection} onStory={setSecret} />
+                    }
+                    onChange={({
+                      name,
+                      nickname,
+                      badge,
+                      badgeText,
+                      holidayProfile,
+                      dailyCheckin,
+                      phone,
+                      avatar,
+                    }) =>
+                      setSession((previous) =>
+                        previous?.user?.id === session.user.id
+                          ? {
+                              ...previous,
+                              user: {
+                                ...previous.user,
+                                ...(name ? { name } : {}),
+                                nickname:
+                                  nickname !== undefined
+                                    ? nickname
+                                    : previous.user.nickname,
+                                badge:
+                                  badge !== undefined
+                                    ? badge
+                                    : previous.user.badge,
+                                badgeText: badgeText || previous.user.badgeText,
+                                ...(holidayProfile ? { holidayProfile } : {}),
+                                ...(dailyCheckin ? { dailyCheckin } : {}),
+                                phone,
+                                avatar,
+                              },
+                            }
+                          : previous,
+                      )
+                    }
+                  />
+                </Suspense>
               ) : section === "games" ? (
                 <HolidayGames
                   key={session.user.id}
@@ -681,79 +779,88 @@ export default function App() {
                   onCompete={(gameId, mode) =>
                     navigate("challenges", gameId, mode)
                   }
-                  onAlbum={() => navigate("profile")}
+                  onAlbum={() => navigate("profile", "album")}
                   onGroups={() => navigate("events")}
                   onDiscover={discover}
                 />
               ) : (
                 <>
-                  <section className="hero">
-                    <img
-                      className="hero-image"
-                      src="/hero.webp"
-                      alt="Una sfera di neve, un albero illuminato e una lettera chiusa con la ceralacca"
-                    />
-                    <div className="hero-copy">
-                      <h1>
-                        Gestisci i tuoi gruppi Secret Santa{" "}
-                        <em>con tutta la magia del Natale</em>
-                      </h1>
-                      <p>
-                        Crea e condividi i tuoi gruppi. Giocate insieme e
-                        organizzate lo scambio.
-                      </p>
-                      <Button onClick={() => setCreate(true)}>
-                        <Plus size={18} /> Crea un Secret Santa
-                      </Button>
-                      {section === "events" && (
-                        <>
+                  {section === "events" && eventsReady && !shown.length && (
+                    <section className="hero">
+                      <img
+                        className="hero-image"
+                        src="/hero.webp"
+                        alt={t(
+                          "Una sfera di neve, un albero illuminato e una lettera chiusa con la ceralacca",
+                        )}
+                      />
+                      <div className="hero-copy">
+                        <h1>
+                          {t("Gestisci i tuoi gruppi Secret Santa")}{" "}
+                          <em>{t("con tutta la magia del Natale")}</em>
+                        </h1>
+                        <p>
+                          {t(
+                            "Crea e condividi i tuoi gruppi. Giocate insieme e organizzate lo scambio.",
+                          )}
+                        </p>
+                        <div className="hero-actions">
+                          <Button onClick={() => setCreate(true)}>
+                            <Plus size={18} /> {t("Crea un Secret Santa")}
+                          </Button>
+                        </div>
+                        <div className="hero-links">
                           <a className="santa-rules-link" href="/regolamento">
                             <BookOpen size={17} aria-hidden="true" />
-                            Regolamento del Secret Santa
+                            {t("Regolamento del Secret Santa")}
                           </a>
                           <button
                             type="button"
                             className="text-button hunt-link"
-                            onClick={() => navigate("profile")}
+                            onClick={() => navigate("profile", "album")}
                           >
-                            Caccia al tesoro e album dei timbri{" "}
+                            {t("Caccia al tesoro e album dei timbri")}{" "}
                             <ArrowUpRight size={15} aria-hidden="true" />
                           </button>
-                        </>
-                      )}
-                    </div>
-                    {section === "events" && (
+                        </div>
+                      </div>
                       <button
                         className="hidden-star"
-                        aria-label="Una stella da accendere"
+                        aria-label={t("Una stella da accendere")}
                         onClick={() => discover("star")}
                       >
                         <Star size={22} aria-hidden="true" />
                       </button>
-                    )}
-                    {section === "events" && (
                       <TimedTreasures
                         section={section}
                         collection={collection}
                         onDiscover={discover}
                       />
-                    )}
-                  </section>
-                  <section className="events-section">
+                    </section>
+                  )}
+                  <section
+                    className={`events-section ${section !== "events" || !eventsReady || shown.length ? "events-standalone" : ""}`}
+                    id="my-groups"
+                  >
                     <div className="section-title">
-                      <h2>
-                        {section === "archive"
-                          ? "I Natali passati"
-                          : section === "wishes"
-                            ? "Un pensiero per chi ti pensa"
-                            : "I tuoi Secret Santa"}
-                      </h2>
+                      {section === "events" &&
+                      (!eventsReady || shown.length) ? (
+                        <h1>{t("I tuoi Secret Santa")}</h1>
+                      ) : section === "events" ? (
+                        <h2>{t("I tuoi Secret Santa")}</h2>
+                      ) : (
+                        <h1>
+                          {section === "archive"
+                            ? t("I Natali passati")
+                            : t("Un pensiero per chi ti pensa")}
+                        </h1>
+                      )}
                       <span />
                       {section === "wishes" && (
                         <button
                           type="button"
                           className="hunt-object icon-button"
-                          aria-label="Un pacchetto tra i desideri"
+                          aria-label={t("Un pacchetto tra i desideri")}
                           onClick={() => discover("gift")}
                         >
                           <Gift size={24} aria-hidden="true" />
@@ -763,7 +870,7 @@ export default function App() {
                         <button
                           type="button"
                           className="hunt-object icon-button"
-                          aria-label="Una campanella nell’archivio"
+                          aria-label={t("Una campanella nell’archivio")}
                           onClick={() => discover("bell")}
                         >
                           <Bell size={24} aria-hidden="true" />
@@ -779,19 +886,70 @@ export default function App() {
                       {shown.length ? (
                         <small>
                           {shown.length}{" "}
-                          {shown.length === 1 ? "evento" : "eventi"}
+                          {shown.length === 1 ? t("evento") : t("eventi")}
                         </small>
                       ) : null}
                     </div>
+                    {section === "events" && shown.length > 0 && (
+                      <div className="groups-toolbar">
+                        <Button onClick={() => setCreate(true)}>
+                          <Plus size={18} aria-hidden="true" />{" "}
+                          {t("Crea un Secret Santa")}
+                        </Button>
+                        <div className="groups-collectibles">
+                          <button
+                            type="button"
+                            className="hunt-object icon-button"
+                            aria-label={t("Una stella da accendere")}
+                            onClick={() => discover("star")}
+                          >
+                            <Star size={22} aria-hidden="true" />
+                          </button>
+                          <TimedTreasures
+                            section={section}
+                            collection={collection}
+                            onDiscover={discover}
+                          />
+                        </div>
+                      </div>
+                    )}
                     {section === "wishes" ? (
                       <p className="section-intro">
-                        Apri uno scambio e lascia un desiderio per chi ti farà
-                        il regalo. Anche un piccolo indizio basta.
+                        {t(
+                          "Apri uno scambio e lascia un desiderio per chi ti farà il regalo. Anche un piccolo indizio basta.",
+                        )}
                       </p>
                     ) : null}
-                    {shown.length ? (
+                    {!eventsReady ? (
+                      <p role="status">{t("Cerchiamo i tuoi scambi…")}</p>
+                    ) : shown.length ? (
                       <div className="event-list">
-                        {shown.map((e) => (
+                        {(shown.length > 1 || groupQuery) && (
+                          <label className="group-filter">
+                            <Search size={17} aria-hidden="true" />
+                            <input
+                              type="search"
+                              aria-label={t("Cerca tra i tuoi gruppi")}
+                              placeholder={t("Cerca per gruppo o scambio")}
+                              value={groupQuery}
+                              onChange={(event) =>
+                                setGroupQuery(event.target.value)
+                              }
+                            />
+                          </label>
+                        )}
+                        {matches.length === 0 && (
+                          <p className="group-no-match" role="status">
+                            {t("Nessun gruppo corrisponde alla ricerca.")}
+                            <button
+                              className="text-button"
+                              onClick={() => setGroupQuery("")}
+                            >
+                              {t("Mostra tutti")}
+                            </button>
+                          </p>
+                        )}
+                        {matches.map((e) => (
                           <button
                             className="event-row"
                             key={e.id}
@@ -802,6 +960,11 @@ export default function App() {
                               <TreePine size={12} />
                             </span>
                             <span className="event-main">
+                              {e.groupName && e.groupName !== e.name && (
+                                <span className="group-name">
+                                  {e.groupName}
+                                </span>
+                              )}
                               <span className="event-name">{e.name}</span>
                               <span className="event-dates">
                                 <span>
@@ -819,8 +982,8 @@ export default function App() {
                             </span>
                             <span className="row-action">
                               {section === "wishes"
-                                ? "Scrivi la tua lettera"
-                                : "Apri evento"}
+                                ? t("Scrivi la tua lettera")
+                                : t("Apri evento")}
                               <ChevronRight size={18} />
                             </span>
                           </button>
@@ -831,60 +994,96 @@ export default function App() {
                         <Mail size={35} />
                         <h3>
                           {section === "archive"
-                            ? "Qui terremo i bei ricordi."
-                            : "C’è posto per il tuo primo Natale."}
+                            ? t("Qui terremo i bei ricordi.")
+                            : t("C’è posto per il tuo primo Natale.")}
                         </h3>
                         <p>
                           {section === "archive"
-                            ? "Qui ritrovi gli scambi conclusi. L’anno prossimo puoi ripartire dallo stesso gruppo."
+                            ? t(
+                                "Qui ritrovi gli scambi conclusi. L’anno prossimo puoi ripartire dallo stesso gruppo.",
+                              )
                             : session.user.organizer
-                              ? "Crea uno scambio e manda l’invito al tuo gruppo."
-                              : "Hai ricevuto un invito? Aprilo per partecipare. Lo scambio comparirà qui."}
+                              ? t(
+                                  "Crea uno scambio e manda l’invito al tuo gruppo.",
+                                )
+                              : t(
+                                  "Hai ricevuto un invito? Aprilo per partecipare. Lo scambio comparirà qui.",
+                                )}
                         </p>
                         {section !== "archive" ? (
                           <button
                             className="text-button"
                             onClick={() => setCreate(true)}
                           >
-                            Prepariamo il primo?
+                            {t("Prepariamo il primo?")}
                             <ArrowUpRight size={17} />
                           </button>
                         ) : null}
                       </div>
                     )}
-                  </section>
-                  <section className="letter-strip paper">
-                    <div>
-                      <span className="eyebrow">Basta un indizio</span>
-                      <h2>“Mi piacciono i libri” è già un buon inizio.</h2>
-                      <p>
-                        Un desiderio, un colore, qualcosa che usi ogni giorno.
-                        Aiuta chi ti farà il regalo a scegliere con cura.
-                      </p>
-                    </div>
-                    {section === "events" && (
-                      <button
-                        className="postmark"
-                        aria-label="Una teiera fuori posto"
-                        onClick={() => discover("teapot")}
+                    {section !== "events" && (
+                      <Button
+                        variant="outline"
+                        onClick={() => navigate("events")}
                       >
-                        <Coffee size={31} aria-hidden="true" />
-                        <span>POSTA DI NATALE</span>
-                      </button>
+                        {t("Vai ai tuoi gruppi")}
+                      </Button>
                     )}
                   </section>
+                  {section !== "archive" && (
+                    <section className="letter-strip paper">
+                      <div>
+                        <span className="eyebrow">{t("Basta un indizio")}</span>
+                        <h2>
+                          {t("“Mi piacciono i libri” è già un buon inizio.")}
+                        </h2>
+                        <p>
+                          {t(
+                            "Un desiderio, un colore, qualcosa che usi ogni giorno. Aiuta chi ti farà il regalo a scegliere con cura.",
+                          )}
+                        </p>
+                      </div>
+                      {section === "events" && (
+                        <button
+                          className="postmark"
+                          aria-label={t("Una teiera fuori posto")}
+                          onClick={() => discover("teapot")}
+                        >
+                          <Coffee size={31} aria-hidden="true" />
+                          <span>{t("POSTA DI NATALE")}</span>
+                        </button>
+                      )}
+                    </section>
+                  )}
                 </>
               )}
             </>
           )}
         </main>
-        <footer>
-          <span>Fatto per ritrovarsi. E per tenere un piccolo segreto.</span>
+        <footer className="site-footer">
+          <div
+            className={`site-affiliate-info ${session?.amazonAffiliation ? "affiliate-active" : ""}`}
+          >
+            <strong>{t("Info")}</strong>
+            <p id="amazon-site-information">
+              {t(
+                "In qualità di Affiliato Amazon io ricevo un guadagno dagli acquisti idonei.",
+              )}
+            </p>
+            <p id="amazon-external-information">
+              {t(
+                "Alcuni link Amazon in questa lista possono generare una commissione di affiliazione.",
+              )}
+            </p>
+          </div>
+          <span>
+            {t("Fatto per ritrovarsi. E per tenere un piccolo segreto.")}
+          </span>
           <a
             href="/regolamento"
             aria-current={section === "rules" ? "page" : undefined}
           >
-            Regolamento del Secret Santa
+            {t("Regolamento del Secret Santa")}
           </a>
           <span>
             Sotto l’Albero · v{version} <Heart size={12} aria-hidden="true" />
@@ -914,11 +1113,11 @@ export default function App() {
           collection={collection}
           onClose={() => setSecret(null)}
           onAlbum={
-            section === "profile" && !eventId
+            section === "profile" && location.hash === "#album"
               ? undefined
               : () => {
                   setSecret(null);
-                  navigate("profile");
+                  navigate("profile", "album");
                 }
           }
         />
@@ -930,7 +1129,7 @@ export default function App() {
 function Treasure({ id, collection, onClose, onAlbum }) {
   const scene = treasureStories[id];
   return (
-    <Modal title={scene?.title ?? stamps[id].name} onClose={onClose}>
+    <Modal title={t(scene?.title ?? stamps[id].name)} onClose={onClose}>
       {scene?.quote && (
         <blockquote className="quote" lang="en">
           “{scene.quote}”
@@ -942,17 +1141,17 @@ function Treasure({ id, collection, onClose, onAlbum }) {
         </p>
       )}
       <p className="hunt-discovery">
-        <StampIcon id={id} size={35} /> {scene?.story ?? stamps[id].story}
+        <StampIcon id={id} size={35} /> {t(scene?.story ?? stamps[id].story)}
       </p>
       {scene && (
         <a href={scene.link} target="_blank" rel="noreferrer">
-          {scene.linkLabel} <ArrowUpRight size={14} aria-hidden="true" />
+          {t(scene.linkLabel)} <ArrowUpRight size={14} aria-hidden="true" />
         </a>
       )}
       <StampReward id={id} collection={collection} />
       {onAlbum && (
         <Button type="button" variant="ghost" onClick={onAlbum}>
-          Apri l’album
+          {t("Apri l’album")}
         </Button>
       )}
     </Modal>
@@ -984,30 +1183,31 @@ function CreateEvent({ onClose, onCreated }) {
     }
   }
   return (
-    <Modal title="Prepariamo il tuo Secret Santa" onClose={onClose} wide>
+    <Modal title={t("Prepariamo il tuo Secret Santa")} onClose={onClose} wide>
       <p>
-        Scegli il nome, le date e il budget. Dopo potrai mandare gli inviti e
-        impostare le esclusioni.
+        {t(
+          "Scegli il nome, le date e il budget. Dopo potrai mandare gli inviti e impostare le esclusioni.",
+        )}
       </p>
       <form onSubmit={submit} className="form-stack">
         <div className="form-grid">
           <Field
-            label="Nome dello scambio"
+            label={t("Nome dello scambio")}
             name="name"
-            placeholder="Il Natale del nostro gruppo"
+            placeholder={t("Il Natale del nostro gruppo")}
             required
             maxLength={100}
           />
           <Field
-            label="Nome del gruppo (facoltativo)"
+            label={t("Nome del gruppo (facoltativo)")}
             name="groupName"
-            placeholder="Es. Famiglia, Amici…"
+            placeholder={t("Es. Famiglia, Amici…")}
             maxLength={100}
           />
         </div>
         <div className="form-grid">
           <Field
-            label="Budget a persona (€)"
+            label={t("Budget a persona (€)")}
             type="number"
             name="budget"
             min="1"
@@ -1017,48 +1217,50 @@ function CreateEvent({ onClose, onCreated }) {
           />
           <label className="participation-choice">
             <input type="checkbox" name="organizerParticipates" />
-            Partecipo anch’io allo scambio
+            {t("Partecipo anch’io allo scambio")}
           </label>
         </div>
         <div className="form-grid three">
           <Field
-            label="Iscrizioni fino al"
+            label={t("Iscrizioni fino al")}
             name="closeAt"
             type="datetime-local"
             required
           />
           <Field
-            label="Estraiamo i nomi il"
+            label={t("Estraiamo i nomi il")}
             name="drawAt"
             type="datetime-local"
             required
           />
           <Field
-            label="Ci scambiamo i regali il"
+            label={t("Ci scambiamo i regali il")}
             name="giftAt"
             type="datetime-local"
             required
           />
         </div>
         <p className="quiet">
-          Le date e gli orari seguono il fuso del tuo dispositivo. Fuso in uso:{" "}
-          {Intl.DateTimeFormat().resolvedOptions().timeZone}.
+          {t(
+            "Le date e gli orari seguono il fuso del tuo dispositivo. Fuso in uso: {zone}.",
+            { zone: Intl.DateTimeFormat().resolvedOptions().timeZone },
+          )}
         </p>
-        <Field label="Un messaggio per il gruppo">
+        <Field label={t("Un messaggio per il gruppo")}>
           <textarea
             name="description"
             maxLength={2000}
             rows={3}
-            placeholder="Dove ci troviamo? C’è qualcosa da sapere?"
+            placeholder={t("Dove ci troviamo? C’è qualcosa da sapere?")}
           />
         </Field>
         <Notice error>{error}</Notice>
         <div className="form-actions">
           <Button type="button" variant="ghost" onClick={onClose}>
-            Torna indietro
+            {t("Torna indietro")}
           </Button>
           <Button busy={busy}>
-            Crea e invita
+            {t("Crea e invita")}
             <ArrowUpRight size={17} />
           </Button>
         </div>

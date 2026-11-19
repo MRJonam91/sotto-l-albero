@@ -58,6 +58,10 @@
 .photo-portrait-tools {
   min-width: 0;
 }
+.photo-portrait-tools > .field {
+  margin: 12px 0 6px;
+  max-width: 24rem;
+}
 .photo-atmosphere-name {
   margin: 0 0 8px;
   font-weight: 700;

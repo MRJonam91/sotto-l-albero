@@ -113,6 +113,9 @@ test("la foto apre il ritratto e le regolazioni mobili restano vicine all’ante
   page,
 }) => {
   const photo = await profileFixture(page);
+  await page
+    .getByRole("link", { name: "Avatar e identità", exact: true })
+    .click();
   await page.route("**/avatar-models/*.tflite", (route) => route.abort());
   await page.getByRole("button", { name: "Usa una foto", exact: true }).click();
   await expect(page.locator(".photo-framing-stage")).toHaveCount(0);
@@ -128,9 +131,21 @@ test("la foto apre il ritratto e le regolazioni mobili restano vicine all’ante
   await expect(stage).toBeVisible();
   const adjustments = stage.locator(".photo-adjustments");
   await expect(adjustments).not.toHaveAttribute("open", "");
+  await expect(
+    stage.getByRole("combobox", { name: "Pennellata" }),
+  ).toBeVisible();
   await expect(stage.locator(".photo-range-controls")).not.toBeVisible();
   await stage.getByText("Regola il ritratto", { exact: true }).tap();
   await expect(adjustments).toHaveAttribute("open", "");
+  const zoom = stage.getByRole("slider", {
+    name: "Ingrandimento",
+    exact: true,
+  });
+  const initialZoom = Number(await zoom.inputValue());
+  await zoom.press("ArrowRight");
+  await expect
+    .poll(async () => Number(await zoom.inputValue()))
+    .toBeGreaterThan(initialZoom);
   await stage.scrollIntoViewIfNeeded();
   await page.evaluate(() => {
     const rect = document
@@ -164,6 +179,8 @@ test("stato e ritratto visibili subito, modifica a bottone e domande in un riqua
   await expect(summary.locator(".holiday-summary-status")).toBeVisible();
   await expect(summary.locator(".spirit-generated-svg")).toBeVisible();
   await expect(summary.locator(".holiday-summary-description")).toBeVisible();
+  await expect(summary.locator(".portrait-taste-row").first()).toBeHidden();
+  await summary.getByText("Tratti e personaggi", { exact: true }).click();
   await expect(summary.locator(".portrait-taste-row")).toHaveCount(5);
   await expect(summary.locator(".portrait-taste-row").first()).toBeVisible();
   await expect(

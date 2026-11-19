@@ -798,3 +798,39 @@ it("non invia il riepilogo se la chat viene riassegnata mentre prepara i nomi", 
       .get(),
   ).toEqual({ state: "skipped" });
 });
+
+it("localizza email e Telegram secondo il destinatario e mantiene privata la persona estratta", async () => {
+  sql.exec(`UPDATE users SET locale='fr',notify_email=1 WHERE id='anna';
+    UPDATE users SET locale='de',telegram_chat_id='202',notify_telegram=1 WHERE id='bruno';
+    UPDATE events SET status='drawn',version=4,created_at='2026-11-01T00:00:00.000Z',draw_at='2026-11-20T00:00:00.000Z' WHERE id='evento';
+    INSERT INTO assignments(event_id,version,giver_id,receiver_id) VALUES('evento',4,'ma','mb'),('evento',4,'mb','ma');`);
+  await runNotifications(env, now);
+  const mail = JSON.parse(calls.find((c) => c.url.includes("resend.com")).body);
+  const telegram = JSON.parse(
+    calls.find((c) => c.url.endsWith("/sendMessage")).body,
+  );
+  expect(mail.subject).toBe("Ta lettre pour Regali");
+  expect(mail.html).toContain("Ouvre ta lettre");
+  expect(mail.html).not.toContain("Bruno");
+  expect(telegram.text).toContain("Dein Brief für Regali");
+  expect(telegram.text).not.toContain("Anna");
+});
+
+it("il codice di accesso usa la lingua richiesta e una richiesta anonima non modifica l’account", async () => {
+  sql.exec("UPDATE users SET locale='fr' WHERE id='anna'");
+  const response = await worker.fetch(
+    new Request("https://santa.example/api/auth/request", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: "anna@example.test", locale: "pt" }),
+    }),
+    env,
+  );
+  expect(response.status).toBe(200);
+  const mail = JSON.parse(calls.find((c) => c.url.includes("resend.com")).body);
+  expect(mail.subject).toBe("O teu código para Sotto l’Albero");
+  expect(mail.html).toMatch(/<strong>\d{6}<\/strong>/);
+  expect(
+    sql.prepare("SELECT locale FROM users WHERE id='anna'").get().locale,
+  ).toBe("fr");
+});

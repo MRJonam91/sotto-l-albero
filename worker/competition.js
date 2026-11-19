@@ -7,7 +7,8 @@ import {
   officialChallenge,
   scoreOfficialChallenge,
 } from "../shared/officialChallenges.js";
-import { stamps } from "../shared/stamps.js";
+import { baseStampIds, stampAwards, stamps } from "../shared/stamps.js";
+import { releaseStampIds } from "../shared/stampRollout.js";
 import { trisDuelsRoute } from "./trisDuels.js";
 import { gameDefinitions } from "../shared/gameCatalog.js";
 import {
@@ -40,6 +41,9 @@ const collectibleStamps = Object.keys(stamps).filter(
 );
 const stampFilter = `stamp IN (${collectibleStamps.map(() => "?").join(",")})`;
 const pointsPerStamp = 5;
+const firstStampBonusYear = 2026;
+const baseSet = baseStampIds.map((stamp) => `'${stamp}'`).join(",");
+const seasonalSet = releaseStampIds.map((stamp) => `'${stamp}'`).join(",");
 const gameIds = Object.keys(games);
 const gameBreakdown = gameIds
   .map(
@@ -60,8 +64,8 @@ const stillOpen =
   "EXISTS (SELECT 1 FROM events WHERE id=competition_attempts.event_id AND status<>'archived')";
 
 // At the Rome year boundary, local midnight is 23:00 UTC.
-const seasonEndSql =
-  "CAST(strftime('%s', printf('%04d-12-31 23:00:00', CAST(strftime('%Y',e.gift_at,'+1 hour') AS INTEGER))) AS INTEGER)*1000";
+const seasonYearSql = "CAST(strftime('%Y',e.gift_at,'+1 hour') AS INTEGER)";
+const seasonEndSql = `CAST(strftime('%s', printf('%04d-12-31 23:00:00', ${seasonYearSql})) AS INTEGER)*1000`;
 const stampCountSql = (user, cutoff) => `(
   SELECT COUNT(DISTINCT stamp)*${pointsPerStamp} FROM user_stamps
   WHERE user_id=${user} AND ${stampFilter} AND (collected_at IS NULL OR collected_at<${cutoff})
@@ -72,15 +76,35 @@ const stampPointsSql = (user) => `
   ) ELSE ${stampCountSql(user, `MIN(${seasonEndSql},COALESCE(e.archived_at,${seasonEndSql}))`)} END
 `;
 
+// A record can earn either collection bonus independently. Two bits let the
+// archive preserve which collections were completed as well as their total.
+const completionSql = (user, cutoff) => `(
+  SELECT
+    (COUNT(DISTINCT CASE WHEN stamp IN (${baseSet}) THEN stamp END)=${baseStampIds.length})
+    + 2*(COUNT(DISTINCT CASE WHEN stamp IN (${seasonalSet}) THEN stamp END)=${releaseStampIds.length})
+  FROM user_stamps
+  WHERE user_id=${user} AND (collected_at IS NULL OR collected_at<${cutoff})
+)`;
+
+const stampCompletionsSql = `CASE WHEN e.status='archived' THEN COALESCE(
+  (SELECT value FROM json_each(e.archived_stamp_completions) WHERE key=u.id),0
+) WHEN ${seasonYearSql}>=${firstStampBonusYear} THEN ${completionSql("u.id", seasonEndSql)}
+ELSE 0 END`;
+
 export function archiveCompetition(db, eventId) {
+  const now = Date.now();
   return run(
     db,
     `UPDATE events AS e SET status='archived', archived_at=?, archived_stamp_points=(
       SELECT json_group_object(m.user_id,${stampCountSql("m.user_id", seasonEndSql)})
       FROM members m WHERE m.event_id=e.id AND m.status='approved'
-    ) WHERE id=? AND status<>'archived'`,
-    Date.now(),
+    ), archived_stamp_completions=CASE WHEN ${seasonYearSql}>=${firstStampBonusYear} THEN (
+      SELECT json_group_object(m.user_id,${completionSql("m.user_id", `MIN(${seasonEndSql},?+1)`)})
+      FROM members m WHERE m.event_id=e.id AND m.status='approved'
+    ) ELSE NULL END WHERE id=? AND status<>'archived'`,
+    now,
     ...collectibleStamps,
+    now,
     eventId,
   );
 }
@@ -186,6 +210,7 @@ export async function getLeaderboard(db, event) {
       SELECT u.id AS userId,u.name,COALESCE(c.adjustment,0) AS adjustment,
         COALESCE(SUM(best.score),0) AS gamePoints,
         ${stampPointsSql("u.id")} AS stampPoints,
+        ${stampCompletionsSql} AS stampCompletions,
         ${gameBreakdown}
       FROM members m
       JOIN events e ON e.id=m.event_id
@@ -194,8 +219,16 @@ export async function getLeaderboard(db, event) {
       LEFT JOIN best ON best.user_id=m.user_id
       WHERE m.event_id=? AND m.status='approved'
       GROUP BY u.id,u.name,c.adjustment
+    ), awards AS (
+      SELECT *,
+        CASE stampCompletions
+          WHEN 1 THEN ${stampAwards.base}
+          WHEN 2 THEN ${stampAwards.seasonal}
+          WHEN 3 THEN ${stampAwards.base + stampAwards.seasonal + stampAwards.all}
+          ELSE 0 END AS stampBonusPoints
+      FROM standings
     )
-    SELECT *,MAX(0,gamePoints+stampPoints+adjustment) AS score FROM standings
+    SELECT *,MAX(0,gamePoints+stampPoints+stampBonusPoints+adjustment) AS score FROM awards
     ORDER BY score DESC,name COLLATE NOCASE,userId
   `,
     event.id,

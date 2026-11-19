@@ -1,3 +1,5 @@
+import { supportsLocale } from "../shared/languages.js";
+import { withGameLanguage } from "./gameLanguage.js";
 import { HttpError, json } from "./security.js";
 import { currentUser, authRoute } from "./auth.js";
 import { eventRoute, inviteRoute, scheduled } from "./events.js";
@@ -12,7 +14,11 @@ import {
 } from "./profile.js";
 import { telegramWebhook } from "./telegram.js";
 import { notificationRoute, runNotifications } from "./notifications.js";
-import { amazonPreferencesRoute } from "./amazonPreferences.js";
+import {
+  amazonPreferencesRoute,
+  loadSiteAmazonTags,
+  siteAmazonAffiliation,
+} from "./amazonPreferences.js";
 import { profileActivityRoute } from "./profileActivity.js";
 import { giftCatalogProfileRoute, giftCatalogRoute } from "./giftCatalog.js";
 export default {
@@ -68,13 +74,31 @@ export default {
           (path !== "/api/me" && request.method !== "POST")
         )
           throw new HttpError("Metodo non disponibile.", 405);
-        return await authRoute(request, env, path, body, user);
+        const amazonAffiliation =
+          path === "/api/me" && siteAmazonAffiliation(env)
+            ? await loadSiteAmazonTags(env.DB, env)
+                .then((tags) => tags.size > 0)
+                .catch(() => false)
+            : false;
+        return await authRoute(request, env, path, body, user, {
+          amazonAffiliation,
+        });
       }
       if (path.startsWith("/api/invite/") && request.method === "GET")
         return await inviteRoute(env, path.split("/").pop(), user);
       if (!user) throw new HttpError("Accedi per continuare.", 401);
       if (path === "/api/gifts")
         return await giftCatalogRoute(request, env, user);
+      if (path === "/api/preferences/language") {
+        if (request.method !== "PUT")
+          throw new HttpError("Metodo non disponibile.", 405);
+        if (!supportsLocale(body.locale))
+          throw new HttpError("Lingua non disponibile.");
+        await env.DB.prepare("UPDATE users SET locale=? WHERE id=?")
+          .bind(body.locale, user.id)
+          .run();
+        return json({ locale: body.locale });
+      }
       if (path === "/api/preferences/amazon")
         return await amazonPreferencesRoute(request, env, body, user);
       if (path === "/api/profile/activity")
@@ -82,9 +106,15 @@ export default {
       if (path === "/api/stamps")
         return await stampRoute(request.method, env.DB, user.id, body, env);
       if (path.startsWith("/api/practice/"))
-        return await practiceRoute(request, env, path, body, user);
+        return await withGameLanguage(
+          await practiceRoute(request, env, path, body, user),
+          request,
+        );
       if (path.startsWith("/api/competition/"))
-        return await competitionRoute(request, env, path, body, user);
+        return await withGameLanguage(
+          await competitionRoute(request, env, path, body, user),
+          request,
+        );
       if (path === "/api/profile" || path.startsWith("/api/profile/"))
         return await profileRoute(request, env, path, body, user);
       if (path.startsWith("/api/avatars/"))

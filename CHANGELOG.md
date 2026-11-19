@@ -1,5 +1,13 @@
 # Sotto l’Albero
 
+## 1.8.0
+
+- Interfaccia, giochi e avvisi email e Telegram in italiano, inglese, francese, tedesco, spagnolo e portoghese.
+- Profilo, gruppi, lettere, giochi e amministrazione riorganizzati per smartphone, tablet e desktop. Le azioni più usate hanno la precedenza e il cambio di sezione nello stesso gruppo conserva la bozza della lettera.
+- Ritratti illustrati adattati ai lineamenti del volto, con pennellata regolabile e comandi da tastiera.
+- Bonus cumulativi di 10 punti per i timbri base, 10 per quelli giornalieri e 5 per l’album completo. Le edizioni archiviate conservano il risultato.
+- Le istanze che attivano l’affiliazione Amazon applicano il proprio tracking ID ai link nelle lettere e mostrano l’informativa in **Info**, nel footer.
+
 ## 1.5.0
 
 - Dieci ritratti illustrati con foto, mantenendo le sette scene grafiche originali; salvataggio ed esportazione restano disponibili anche se un template non si carica.

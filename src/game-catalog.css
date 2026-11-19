@@ -1,3 +1,10 @@
+.game-mode-filter {
+  max-width: 24rem;
+  margin: 16px 0;
+}
+.game-mode-filter select {
+  min-height: 44px;
+}
 .game-catalog {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr));
@@ -20,6 +27,13 @@
   text-align: left;
   white-space: normal;
   min-height: 52px;
+}
+.game-catalog-item > h2 {
+  margin: 0;
+  font-size: 1.55rem;
+}
+.game-catalog-item .button {
+  white-space: normal;
 }
 .game-catalog-item p {
   margin: 14px 0 8px;

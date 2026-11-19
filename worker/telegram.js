@@ -1,4 +1,5 @@
-import { run } from "./auth.js";
+import { mailText } from "./mailText.js";
+import { first, run } from "./auth.js";
 import { digest, HttpError, json, token } from "./security.js";
 
 const apiRoot = "https://api.telegram.org";
@@ -224,7 +225,16 @@ export async function telegramWebhook(request, env) {
     await telegramMessage(
       env,
       chatId,
-      "Telegram è collegato a Sotto l’Albero. Torna al profilo per scegliere se ricevere gli avvisi qui.",
+      mailText(
+        (
+          await first(
+            db,
+            "SELECT locale FROM users WHERE telegram_chat_id=?",
+            chatId,
+          )
+        )?.locale,
+        "Telegram è collegato a Sotto l’Albero. Torna al profilo per scegliere se ricevere gli avvisi qui.",
+      ),
     ).catch(() => {});
   }
   return json({ ok: true });

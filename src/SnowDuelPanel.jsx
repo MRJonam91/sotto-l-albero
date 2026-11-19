@@ -1,3 +1,4 @@
+import { t } from "./i18n.js";
 import { useEffect, useRef, useState } from "react";
 import { Snowflake } from "lucide-react";
 import { api } from "./api.js";
@@ -66,15 +67,16 @@ export default function SnowDuelPanel({ eventId, userId, opponents, closed }) {
   return (
     <section
       className="competition-section snow-duel-panel"
-      aria-label="Tris sulla neve con il gruppo"
+      aria-label={t("Tris sulla neve con il gruppo")}
     >
       <div className="competition-duel-title">
         <Snowflake aria-hidden="true" />
-        <h3>Tris sulla neve</h3>
+        <h3>{t("Tris sulla neve")}</h3>
       </div>
       <p>
-        Una sola griglia condivisa con un amico, una mossa alla volta. Avete due
-        giorni per giocare. È una sfida amichevole, senza punti in classifica.
+        {t(
+          "Una sola griglia condivisa con un amico, una mossa alla volta. Avete due giorni per giocare. È una sfida amichevole, senza punti in classifica.",
+        )}
       </p>
       {!closed &&
         (opponents.length ? (
@@ -85,7 +87,7 @@ export default function SnowDuelPanel({ eventId, userId, opponents, closed }) {
               if (selected) act("", { userId: selected });
             }}
           >
-            <Field label="Chi inviti a giocare a tris?">
+            <Field label={t("Chi inviti a giocare a tris?")}>
               <select
                 required
                 value={selected}
@@ -93,7 +95,7 @@ export default function SnowDuelPanel({ eventId, userId, opponents, closed }) {
                 onChange={(event) => setSelected(event.target.value)}
               >
                 <option value="" disabled>
-                  Scegli un amico del gruppo
+                  {t("Scegli un amico del gruppo")}
                 </option>
                 {opponents.map((opponent) => (
                   <option key={opponent.userId} value={opponent.userId}>
@@ -103,11 +105,13 @@ export default function SnowDuelPanel({ eventId, userId, opponents, closed }) {
               </select>
             </Field>
             <Button type="submit" busy={busy} disabled={!selected}>
-              Invita a tris
+              {t("Invita a tris")}
             </Button>
           </form>
         ) : (
-          <p>Serve un altro partecipante approvato per aprire una partita.</p>
+          <p>
+            {t("Serve un altro partecipante approvato per aprire una partita.")}
+          </p>
         ))}
       <Notice error>{error}</Notice>
       <Button
@@ -116,20 +120,26 @@ export default function SnowDuelPanel({ eventId, userId, opponents, closed }) {
         disabled={busy}
         onClick={() => reload.current?.()}
       >
-        Aggiorna le partite
+        {t("Aggiorna le partite")}
       </Button>
       {duels === null && !error && (
-        <p role="status">Cerchiamo le partite sulla neve…</p>
+        <p role="status">{t("Cerchiamo le partite sulla neve…")}</p>
       )}
       {duels?.length === 0 && (
-        <p>Non hai partite aperte. Puoi invitare un amico del gruppo.</p>
+        <p>
+          {t(
+            closed
+              ? "Nessuna partita da mostrare per questa edizione."
+              : "Non hai partite aperte. Puoi invitare un amico del gruppo.",
+          )}
+        </p>
       )}
       <ul className="snow-duel-list">
         {duels?.map((duel) => (
           <li key={duel.id} className="snow-duel-card paper">
-            <h4>Tris con {duel.opponent.name}</h4>
+            <h4>{t("Tris con {name}", { name: duel.opponent.name })}</h4>
             {duel.myTurn && !closed && (
-              <span className="snow-duel-turn">È il tuo turno</span>
+              <span className="snow-duel-turn">{t("È il tuo turno")}</span>
             )}
             <SnowTicTacToe
               challenge={{

@@ -1,3 +1,4 @@
+import { t } from "./i18n.js";
 import {
   formatBadgeLabel,
   holidayBadgeIds,
@@ -211,7 +212,7 @@ export default function NameTag({
     <span
       className={`holiday-nametag tag-${badge} tag-size-${size} ${className}`.trim()}
       data-badge={badge}
-      title={preset ? `Targhettina: ${preset.name}` : undefined}
+      title={preset ? t("Targhettina: {name}", {name:t(preset.name)}) : undefined}
     >
       <span className="nametag-eyelet" aria-hidden="true" />
       <svg

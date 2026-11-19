@@ -1,3 +1,4 @@
+import { t } from "./i18n.js";
 import { ArrowLeft, Stamp } from "lucide-react";
 import "./secret-santa-rules.css";
 
@@ -149,28 +150,28 @@ export default function SecretSantaRules() {
   return (
     <section className="santa-rules" aria-labelledby="santa-rules-title">
       <a className="santa-rules-back" href="/">
-        <ArrowLeft size={17} aria-hidden="true" /> Torna alla home
+        <ArrowLeft size={17} aria-hidden="true" /> {t("Torna alla home")}
       </a>
       <header className="santa-rules-intro">
         <div>
           <p className="santa-rules-kicker">
-            Dall’ufficio regali di Babbo Natale
+            {t("Dall’ufficio regali di Babbo Natale")}
           </p>
-          <h1 id="santa-rules-title">Il regolamento del Secret Santa</h1>
+          <h1 id="santa-rules-title">{t("Il regolamento del Secret Santa")}</h1>
           <p>
-            Ognuno prepara un regalo per la persona che ha pescato e ne riceve
-            uno da qualcun altro. Tieni per te chi hai pescato fino allo
-            scambio.
+            {t(
+              "Ognuno prepara un regalo per la persona che ha pescato e ne riceve uno da qualcun altro. Tieni per te chi hai pescato fino allo scambio.",
+            )}
           </p>
         </div>
         <div className="santa-rules-stamp">
           <Stamp size={25} aria-hidden="true" />
-          <span>Parola dell’elfo avvocato</span>
+          <span>{t("Parola dell’elfo avvocato")}</span>
         </div>
       </header>
       <ol
         className="santa-rules-steps"
-        aria-label="I sei passi del Secret Santa"
+        aria-label={t("I sei passi del Secret Santa")}
         role="list"
       >
         {steps.map(({ id, title, text }, index) => (
@@ -182,17 +183,18 @@ export default function SecretSantaRules() {
               <StepIllustration step={id} />
             </div>
             <div className="santa-rules-step-copy">
-              <h2>{title}</h2>
-              <p>{text}</p>
+              <h2>{t(title)}</h2>
+              <p>{t(text)}</p>
             </div>
           </li>
         ))}
       </ol>
       <aside className="santa-rules-note">
-        <h2>Un imprevisto?</h2>
+        <h2>{t("Un imprevisto?")}</h2>
         <p>
-          Se non puoi venire o non hai ricevuto un nome, avvisa chi organizza.
-          Troverete insieme un modo per far arrivare il regalo.
+          {t(
+            "Se non puoi venire o non hai ricevuto un nome, avvisa chi organizza. Troverete insieme un modo per far arrivare il regalo.",
+          )}
         </p>
       </aside>
     </section>

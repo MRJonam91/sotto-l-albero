@@ -1,3 +1,4 @@
+import { mailText } from "./mailText.js";
 import {
   id,
   token,
@@ -25,6 +26,7 @@ import {
   captureFestiveProgress,
 } from "./holidayActivity.js";
 import { loadAmazonPreferences } from "./amazonPreferences.js";
+import { projectAmazonWishLinks } from "./amazonWishLinks.js";
 import { amazonWishlistLink } from "../shared/amazonLinks.js";
 const nowIso = () => new Date().toISOString();
 const stmt = (db, sql, ...args) => db.prepare(sql).bind(...args);
@@ -183,7 +185,7 @@ export async function drawEvent(env, e, actor = "scheduler") {
   const db = env.DB,
     members = await all(
       db,
-      "SELECT m.*,u.email FROM members m JOIN users u ON u.id=m.user_id WHERE m.event_id=? AND m.status='approved'",
+      "SELECT m.*,u.email,u.locale FROM members m JOIN users u ON u.id=m.user_id WHERE m.event_id=? AND m.status='approved'",
       e.id,
     );
   const rules = await all(
@@ -220,7 +222,9 @@ export async function drawEvent(env, e, actor = "scheduler") {
         claim,
       ),
     );
-  for (const m of members)
+  for (const m of members) {
+    const tr = (key, values) => mailText(m.locale, key, values);
+    const letterLink = `<a href="${escapeHtml(env.APP_URL || "")}/events/${e.id}?tab=reveal">${tr("Apri la tua lettera")}</a>`;
     batch.push(
       stmt(
         db,
@@ -229,13 +233,14 @@ export async function drawEvent(env, e, actor = "scheduler") {
         e.id,
         version,
         m.email,
-        `La tua lettera per ${e.name} è pronta`,
-        `<p>Abbiamo estratto i nomi per <strong>${escapeHtml(e.name)}</strong>.</p><p><a href="${escapeHtml(env.APP_URL || "")}/events/${e.id}?tab=reveal">Apri la tua lettera</a> e scopri per chi preparerai il regalo.</p>`,
+        tr("La tua lettera per {event} è pronta", { event: e.name }),
+        `<p>${tr("Abbiamo estratto i nomi per {event}.", { event: `<strong>${escapeHtml(e.name)}</strong>` })}</p><p>${tr("{link} e scopri per chi preparerai il regalo.", { link: letterLink })}</p>`,
         e.id,
         claim,
         m.email,
       ),
     );
+  }
   batch.push(
     stmt(
       db,
@@ -415,7 +420,11 @@ export async function eventRoute(request, env, path, body, user) {
         nickname: recipient.nickname || "",
         badge: recipient.badge || null,
         badgeText: recipient.badgeText || "nickname",
-        wishlist: JSON.parse(recipient.wishlist),
+        wishlist: await projectAmazonWishLinks(
+          JSON.parse(recipient.wishlist),
+          db,
+          env,
+        ),
       },
     });
   }
@@ -535,6 +544,9 @@ export async function eventRoute(request, env, path, body, user) {
                         skippedCount: computed.skippedCount,
                         ignoredToday: computed.ignoredToday,
                         finalDescription: computed.finalDescription,
+                        ...(hp.customDescription.trim()
+                          ? {}
+                          : { descriptionParts: computed.descriptionParts }),
                         tastes: computed.tastes,
                         characterMatches: computed.characterMatches,
                         topCharacter: computed.topCharacter,
@@ -582,7 +594,7 @@ export async function eventRoute(request, env, path, body, user) {
     const icon = body?.icon && holidayIconMap.has(body.icon) ? body.icon : "🎄";
     const targetMember = await first(
       db,
-      `SELECT u.id,u.name,u.nickname,u.email,u.notify_email,u.notify_telegram,u.telegram_chat_id,u.holiday_profile
+      `SELECT u.id,u.name,u.nickname,u.email,u.locale,u.notify_email,u.notify_telegram,u.telegram_chat_id,u.holiday_profile
        FROM members m JOIN users u ON u.id=m.user_id
        WHERE m.event_id=? AND m.user_id=? AND m.status='approved'`,
       eid,
@@ -613,17 +625,18 @@ export async function eventRoute(request, env, path, body, user) {
         createdAt,
       ),
     ];
+    const tr = (key, values) => mailText(targetMember.locale, key, values);
+    const senderLabel = user.nickname || user.name;
+    const emoji = holidayIconMap.get(icon)?.emoji || "🎄";
+    const subject = tr(
+      kind === "riddle_guess"
+        ? "{name} ha provato il tuo indovinello in {event}"
+        : "{name} ti ha mandato un messaggio natalizio in {event}",
+      { name: senderLabel, event: e.name },
+    );
+    const interactionText = `${kind === "riddle_guess" ? "🎄" : emoji} ${subject}: “${message}”${correct ? ` (${tr("Indovinato! 🎉")})` : ""}`;
     if (targetUserId !== user.id && targetMember.notify_email) {
-      const senderLabel = user.nickname || user.name;
-      const subject =
-        kind === "riddle_guess"
-          ? `${senderLabel} ha provato il tuo indovinello in ${e.name}`
-          : `${senderLabel} ti ha mandato un messaggio natalizio in ${e.name}`;
-      const emoji = holidayIconMap.get(icon)?.emoji || "🎄";
-      const html =
-        kind === "riddle_guess"
-          ? `<p><strong>${escapeHtml(senderLabel)}</strong> ha risposto al tuo indovinello del giorno in <strong>${escapeHtml(e.name)}</strong>: “${escapeHtml(message)}” ${correct ? "(Indovinato! 🎉)" : ""}.</p><p><a href="${escapeHtml(env.APP_URL || "")}/events/${eid}">Apri il gruppo</a></p>`
-          : `<p>${emoji} <strong>${escapeHtml(senderLabel)}</strong> ti ha lasciato un pensiero natalizio in <strong>${escapeHtml(e.name)}</strong>: “${escapeHtml(message)}”.</p><p><a href="${escapeHtml(env.APP_URL || "")}/events/${eid}">Apri il gruppo</a></p>`;
+      const html = `<p>${escapeHtml(interactionText)}</p><p><a href="${escapeHtml(env.APP_URL || "")}/events/${eid}">${tr("Apri il gruppo")}</a></p>`;
       batch.push(
         stmt(
           db,
@@ -646,14 +659,12 @@ export async function eventRoute(request, env, path, body, user) {
       targetMember.telegram_chat_id &&
       telegramAvailable(env)
     ) {
-      const senderLabel = user.nickname || user.name;
-      const emoji = holidayIconMap.get(icon)?.emoji || "🎄";
-      const text =
-        kind === "riddle_guess"
-          ? `🎄 ${senderLabel} ha risposto al tuo indovinello in ${e.name}: “${message}”${correct ? " (Indovinato! 🎉)" : ""}`
-          : `${emoji} ${senderLabel} ti ha mandato un pensiero natalizio in ${e.name}: “${message}”`;
       try {
-        await telegramMessage(env, targetMember.telegram_chat_id, text);
+        await telegramMessage(
+          env,
+          targetMember.telegram_chat_id,
+          interactionText,
+        );
       } catch {
         // Non bloccare la risposta se Telegram non è raggiungibile.
       }
@@ -724,7 +735,7 @@ export async function eventRoute(request, env, path, body, user) {
         description: safeText(x.description, 1500),
         ...amazonWishlistLink(
           { url: safeUrl(x.url), amazonAffiliate: x.amazonAffiliate },
-          amazonPreferences,
+          amazonPreferences.scope === "site" ? {} : amazonPreferences,
           previousItem,
         ),
         ...(pickupCity ? { fulfillment: "pickup", pickupCity } : {}),
@@ -1085,7 +1096,7 @@ export async function eventRoute(request, env, path, body, user) {
       ),
       stmt(
         db,
-        "UPDATE outbox SET state='cancelled' WHERE event_id=? AND state='queued' AND subject LIKE 'Ti aspettiamo%'",
+        "UPDATE outbox SET state='cancelled' WHERE event_id=? AND state='queued' AND (version<0 OR (version IS NULL AND subject LIKE 'Ti aspettiamo%'))",
         eid,
       ),
     ]);
@@ -1102,7 +1113,19 @@ export async function eventRoute(request, env, path, body, user) {
       );
     const emails = [...new Set(body.emails.map(validEmail))],
       batch = [];
+    const recipients = emails.length
+      ? await all(
+          db,
+          `SELECT email,locale FROM users WHERE email IN (${emails.map(() => "?").join(",")})`,
+          ...emails,
+        )
+      : [];
+    const recipientLocales = new Map(
+      recipients.map((row) => [row.email, row.locale]),
+    );
     for (const email of emails) {
+      const locale = recipientLocales.get(email) || user.locale || "it";
+      const tr = (key, values) => mailText(locale, key, values);
       const invitation = id(),
         individualToken = token();
       batch.push(
@@ -1123,8 +1146,8 @@ export async function eventRoute(request, env, path, body, user) {
           id(),
           eid,
           email,
-          `Ti aspettiamo per ${e.name}`,
-          `<p>${escapeHtml(user.name)} ti invita a <strong>${escapeHtml(e.name)}</strong>.</p><p>Il budget è ${e.budget} €. Iscrizioni entro il ${escapeHtml(e.close_at.slice(0, 10))}.</p><p><a href="${escapeHtml(env.APP_URL || "")}/invite/${individualToken}">Leggi l’invito e partecipa</a>.</p><p>L’organizzatore può conoscere gli abbinamenti.</p>`,
+          tr("Ti aspettiamo per {event}", { event: e.name }),
+          `<p>${tr("{name} ti invita a {event}.", { name: escapeHtml(user.name), event: `<strong>${escapeHtml(e.name)}</strong>` })}</p><p>${tr("Il budget è {budget}. Iscrizioni entro il {date}.", { budget: new Intl.NumberFormat(locale, { style: "currency", currency: "EUR", minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(e.budget), date: new Intl.DateTimeFormat(locale, { timeZone: "Europe/Rome", dateStyle: "long" }).format(new Date(e.close_at)) })}</p><p><a href="${escapeHtml(env.APP_URL || "")}/invite/${individualToken}">${tr("Leggi l’invito e partecipa")}</a>.</p><p>${tr("L’organizzatore può conoscere gli abbinamenti.")}</p>`,
           eid,
           individualToken,
         ),

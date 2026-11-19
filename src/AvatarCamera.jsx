@@ -1,3 +1,4 @@
+import { t } from "./i18n.js";
 import { useEffect, useRef, useState } from "react";
 import { Camera } from "lucide-react";
 import { Button, Modal, Notice } from "./ui.jsx";
@@ -69,9 +70,9 @@ export default function AvatarCamera({ onClose, onCapture }) {
   }
 
   return (
-    <Modal title="Scatta un selfie" onClose={onClose}>
+    <Modal title={t("Scatta un selfie")} onClose={onClose}>
       <p className="profile-footnote">
-        Guarda verso la fotocamera e tieni il viso al centro.
+        {t("Guarda verso la fotocamera e tieni il viso al centro.")}
       </p>
       {!error && (
         <>
@@ -84,13 +85,13 @@ export default function AvatarCamera({ onClose, onCapture }) {
               onLoadedData={() => setReady(true)}
             />
           </div>
-          {!ready && <p role="status">In attesa della fotocamera…</p>}
+          {!ready && <p role="status">{t("In attesa della fotocamera…")}</p>}
         </>
       )}
       <Notice error>{error}</Notice>
       <div className="form-actions">
         <Button type="button" variant="outline" onClick={onClose}>
-          Annulla
+          {t("Annulla")}
         </Button>
         <Button
           type="button"
@@ -98,7 +99,7 @@ export default function AvatarCamera({ onClose, onCapture }) {
           busy={busy}
           onClick={capture}
         >
-          <Camera size={17} aria-hidden="true" /> Scatta
+          <Camera size={17} aria-hidden="true" /> {t("Scatta")}
         </Button>
       </div>
     </Modal>

@@ -23,11 +23,7 @@ export function portraitPlacement(
   isolated = false,
 ) {
   const box = image.faceBox;
-  const hasFace =
-    box &&
-    [box.w, box.h, box.cx, box.cy].every(Number.isFinite) &&
-    box.w > 0 &&
-    box.h > 0;
+  const hasFace = validBox(box);
   const face = hasFace
     ? box
     : {
@@ -52,6 +48,11 @@ export function portraitPlacement(
 
 const validPoint = (point) =>
   Array.isArray(point) && point.length === 2 && point.every(Number.isFinite);
+const validBox = (box) =>
+  box &&
+  [box.w, box.h, box.cx, box.cy].every(Number.isFinite) &&
+  box.w > 0 &&
+  box.h > 0;
 const validEyes = (anchors) =>
   anchors &&
   validPoint(anchors.imageLeftEye) &&
@@ -94,6 +95,70 @@ export function transformPortraitPoint(placement, [x, y]) {
   return [a * x + c * y + e, b * x + d * y + f];
 }
 
+function measuredFaceOpening(scene) {
+  const bounds = scene.faceBounds;
+  if (
+    !bounds ||
+    ![bounds.y, bounds.width, bounds.height, scene.collarY].every(
+      Number.isFinite,
+    ) ||
+    bounds.width <= 0 ||
+    bounds.height <= 0
+  )
+    return null;
+  // The measured face ends where the painted sides narrow to 65% of their
+  // widest span. A rounded chin continues below this cheek/neck join.
+  const jaw = bounds.y + bounds.height;
+  const chinRoom = Math.max(
+    0,
+    Math.min(bounds.height * 0.14, (scene.collarY - jaw) / 2),
+  );
+  return {
+    width: bounds.width,
+    height: bounds.height + chinRoom,
+    top: bounds.y,
+  };
+}
+
+function outlineScale(opening, width, height) {
+  const heightScale = opening.height / height;
+  const widthScale = opening.width / width;
+  // Balance the two measured spans without changing the subject's aspect ratio.
+  // The upper bound keeps a particularly long face clear of the collar.
+  return Math.min(Math.sqrt(widthScale * heightScale), heightScale * 1.06);
+}
+
+function fitFaceOutline(source, opening, eyeCentre, roll) {
+  const oval = source.faceOval;
+  if (
+    !opening ||
+    !validPoint(source.chin) ||
+    !Array.isArray(oval) ||
+    oval.length < 12 ||
+    !oval.every(validPoint)
+  )
+    return null;
+  // Measure the photographed head in the same orientation as the artwork.
+  const cos = Math.cos(roll),
+    sin = Math.sin(roll);
+  const rotate = ([x, y]) => [
+    cos * (x - eyeCentre[0]) - sin * (y - eyeCentre[1]),
+    sin * (x - eyeCentre[0]) + cos * (y - eyeCentre[1]),
+  ];
+  const outline = oval.map(rotate);
+  const xs = outline.map(([x]) => x);
+  const width = Math.max(...xs) - Math.min(...xs);
+  const forehead = Math.min(...outline.map(([, y]) => y));
+  const chin = rotate(source.chin)[1];
+  if (!(width > 1 && forehead < 0 && chin > 0)) return null;
+
+  const scale = outlineScale(opening, width, chin - forehead);
+  // Share any small discrepancy between hairline and chin instead of
+  // clipping it all at the collar. Manual zoom still pivots at the eyes.
+  const eyeY = opening.top + (opening.height - (chin + forehead) * scale) / 2;
+  return { scale, eyeY };
+}
+
 export function portraitScenePlacement(
   image,
   scene,
@@ -103,6 +168,7 @@ export function portraitScenePlacement(
   const { zoom = 1, offsetX = 0, offsetY = 0, rotation = 0 } = settings;
   const source = image.landmarks;
   const target = scene.anchors;
+  const opening = measuredFaceOpening(scene);
   let scale,
     angle = 0,
     sourceCentre,
@@ -127,14 +193,22 @@ export function portraitScenePlacement(
       (target.imageLeftEye[0] + target.imageRightEye[0]) / 2,
       (target.imageLeftEye[1] + target.imageRightEye[1]) / 2,
     ];
+    const outline = fitFaceOutline(source, opening, sourceCentre, angle);
+    if (outline) {
+      scale = outline.scale * zoom;
+      targetCentre[1] = outline.eyeY;
+    }
     alignment = "eyes";
   } else {
     const legacy = portraitPlacement(image, scene.face, settings, isolated);
-    const box = image.faceBox;
+    const box = validBox(image.faceBox) ? image.faceBox : null;
     scale = legacy.scale;
     sourceCentre = [box?.cx ?? image.width / 2, box?.cy ?? image.height / 2];
     targetCentre = scene.face.slice(0, 2);
-    if (scene.overlay && box && box.w > 0 && box.h > 0) {
+    if (opening && box) {
+      scale = outlineScale(opening, box.w, box.h) * zoom;
+      targetCentre[1] = opening.top + opening.height / 2;
+    } else if (scene.overlay && box) {
       // Cover the annotated facial opening uniformly; the foreground handles
       // occlusion at hat and collar. This never stretches width independently.
       scale =

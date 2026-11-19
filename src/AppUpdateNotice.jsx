@@ -1,3 +1,4 @@
+import { t } from "./i18n.js";
 import { useEffect, useRef, useState } from "react";
 import { releaseUrl, watchRelease } from "./release.js";
 import "./app-update.css";
@@ -50,18 +51,19 @@ export default function AppUpdateNotice({ idlePage }) {
     <aside
       className="app-update"
       role="status"
-      aria-label="Aggiornamento disponibile"
+      aria-label={t("Aggiornamento disponibile")}
     >
       <p>
-        È pronta una nuova versione. Salva ciò che stai modificando, poi
-        aggiorna.
+        {t(
+          "È pronta una nuova versione. Salva ciò che stai modificando, poi aggiorna.",
+        )}
       </p>
       <button
         type="button"
         className="button outline"
         onClick={() => reload(available.buildId)}
       >
-        Aggiorna ora
+        {t("Aggiorna ora")}
       </button>
     </aside>
   ) : null;

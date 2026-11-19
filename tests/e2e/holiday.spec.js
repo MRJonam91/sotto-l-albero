@@ -87,6 +87,9 @@ test.describe("Profilo e caccia su schermo tattile", () => {
     await page.keyboard.press("Escape");
     await page.getByRole("button", { name: "Apri il mio profilo" }).click();
     await page
+      .getByRole("link", { name: "Album dei timbri", exact: true })
+      .click();
+    await page
       .getByRole("button", { name: "Rileggi la sorpresa: Stella d’oro" })
       .tap();
     await expect(
@@ -96,6 +99,9 @@ test.describe("Profilo e caccia su schermo tattile", () => {
       page.getByRole("dialog").getByRole("link", { name: /Warner Bros/ }),
     ).toHaveAttribute("href", "https://www.youtube.com/watch?v=HebbNljYRzE");
     await page.keyboard.press("Escape");
+    await page
+      .getByRole("link", { name: "Avatar e identità", exact: true })
+      .click();
     await page
       .getByRole("button", { name: "Scegli un personaggio", exact: true })
       .click();
@@ -270,6 +276,9 @@ test("Caccia, quiz e memory su telefono salvano i timbri nel profilo", async ({
   }
 
   await page.getByRole("button", { name: "Apri il mio profilo" }).click();
+  await page
+    .getByRole("link", { name: "Album dei timbri", exact: true })
+    .click();
   await expect(page.getByText("4 di 22 timbri", { exact: true })).toBeVisible();
   await page.getByText("Mostra il ritornello", { exact: true }).first().click();
   await expect(

@@ -87,6 +87,14 @@ export async function isolateAvatarFace(image, options = {}) {
       includeNeck: options.includeNeck ?? true,
       feather: true,
       headCapLine,
+      chin: analysis?.landmarks?.chin && [
+        (analysis.landmarks.chin[0] * width) / image.width,
+        (analysis.landmarks.chin[1] * height) / image.height,
+      ],
+      faceOval: analysis?.landmarks?.faceOval?.map(([x, y]) => [
+        (x * width) / image.width,
+        (y * height) / image.height,
+      ]),
     });
     if (!face) return;
     const confidence = confidenceMasks?.map((mask) => mask.getAsFloat32Array());

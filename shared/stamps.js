@@ -77,6 +77,11 @@ export const stamps = {
   ...seasonalStamps,
 };
 
+export const baseStampIds = Object.keys(stamps).filter(
+  (id) => !stamps[id].seasonal,
+);
+export const stampAwards = { base: 10, seasonal: 10, all: 5 };
+
 const italianClock = new Intl.DateTimeFormat("en-GB", {
   timeZone: "Europe/Rome",
   hour: "2-digit",

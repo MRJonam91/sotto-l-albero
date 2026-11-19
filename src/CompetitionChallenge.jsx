@@ -1,3 +1,4 @@
+import { gameT, t } from "./i18n.js";
 import { useId, useState } from "react";
 import {
   ArrowLeft,
@@ -71,7 +72,7 @@ function SolutionForm({ children, onMove, solution, ready, busy }) {
     >
       {children}
       <Button type="submit" busy={busy} disabled={!ready}>
-        Conferma la soluzione
+        {t("Conferma la soluzione")}
       </Button>
     </form>
   );
@@ -81,7 +82,7 @@ function Match({ challenge, onMove, busy }) {
   const detailId = useId();
   const [pairs, setPairs] = useState({});
   const [selected, setSelected] = useState(null);
-  const [status, setStatus] = useState("");
+  const [lastSeat, setLastSeat] = useState(null);
   const assigned = Object.keys(pairs).length;
   const parcels = Object.fromEntries(
     challenge.parcels.map((item) => [item.id, item]),
@@ -96,9 +97,9 @@ function Match({ challenge, onMove, busy }) {
     );
     if (selected && selected !== previous) {
       next[person.id] = selected;
-      setStatus(`${parcels[selected].label} per ${person.label}.`);
+      setLastSeat({ parcel: parcels[selected].label, label: person.label });
     } else {
-      setStatus(`Posto di ${person.label} liberato.`);
+      setLastSeat({ label: person.label });
     }
     setPairs(next);
     setSelected(null);
@@ -112,11 +113,12 @@ function Match({ challenge, onMove, busy }) {
       busy={busy}
     >
       <p>
-        Scegli un pacco, poi il posto a cui assegnarlo. Tocca un posto occupato
-        per liberarlo.
+        {t(
+          "Scegli un pacco, poi il posto a cui assegnarlo. Tocca un posto occupato per liberarlo.",
+        )}
       </p>
       <div className="puzzle-tray">
-        <h4>Pacchi sul tavolo</h4>
+        <h4>{t("Pacchi sul tavolo")}</h4>
         <div className="puzzle-grid parcel-grid">
           {challenge.parcels.map((item) => {
             const seat = challenge.people.find(
@@ -127,7 +129,7 @@ function Match({ challenge, onMove, busy }) {
                 type="button"
                 key={item.id}
                 className="puzzle-tile"
-                aria-label={item.label}
+                aria-label={gameT(item.label)}
                 aria-describedby={`${detailId}-parcel-${item.id}`}
                 aria-pressed={selected === item.id}
                 disabled={busy}
@@ -136,9 +138,11 @@ function Match({ challenge, onMove, busy }) {
                 }
               >
                 <Illustration item={item} />
-                <strong>{item.label}</strong>
+                <strong>{gameT(item.label)}</strong>
                 <small id={`${detailId}-parcel-${item.id}`}>
-                  {seat ? `Al posto di ${seat.label}` : "Da assegnare"}
+                  {seat
+                    ? t("Al posto di {label}", { label: gameT(seat.label) })
+                    : t("Da assegnare")}
                 </small>
               </button>
             );
@@ -146,14 +150,14 @@ function Match({ challenge, onMove, busy }) {
         </div>
       </div>
       <div className="puzzle-tray">
-        <h4>Posti a tavola, da sinistra a destra</h4>
+        <h4>{t("Posti a tavola, da sinistra a destra")}</h4>
         <div className="puzzle-grid seat-grid">
           {challenge.people.map((person, index) => (
             <button
               type="button"
               key={person.id}
               className="puzzle-tile puzzle-seat"
-              aria-label={`Posto di ${person.label}`}
+              aria-label={t("Posto di {label}", { label: gameT(person.label) })}
               aria-describedby={`${detailId}-seat-${person.id}`}
               data-filled={Boolean(pairs[person.id])}
               disabled={busy || (!selected && !pairs[person.id])}
@@ -162,16 +166,29 @@ function Match({ challenge, onMove, busy }) {
               <span className="seat-medallion" aria-hidden="true">
                 {index + 1}
               </span>
-              <strong>{person.label}</strong>
+              <strong>{gameT(person.label)}</strong>
               <small id={`${detailId}-seat-${person.id}`}>
-                {parcels[pairs[person.id]]?.label ?? "Posto vuoto"}
+                {gameT(parcels[pairs[person.id]]?.label) ?? t("Posto vuoto")}
               </small>
             </button>
           ))}
         </div>
       </div>
       <p className="challenge-progress" role="status">
-        {assigned} di {challenge.people.length} pacchi assegnati. {status}
+        {t("{assigned} di {total} pacchi assegnati. {status}", {
+          assigned,
+          total: challenge.people.length,
+          status: !lastSeat
+            ? ""
+            : lastSeat.parcel
+              ? t("{parcel} per {label}.", {
+                  parcel: gameT(lastSeat.parcel),
+                  label: gameT(lastSeat.label),
+                })
+              : t("Posto di {label} liberato.", {
+                  label: gameT(lastSeat.label),
+                }),
+        })}
       </p>
     </SolutionForm>
   );
@@ -196,44 +213,62 @@ function Pack({ challenge, onMove, busy }) {
         <img className="cargo-sleigh" src="/memory/slitta.webp" alt="" />
         <div className="cargo-stats" role="status">
           <span>
-            <Scale size={19} aria-hidden="true" /> {weight} / {challenge.limit}{" "}
-            kg
+            <Scale size={19} aria-hidden="true" />{" "}
+            {t("{weight} / {limit} kg", { weight, limit: challenge.limit })}
           </span>
           {challenge.capacity != null && (
             <>
               <span>
-                <Package size={19} aria-hidden="true" /> {space} /{" "}
-                {challenge.capacity} spazi
+                <Package size={19} aria-hidden="true" />{" "}
+                {t("{space} / {capacity} spazi", {
+                  space,
+                  capacity: challenge.capacity,
+                })}
               </span>
               <span>
-                <Star size={19} aria-hidden="true" /> {total("stars")} stelle
+                <Star size={19} aria-hidden="true" />{" "}
+                {t("{stars} stelle", { stars: total("stars") })}
               </span>
             </>
           )}
           {overLimit && (
-            <strong>Il carico supera un limite. Togli almeno un pacco.</strong>
+            <strong>
+              {t("Il carico supera un limite. Togli almeno un pacco.")}
+            </strong>
           )}
         </div>
         {cargo.length > 0 && (
-          <ul className="cargo-load" aria-label="Pacchi caricati sulla slitta">
+          <ul
+            className="cargo-load"
+            aria-label={t("Pacchi caricati sulla slitta")}
+          >
             {cargo.map((item) => (
               <li key={item.id}>
                 <Illustration item={item} />
-                <span>{item.label}</span>
+                <span>{gameT(item.label)}</span>
               </li>
             ))}
           </ul>
         )}
       </div>
       <div className="puzzle-tray">
-        <h4>Scaffale dei pacchi</h4>
+        <h4>{t("Scaffale dei pacchi")}</h4>
         <div className="puzzle-grid cargo-grid">
           {challenge.items.map((item) => (
             <button
               type="button"
               className="puzzle-tile"
               key={item.id}
-              aria-label={`${item.label}, ${item.weight} kg${item.space ? `, ${item.space} spazi, ${item.stars} stelle` : ""}`}
+              aria-label={t("{label}, {weight} kg{details}", {
+                label: gameT(item.label),
+                weight: item.weight,
+                details: item.space
+                  ? t(", {space} spazi, {stars} stelle", {
+                      space: item.space,
+                      stars: item.stars,
+                    })
+                  : "",
+              })}
               aria-pressed={picked.includes(item.id)}
               disabled={busy}
               onClick={() =>
@@ -245,13 +280,19 @@ function Pack({ challenge, onMove, busy }) {
               }
             >
               <Illustration item={item} />
-              <strong>{item.label}</strong>
+              <strong>{gameT(item.label)}</strong>
               <small>
-                {item.weight} kg{item.space ? ` · ${item.space} spazi` : ""}
+                {t("{weight} kg{state}", {
+                  weight: item.weight,
+                  state: item.space
+                    ? t(" · {space} spazi", { space: item.space })
+                    : "",
+                })}
               </small>
               {item.stars != null && (
                 <small className="tile-stars">
-                  <Star size={13} aria-hidden="true" /> {item.stars} stelle
+                  <Star size={13} aria-hidden="true" />{" "}
+                  {t("{stars} stelle", { stars: item.stars })}
                 </small>
               )}
             </button>
@@ -273,7 +314,7 @@ function LegacyCipher({ challenge, onMove, busy }) {
     >
       <p className="puzzle-postcard">{challenge.ciphertext}</p>
       <Field
-        label="Messaggio decifrato"
+        label={t("Messaggio decifrato")}
         value={message}
         onChange={(event) => setMessage(event.target.value)}
         autoComplete="off"
@@ -315,7 +356,7 @@ function Cipher({ challenge, onMove, busy }) {
         <span className="postmark" aria-hidden="true">
           <Snowflake size={22} />
         </span>
-        <h4>Cartolina intercettata</h4>
+        <h4>{t("Cartolina intercettata")}</h4>
         <p className="cipher-words">
           {words.map((word, index) => (
             <span key={index} data-wheel={index % 2}>
@@ -337,12 +378,14 @@ function Cipher({ challenge, onMove, busy }) {
       <div className="cipher-wheels">
         {wheelNames.map((name, index) => (
           <div className="cipher-dial" key={name} data-wheel={index}>
-            <h4>Ruota {name}</h4>
+            <h4>{t("Ruota {name}", { name: t(name) })}</h4>
             <div className="cipher-controls">
               <button
                 type="button"
                 className="puzzle-arrow"
-                aria-label={`Gira indietro la ruota ${name}`}
+                aria-label={t("Gira indietro la ruota {name}", {
+                  name: t(name),
+                })}
                 disabled={busy}
                 onClick={() => rotate(index, -1)}
               >
@@ -350,14 +393,17 @@ function Cipher({ challenge, onMove, busy }) {
               </button>
               <div className="dial-body" style={{ "--shift": shifts[index] }}>
                 <span className="dial-rotor" aria-hidden="true" />
-                <strong role="status" aria-label={`Posizione ruota ${name}`}>
+                <strong
+                  role="status"
+                  aria-label={t("Posizione ruota {name}", { name: t(name) })}
+                >
                   {shifts[index]}
                 </strong>
               </div>
               <button
                 type="button"
                 className="puzzle-arrow"
-                aria-label={`Gira avanti la ruota ${name}`}
+                aria-label={t("Gira avanti la ruota {name}", { name: t(name) })}
                 disabled={busy}
                 onClick={() => rotate(index, 1)}
               >
@@ -374,7 +420,7 @@ function Cipher({ challenge, onMove, busy }) {
 function Ordering({ challenge, onMove, busy }) {
   const [items, setItems] = useState(challenge.items);
   const [selected, setSelected] = useState(null);
-  const [announcement, setAnnouncement] = useState("");
+  const [lastMove, setLastMove] = useState(null);
 
   function swap(from, to) {
     if (from < 0 || to < 0 || to >= items.length) return;
@@ -382,9 +428,7 @@ function Ordering({ challenge, onMove, busy }) {
     [reordered[from], reordered[to]] = [reordered[to], reordered[from]];
     setItems(reordered);
     setSelected(null);
-    setAnnouncement(
-      `${items[from].label}, posizione ${to + 1} di ${items.length}.`,
-    );
+    setLastMove({ item: items[from].label, position: to + 1 });
   }
   return (
     <SolutionForm
@@ -394,12 +438,14 @@ function Ordering({ challenge, onMove, busy }) {
       busy={busy}
     >
       <p>
-        Tocca due addobbi per scambiarli, oppure usa le frecce sotto le carte.
+        {t(
+          "Tocca due addobbi per scambiarli, oppure usa le frecce sotto le carte.",
+        )}
       </p>
       <ol
         className="puzzle-garland"
         role="list"
-        aria-label="Ordine degli addobbi"
+        aria-label={t("Ordine degli addobbi")}
       >
         {items.map((item, index) => (
           <li key={item.id}>
@@ -407,7 +453,10 @@ function Ordering({ challenge, onMove, busy }) {
               type="button"
               className="puzzle-tile"
               aria-pressed={selected === item.id}
-              aria-label={`${item.label}, posizione ${index + 1}`}
+              aria-label={t("{label}, posizione {number}", {
+                label: gameT(item.label),
+                number: index + 1,
+              })}
               disabled={busy}
               onClick={() => {
                 if (selected && selected !== item.id)
@@ -419,13 +468,15 @@ function Ordering({ challenge, onMove, busy }) {
               }}
             >
               <Illustration item={item} />
-              <strong>{item.label}</strong>
+              <strong>{gameT(item.label)}</strong>
             </button>
             <div className="ornament-arrows">
               <button
                 type="button"
                 className="puzzle-arrow"
-                aria-label={`Sposta ${item.label} a sinistra`}
+                aria-label={t("Sposta {label} a sinistra", {
+                  label: gameT(item.label),
+                })}
                 disabled={busy || index === 0}
                 onClick={() => swap(index, index - 1)}
               >
@@ -434,7 +485,9 @@ function Ordering({ challenge, onMove, busy }) {
               <button
                 type="button"
                 className="puzzle-arrow"
-                aria-label={`Sposta ${item.label} a destra`}
+                aria-label={t("Sposta {label} a destra", {
+                  label: gameT(item.label),
+                })}
                 disabled={busy || index === items.length - 1}
                 onClick={() => swap(index, index + 1)}
               >
@@ -445,7 +498,12 @@ function Ordering({ challenge, onMove, busy }) {
         ))}
       </ol>
       <p className="challenge-progress" role="status">
-        {announcement}
+        {lastMove &&
+          t("{item}, posizione {position} di {total}.", {
+            item: gameT(lastMove.item),
+            position: lastMove.position,
+            total: items.length,
+          })}
       </p>
     </SolutionForm>
   );
@@ -467,15 +525,19 @@ export default function CompetitionChallenge({ challenge, onMove, busy }) {
         ? games[challenge.type]
         : null;
   if (!Game)
-    return <Notice error>Questa prova è momentaneamente indisponibile.</Notice>;
+    return (
+      <Notice error>
+        {t("Questa prova è momentaneamente indisponibile.")}
+      </Notice>
+    );
   return (
     <div className="challenge-play" data-game={challenge.type}>
       <div className="challenge-brief">
-        <p>{challenge.prompt}</p>
+        <p>{gameT(challenge.prompt)}</p>
         {challenge.clues?.length > 0 && (
-          <ol className="challenge-clues" aria-label="Indizi">
+          <ol className="challenge-clues" aria-label={t("Indizi")}>
             {challenge.clues.map((clue) => (
-              <li key={clue}>{clue}</li>
+              <li key={clue}>{gameT(clue)}</li>
             ))}
           </ol>
         )}

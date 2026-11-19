@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from "react";
+import { t } from "./i18n.js";
+import { useId, useState, useEffect, useRef } from "react";
 import {
   Gift,
   TreePine,
@@ -71,7 +72,11 @@ export default function Reveal({
   const currentScope = useRef(null);
   currentScope.current = available ? acknowledgementKey : null;
   const resultHeading = useRef(null);
+  const wishesHeading = useRef(null);
   const sealButton = useRef(null);
+  useEffect(() => {
+    if (wishes) wishesHeading.current?.focus();
+  }, [wishes]);
   useEffect(() => {
     if (phase !== "opening") return;
     const t = setTimeout(() => setPhase("open"), ceremonyDuration);
@@ -103,10 +108,11 @@ export default function Reveal({
     return (
       <div className="empty-state">
         <Gift />
-        <h2>Estrazione riservata ai partecipanti</h2>
+        <h2>{t("Estrazione riservata ai partecipanti")}</h2>
         <p>
-          Se organizzi lo scambio senza partecipare, trovi gli abbinamenti in
-          Organizza.
+          {t(
+            "Se organizzi lo scambio senza partecipare, trovi gli abbinamenti in Organizza.",
+          )}
         </p>
       </div>
     );
@@ -119,28 +125,35 @@ export default function Reveal({
         <span className="waiting-tree">
           <TreePine size={54} />
         </span>
-        <h2>I nomi non sono ancora usciti.</h2>
+        <h2>{t("I nomi non sono ancora usciti.")}</h2>
         <p>
           {status === "archived"
-            ? "Questo evento è stato archiviato."
+            ? t("Questo evento è stato archiviato.")
             : status === "cancelled"
-              ? "Chi organizza ha annullato l’estrazione. Torna qui per quella nuova."
-              : `L’estrazione è prevista per il ${date(drawAt)}.`}
+              ? t(
+                  "Chi organizza ha annullato l’estrazione. Torna qui per quella nuova.",
+                )
+              : t("L’estrazione è prevista per il {date}.", {
+                  date: date(drawAt),
+                })}
         </p>
         {left > 0 ? (
           <div className="countdown">
             <span>
-              <strong>{days}</strong>giorni
+              <strong>{days}</strong>
+              {days === 1 ? t("giorno") : t("giorni")}
             </span>
             <i>:</i>
             <span>
-              <strong>{hours}</strong>ore
+              <strong>{hours}</strong>
+              {hours === 1 ? t("ora") : t("ore")}
             </span>
           </div>
         ) : (
           <p className="quiet">
-            L’estrazione è ancora in attesa. Chi organizza può controllare lo
-            stato del gruppo.
+            {t(
+              "L’estrazione è ancora in attesa. Chi organizza può controllare lo stato del gruppo.",
+            )}
           </p>
         )}
         <DrawExplanation />
@@ -181,19 +194,19 @@ export default function Reveal({
         </div>
         {phase === "restoring" ? (
           <div className="recipient-letter paper">
-            <p role="status">Sto cercando la tua lettera…</p>
+            <p role="status">{t("Sto cercando la tua lettera…")}</p>
             <Notice error>{error}</Notice>
             {error && (
               <Button busy={loading} onClick={() => openLetter(false)}>
-                Riprova
+                {t("Riprova")}
               </Button>
             )}
           </div>
         ) : phase !== "open" ? (
           <>
-            <span className="eyebrow">L’estrazione è pronta</span>
-            <h2>Il nome è nella busta.</h2>
-            <p>Rompi il sigillo e scopri a chi farai il regalo.</p>
+            <span className="eyebrow">{t("L’estrazione è pronta")}</span>
+            <h2>{t("Il nome è nella busta.")}</h2>
+            <p>{t("Rompi il sigillo e scopri a chi farai il regalo.")}</p>
             <button
               className="sealed-letter"
               ref={sealButton}
@@ -201,7 +214,7 @@ export default function Reveal({
                 if (phase === "sealed") openLetter(true);
               }}
               aria-disabled={loading || phase === "opening"}
-              aria-label="Apri il sigillo e scopri il destinatario"
+              aria-label={t("Apri il sigillo e scopri il destinatario")}
             >
               <span className="ceremony-envelope" aria-hidden="true">
                 <span className="envelope-back" />
@@ -221,10 +234,10 @@ export default function Reveal({
             </button>
             <p className="seal-caption" role="status">
               {loading
-                ? "Sto cercando la tua lettera…"
+                ? t("Sto cercando la tua lettera…")
                 : phase === "opening"
-                  ? "La lettera si sta aprendo…"
-                  : "Tocca il sigillo."}
+                  ? t("La lettera si sta aprendo…")
+                  : t("Tocca il sigillo.")}
             </p>
             <button
               className="text-button"
@@ -233,14 +246,14 @@ export default function Reveal({
                 phase === "opening" ? setPhase("open") : openLetter(false)
               }
             >
-              Mostra subito il nome
+              {t("Mostra subito il nome")}
               <ArrowRight size={15} />
             </button>
             <Notice error>{error}</Notice>
           </>
         ) : (
           <div className="recipient-letter paper">
-            <span className="eyebrow">Il tuo regalo è per</span>
+            <span className="eyebrow">{t("Il tuo regalo è per")}</span>
             <h2 ref={resultHeading} tabIndex={-1}>
               {recipient.name}
             </h2>
@@ -258,10 +271,16 @@ export default function Reveal({
               <p className="quiet">@{recipient.nickname}</p>
             ) : null}
             <Star size={26} className="recipient-star" />
-            <p>Scegli il regalo con cura e tieni il nome per te.</p>
-            <Button onClick={() => setWishes(true)}>
+            <p>{t("Scegli il regalo con cura e tieni il nome per te.")}</p>
+            <Button
+              aria-expanded={wishes}
+              onClick={() => {
+                if (wishes) wishesHeading.current?.focus();
+                else setWishes(true);
+              }}
+            >
               <Mail size={17} />
-              Leggi i suoi desideri
+              {t("Leggi i suoi desideri")}
             </Button>
             <button
               className="text-button"
@@ -273,16 +292,17 @@ export default function Reveal({
               }}
             >
               <RotateCcw size={14} />
-              Riapri la lettera
+              {t("Riapri la lettera")}
             </button>
           </div>
         )}
       </div>
-      <DrawExplanation />
       {phase === "open" && wishes ? (
         <div className="recipient-wishes">
           <div className="section-title">
-            <h2>I desideri di {recipient.name}</h2>
+            <h2 tabIndex={-1} ref={wishesHeading}>
+              {t("I desideri di {name}", { name: recipient.name })}
+            </h2>
             <span />
           </div>
           {recipient.wishlist?.length ? (
@@ -293,19 +313,20 @@ export default function Reveal({
             <div className="empty-state">
               <Mail />
               <p>
-                La lettera è ancora vuota. Intanto puoi pensare a un regalo
-                partendo da quello che sai di questa persona.
+                {t(
+                  "La lettera è ancora vuota. Intanto puoi pensare a un regalo partendo da quello che sai di questa persona.",
+                )}
               </p>
             </div>
           )}
           <div className="gift-progress">
-            <h3>A che punto sei?</h3>
-            <p>Il promemoria resta su questo dispositivo.</p>
+            <h3>{t("A che punto sei?")}</h3>
+            <p>{t("Il promemoria resta su questo dispositivo.")}</p>
             <div className="button-row">
               {[
-                ["idea", "Ci sto pensando"],
-                ["bought", "Regalo trovato"],
-                ["wrapped", "Incartato!"],
+                ["idea", t("Ci sto pensando")],
+                ["bought", t("Regalo trovato")],
+                ["wrapped", t("Incartato!")],
               ].map(([v, t]) => (
                 <button
                   key={v}
@@ -323,32 +344,39 @@ export default function Reveal({
           </div>
         </div>
       ) : null}
+      <DrawExplanation />
     </section>
   );
 }
 export function Wish({ item }) {
+  const hintId = useId();
+  const answerId = useId();
   const [help, setHelp] = useState(false),
     [answer, setAnswer] = useState(false);
   const affiliate = hasAmazonAffiliateTag(item.url);
+  const siteAffiliate =
+    affiliate && (item.siteAffiliate === true || item.affiliate === true);
   return (
     <article className="recipient-wish paper">
       <span className="eyebrow">
         {{
-          object: "Un desiderio",
-          theme: "Un interesse",
-          preference: "Una preferenza",
-          avoid: "Meglio di no",
-          hint: "Un indizio",
-          riddle: "Prova a indovinare",
-        }[item.type] || "Un desiderio"}
+          object: t("Un desiderio"),
+          theme: t("Un interesse"),
+          preference: t("Una preferenza"),
+          avoid: t("Meglio di no"),
+          hint: t("Un indizio"),
+          riddle: t("Prova a indovinare"),
+        }[item.type] || t("Un desiderio")}
       </span>
       <h3>{item.title}</h3>
       {item.description ? <p>{item.description}</p> : null}
       {item.fulfillment === "pickup" && item.pickupCity ? (
         <p className="wish-pickup-label">
-          <strong>Ritiro a {item.pickupCity}</strong>
+          <strong>{t("Ritiro a {city}", { city: item.pickupCity })}</strong>
           <br />
-          <small>Verifica negozio, disponibilità e modalità del ritiro.</small>
+          <small>
+            {t("Verifica negozio, disponibilità e modalità del ritiro.")}
+          </small>
         </p>
       ) : null}
       {item.url && /^https?:\/\//i.test(item.url) ? (
@@ -356,34 +384,63 @@ export function Wish({ item }) {
           className="wish-link"
           href={item.url}
           target="_blank"
-          rel={
-            affiliate ? "sponsored noopener noreferrer" : "noopener noreferrer"
+          data-amazon-affiliate={
+            affiliate ? (siteAffiliate ? "site" : "external") : undefined
           }
+          aria-describedby={
+            affiliate
+              ? siteAffiliate
+                ? "amazon-site-information"
+                : "amazon-external-information"
+              : undefined
+          }
+          rel={
+            siteAffiliate
+              ? "sponsored noopener"
+              : affiliate
+                ? "sponsored noopener noreferrer"
+                : "noopener noreferrer"
+          }
+          referrerPolicy={siteAffiliate ? "origin" : undefined}
         >
-          Dai un’occhiata
+          {t(affiliate ? "Apri su Amazon" : "Dai un’occhiata")}
           <ExternalLink size={14} />
         </a>
       ) : null}
-      {affiliate ? (
-        <small className="wish-affiliate-disclosure">
-          Link affiliato Amazon. In qualità di Affiliato Amazon ricevo un
-          guadagno dagli acquisti idonei.
-        </small>
-      ) : null}
       {item.hint ? (
         <>
-          <button className="text-button" onClick={() => setHelp(!help)}>
-            {help ? "Nascondi l’aiuto" : "Mi dai un aiuto?"}
+          <button
+            type="button"
+            className="text-button"
+            aria-expanded={help}
+            aria-controls={help ? hintId : undefined}
+            onClick={() => setHelp(!help)}
+          >
+            {help ? t("Nascondi l’aiuto") : t("Mi dai un aiuto?")}
           </button>
-          {help ? <p className="hint-text">{item.hint}</p> : null}
+          {help ? (
+            <p id={hintId} className="hint-text">
+              {item.hint}
+            </p>
+          ) : null}
         </>
       ) : null}
       {item.answer ? (
         <>
-          <button className="text-button" onClick={() => setAnswer(!answer)}>
-            {answer ? "Nascondi la soluzione" : "Leggi la soluzione"}
+          <button
+            type="button"
+            className="text-button"
+            aria-expanded={answer}
+            aria-controls={answer ? answerId : undefined}
+            onClick={() => setAnswer(!answer)}
+          >
+            {answer ? t("Nascondi la soluzione") : t("Leggi la soluzione")}
           </button>
-          {answer ? <p className="hint-text">{item.answer}</p> : null}
+          {answer ? (
+            <p id={answerId} className="hint-text">
+              {item.answer}
+            </p>
+          ) : null}
         </>
       ) : null}
     </article>

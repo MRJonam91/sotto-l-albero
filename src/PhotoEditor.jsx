@@ -1,3 +1,4 @@
+import { t } from "./i18n.js";
 import { useEffect, useId, useRef, useState } from "react";
 import { Camera, Download, ImagePlus } from "lucide-react";
 import AvatarCamera from "./AvatarCamera.jsx";
@@ -50,6 +51,7 @@ export default function PhotoEditor({ profile, name, disabled, onSave }) {
   const [manualControlsOpen, setManualControlsOpen] = useState(false);
   const [settings, setSettings] = useState({
     style: "illustrated",
+    paintStrength: 0.75,
     scene: "elf",
     variant: "front",
     zoom: 1.15,
@@ -190,8 +192,12 @@ export default function PhotoEditor({ profile, name, disabled, onSave }) {
       if (revision !== photoRevision.current) return;
       setCropNotice(
         cutout
-          ? "Il tuo ritratto è pronto. Puoi cambiare atmosfera o rifinire la posizione."
-          : "Non riesco a isolare un solo volto. Prova un selfie di fronte o sistema il ritaglio a mano.",
+          ? t(
+              "Il tuo ritratto è pronto. Puoi cambiare atmosfera o rifinire la posizione.",
+            )
+          : t(
+              "Non riesco a isolare un solo volto. Prova un selfie di fronte o sistema il ritaglio a mano.",
+            ),
       );
     } catch {
       if (revision === photoRevision.current) {
@@ -217,7 +223,7 @@ export default function PhotoEditor({ profile, name, disabled, onSave }) {
         settingsRef.current.scene,
         photoSeed.current,
       ),
-      zoom: isolated ? 1 : 1.15,
+      zoom: isolated || source.landmarks?.detected ? 1 : 1.15,
       offsetX: 0,
       offsetY: 0,
     };
@@ -251,7 +257,8 @@ export default function PhotoEditor({ profile, name, disabled, onSave }) {
     useManualCrop();
     updateSettings((current) => ({
       ...current,
-      zoom: portrait?.isolated ? 1 : 1.15,
+      zoom:
+        portrait?.isolated || portrait?.source.landmarks?.detected ? 1 : 1.15,
       offsetX: 0,
       offsetY: 0,
     }));
@@ -323,15 +330,17 @@ export default function PhotoEditor({ profile, name, disabled, onSave }) {
 
   return (
     <div className="photo-editor">
-      <h3 className="photo-editor-title">Il tuo ritratto</h3>
+      <h3 className="photo-editor-title">{t("Il tuo ritratto")}</h3>
       <div className="photo-acquisition">
         <label className="profile-file">
           <ImagePlus size={19} aria-hidden="true" />
-          <span>{portrait ? "Scegli un’altra foto" : "Scegli una foto"}</span>
+          <span>
+            {portrait ? t("Scegli un’altra foto") : t("Scegli una foto")}
+          </span>
           <input
             type="file"
             accept="image/jpeg,image/png,image/webp"
-            aria-label="Scegli una foto"
+            aria-label={t("Scegli una foto")}
             aria-describedby={hintId}
             onChange={pickPhoto}
             disabled={disabled || (!!busy && busy !== "read")}
@@ -346,7 +355,7 @@ export default function PhotoEditor({ profile, name, disabled, onSave }) {
             else nativeCamera.current?.click();
           }}
         >
-          <Camera size={17} aria-hidden="true" /> Scatta una foto
+          <Camera size={17} aria-hidden="true" /> {t("Scatta una foto")}
         </Button>
         <input
           ref={nativeCamera}
@@ -358,15 +367,16 @@ export default function PhotoEditor({ profile, name, disabled, onSave }) {
         />
       </div>
       <p className="profile-footnote" id={hintId}>
-        Scegli un selfie con un solo viso ben illuminato. JPEG, PNG o WebP, fino
-        a 25 MB.
+        {t(
+          "Scegli un selfie con un solo viso ben illuminato. JPEG, PNG o WebP, fino a 25 MB.",
+        )}
       </p>
       {(cropping || busy === "read") && (
         <div className="photo-preparing" aria-busy="true">
           <p role="status">
             {busy === "read"
-              ? "Sto aprendo la foto…"
-              : "Sto preparando il tuo ritratto…"}
+              ? t("Sto aprendo la foto…")
+              : t("Sto preparando il tuo ritratto…")}
           </p>
           {cropping && cropPending.current && (
             <button
@@ -375,7 +385,7 @@ export default function PhotoEditor({ profile, name, disabled, onSave }) {
               disabled={disabled}
               onClick={useManualCrop}
             >
-              Regola a mano
+              {t("Regola a mano")}
             </button>
           )}
         </div>
@@ -387,7 +397,7 @@ export default function PhotoEditor({ profile, name, disabled, onSave }) {
               <canvas
                 ref={canvas}
                 role="img"
-                aria-label="Anteprima dell’avatar"
+                aria-label={t("Anteprima dell’avatar")}
                 aria-describedby={dragHintId}
                 className={portrait && !isDisabled ? "photo-draggable" : ""}
                 onPointerDown={startDrag}
@@ -402,17 +412,17 @@ export default function PhotoEditor({ profile, name, disabled, onSave }) {
                 <div className="profile-mini-preview">
                   <canvas ref={mini} aria-hidden="true" />
                   <span>
-                    Nel gruppo <strong>{name}</strong>
+                    {t("Nel gruppo")} <strong>{name}</strong>
                   </span>
                 </div>
               )}
             </div>
             <div className="photo-portrait-tools">
               <p className="photo-atmosphere-name">
-                {
+                {t(
                   availableScenes.find((scene) => scene.id === settings.scene)
-                    ?.name
-                }
+                    ?.name,
+                )}
               </p>
               <div className="photo-result-choices">
                 <Button
@@ -422,7 +432,7 @@ export default function PhotoEditor({ profile, name, disabled, onSave }) {
                   aria-expanded={scenePickerOpen}
                   onClick={() => setScenePickerOpen((open) => !open)}
                 >
-                  Cambia atmosfera
+                  {t("Cambia atmosfera")}
                 </Button>
                 {settings.style === "illustrated" && (
                   <Button
@@ -442,13 +452,13 @@ export default function PhotoEditor({ profile, name, disabled, onSave }) {
                       )
                     }
                   >
-                    Un’altra versione
+                    {t("Un’altra versione")}
                   </Button>
                 )}
               </div>
               {scenePickerOpen && (
                 <div className="photo-scene-selectors">
-                  <Field label="Atmosfera natalizia">
+                  <Field label={t("Atmosfera natalizia")}>
                     <select
                       value={settings.scene}
                       disabled={isDisabled}
@@ -456,7 +466,7 @@ export default function PhotoEditor({ profile, name, disabled, onSave }) {
                     >
                       {availableScenes.map((scene) => (
                         <option value={scene.id} key={scene.id}>
-                          {scene.name}
+                          {t(scene.name)}
                         </option>
                       ))}
                     </select>
@@ -470,29 +480,33 @@ export default function PhotoEditor({ profile, name, disabled, onSave }) {
                   setManualControlsOpen(event.currentTarget.open)
                 }
               >
-                <summary>Regola il ritratto</summary>
+                <summary>{t("Regola il ritratto")}</summary>
                 <fieldset
                   className="photo-range-controls"
                   disabled={!portrait || isDisabled}
                 >
-                  <legend>Sistema il ritaglio</legend>
+                  <legend>{t("Sistema il ritaglio")}</legend>
                   <div className="photo-range-header">
                     <small id={dragHintId}>
-                      Trascina il volto o usa i cursori.
+                      {t("Trascina il volto o usa i cursori.")}
                     </small>
                     <button
                       type="button"
                       className="text-button"
                       onClick={centreFace}
                     >
-                      Centra volto
+                      {t("Centra volto")}
                     </button>
                   </div>
                   <label>
-                    Ingrandimento{" "}
-                    <output>{Math.round(settings.zoom * 100)}%</output>
+                    {t("Ingrandimento")}{" "}
+                    <span className="photo-zoom-value" aria-hidden="true">
+                      {Math.round(settings.zoom * 100)}%
+                    </span>
                     <input
                       type="range"
+                      aria-label={t("Ingrandimento")}
+                      aria-valuetext={`${Math.round(settings.zoom * 100)}%`}
                       min={portrait?.isolated ? "0.8" : "1"}
                       max={portrait?.isolated ? "1.6" : "4"}
                       step=".05"
@@ -504,9 +518,10 @@ export default function PhotoEditor({ profile, name, disabled, onSave }) {
                     />
                   </label>
                   <label>
-                    Sposta a sinistra o destra
+                    {t("Sposta a sinistra o destra")}
                     <input
                       type="range"
+                      aria-label={t("Sposta a sinistra o destra")}
                       min={-offsetLimits.x}
                       max={offsetLimits.x}
                       step="2"
@@ -518,9 +533,10 @@ export default function PhotoEditor({ profile, name, disabled, onSave }) {
                     />
                   </label>
                   <label>
-                    Sposta in alto o in basso
+                    {t("Sposta in alto o in basso")}
                     <input
                       type="range"
+                      aria-label={t("Sposta in alto o in basso")}
                       min={-offsetLimits.y}
                       max={offsetLimits.y}
                       step="2"
@@ -532,7 +548,7 @@ export default function PhotoEditor({ profile, name, disabled, onSave }) {
                     />
                   </label>
                 </fieldset>
-                <Field label="Stile ritratto">
+                <Field label={t("Stile ritratto")}>
                   <select
                     value={settings.style}
                     disabled={isDisabled}
@@ -560,7 +576,7 @@ export default function PhotoEditor({ profile, name, disabled, onSave }) {
                   >
                     {avatarStyles.map((style) => (
                       <option value={style.id} key={style.id}>
-                        {style.name}
+                        {t(style.name)}
                       </option>
                     ))}
                   </select>
@@ -575,22 +591,37 @@ export default function PhotoEditor({ profile, name, disabled, onSave }) {
                         setValue("beard", event.target.checked)
                       }
                     />{" "}
-                    Aggiungi la barba
+                    {t("Aggiungi la barba")}
                   </label>
                 )}
               </details>
+              {settings.style === "illustrated" && (
+                <Field label={t("Pennellata")}>
+                  <select
+                    value={settings.paintStrength}
+                    disabled={isDisabled}
+                    onChange={(event) =>
+                      setValue("paintStrength", Number(event.target.value))
+                    }
+                  >
+                    <option value={0.35}>{t("Leggera")}</option>
+                    <option value={0.75}>{t("Media")}</option>
+                    <option value={1}>{t("Intensa")}</option>
+                  </select>
+                </Field>
+              )}
             </div>
           </div>
           <details className="photo-editor-options">
-            <summary>Consigli e opzioni della foto</summary>
+            <summary>{t("Consigli e opzioni della foto")}</summary>
             <p className="profile-footnote">
-              L’editor elabora la foto sul tuo dispositivo. Nel profilo
-              conserviamo una sola miniatura alla volta. Ti consigliamo di
-              scaricare il ritratto in alta risoluzione.
+              {t(
+                "L’editor elabora la foto sul tuo dispositivo. Nel profilo conserviamo una sola miniatura alla volta. Ti consigliamo di scaricare il ritratto in alta risoluzione.",
+              )}
             </p>
           </details>
           <p className="photo-crop-status" role="status">
-            {cropNotice}
+            {t(cropNotice)}
           </p>
           <div className="form-actions photo-actions">
             <Button
@@ -602,8 +633,8 @@ export default function PhotoEditor({ profile, name, disabled, onSave }) {
                 act("download", () => downloadAvatar(portrait, settings))
               }
             >
-              <Download size={17} aria-hidden="true" /> Scarica il ritratto in
-              alta risoluzione
+              <Download size={17} aria-hidden="true" />{" "}
+              {t("Scarica il ritratto in alta risoluzione")}
             </Button>
             <Button
               type="button"
@@ -618,7 +649,7 @@ export default function PhotoEditor({ profile, name, disabled, onSave }) {
                 )
               }
             >
-              Salva avatar
+              {t("Salva avatar")}
             </Button>
           </div>
         </>

@@ -3,6 +3,12 @@ const amazonDomains = new Set(
     "it",
     "com",
     "co.uk",
+    "ca",
+    "co.jp",
+    "com.au",
+    "com.br",
+    "com.mx",
+    "com.tr",
     "de",
     "fr",
     "es",
@@ -11,6 +17,12 @@ const amazonDomains = new Set(
     "se",
     "com.be",
     "ie",
+    "in",
+    "ae",
+    "sa",
+    "sg",
+    "eg",
+    "co.za",
   ].flatMap((suffix) =>
     ["", "www.", "smile."].map((prefix) => `${prefix}amazon.${suffix}`),
   ),
@@ -45,6 +57,12 @@ export function hasAmazonAffiliateTag(value) {
     isAmazonUrl(value) &&
     new URL(value).searchParams.getAll("tag").some(validAmazonTag)
   );
+}
+
+export function amazonMarketplace(value) {
+  return isAmazonUrl(value)
+    ? new URL(value).hostname.replace(/^(www|smile)\./, "")
+    : null;
 }
 
 export function amazonWishlistLink(item, preferences = {}, previousItem) {

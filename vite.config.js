@@ -1,5 +1,6 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { languageCatalogs } from "./scripts/languageCatalogs.mjs";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 const { version } = JSON.parse(
@@ -14,6 +15,7 @@ export default defineConfig({
   define: { __APP_BUILD_ID__: JSON.stringify(release.buildId) },
   plugins: [
     react(),
+    languageCatalogs(),
     {
       name: "release-manifest",
       generateBundle() {

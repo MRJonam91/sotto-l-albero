@@ -1,4 +1,5 @@
 import Matter from "matter-js";
+import { interpolate } from "../shared/languages.js";
 
 // Score the current positions again after every shot: collisions can move older gifts.
 export function scoreGift(gift) {
@@ -11,7 +12,10 @@ export function scoreGift(gift) {
 }
 
 // Isolated imperative canvas controller; React owns its mount and disposal.
-export function createCurlingGame(root, { onComplete } = {}) {
+export function createCurlingGame(
+  root,
+  { onComplete, translate = interpolate, subscribeLocale } = {},
+) {
   const listeners = new AbortController();
   let disposed = false,
     animationFrame = null,
@@ -68,7 +72,7 @@ export function createCurlingGame(root, { onComplete } = {}) {
     drag = null,
     completed = false;
   const colors = ["#b6574d", "#d9b45e"],
-    names = () => ["Tu", "Computer"],
+    names = () => [translate("Tu"), translate("Computer")],
     reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const current = () => (starter + shots) % 2;
   const computerTurn = () => current() === 1;
@@ -91,23 +95,33 @@ export function createCurlingGame(root, { onComplete } = {}) {
     root.dataset.shots = shots;
     root.dataset.busy = String(busy);
   }
-  function update(msg) {
+  let statusKey = "";
+  function update(msg = "") {
+    statusKey = msg;
     let scores = [0, 0];
     gifts.forEach((g) => (scores[g.owner] += pts(g)));
     $("[data-score]").textContent =
       `${names()[0]}: ${scores[0]} · ${names()[1]}: ${scores[1]}`;
     $("[data-turn]").textContent =
       shots < 6
-        ? `Tiro ${shots + 1}/6 · ${names()[current()]}`
-        : "Sei tiri conclusi";
+        ? translate("Tiro {number}/6 · {player}", {
+            number: shots + 1,
+            player: names()[current()],
+          })
+        : translate("Sei tiri conclusi");
     if (shots === 6)
       msg =
         scores[0] === scores[1]
           ? "Pareggio! La lanterna aspetta la rivincita."
-          : `${scores[0] > scores[1] ? "Hai vinto" : "Il computer ha vinto"}. Nella rivincita cambia chi comincia.`;
-    $("[data-status]").textContent =
-      msg ||
-      `${names()[current()]}, avvicina il regalo alla lanterna. La mira iniziale raggiunge il centro.`;
+          : scores[0] > scores[1]
+            ? "Hai vinto. Nella rivincita cambia chi comincia."
+            : "Il computer ha vinto. Nella rivincita cambia chi comincia.";
+    $("[data-status]").textContent = msg
+      ? translate(msg)
+      : translate(
+          "{player}, avvicina il regalo alla lanterna. La mira iniziale raggiunge il centro.",
+          { player: names()[current()] },
+        );
     controls();
     draw();
   }
@@ -290,8 +304,8 @@ export function createCurlingGame(root, { onComplete } = {}) {
     let ticks = 0,
       my = epoch;
     controls();
-    $("[data-status]").textContent =
-      "Il regalo scivola… gli urti possono cambiare il punteggio.";
+    statusKey = "Il regalo scivola… gli urti possono cambiare il punteggio.";
+    $("[data-status]").textContent = translate(statusKey);
     function finish() {
       if (my !== epoch) return;
       gifts.forEach((g) => {
@@ -486,11 +500,13 @@ export function createCurlingGame(root, { onComplete } = {}) {
     draw();
   });
   observer.observe(canvas);
+  const unsubscribe = subscribeLocale?.(() => update(statusKey));
   update();
   return () => {
     disposed = true;
     epoch++;
     stopScheduled();
+    unsubscribe?.();
     observer.disconnect();
     listeners.abort();
     for (const node of root.querySelectorAll("button, input, select")) {

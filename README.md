@@ -6,6 +6,10 @@ Ogni account può creare i propri eventi. Chi ha già aderito conserva l’acces
 
 Gli avvisi email sono attivi per i nuovi account e si possono disattivare dal profilo. Telegram resta facoltativo: dopo l’adesione il sito propone di collegarlo e attivarlo, senza bloccare la partecipazione e senza abilitare il canale automaticamente.
 
+Il selettore della lingua è disponibile anche prima dell’accesso. Si comincia in italiano e si può scegliere inglese, francese, tedesco, spagnolo o portoghese. Dopo l’accesso, la preferenza vale anche per le email e per i messaggi privati di Telegram. Nomi dei gruppi, desideri, indovinelli personali e messaggi dei partecipanti conservano la lingua di chi li ha scritti.
+
+Nel profilo, **Usa una foto** permette di provare il proprio volto nelle scene natalizie. L’editor usa i tratti rilevati per centrarlo e adattarlo al costume. Accanto all’anteprima, **Pennellata** cambia l’intensità dell’illustrazione. **Regola il ritratto** permette di rifinire l’inquadratura.
+
 ## Avvio sul proprio computer
 
 Richiede Node.js 24 e npm.
@@ -40,6 +44,10 @@ Le prove end-to-end creano gruppi fittizi nel database isolato `.wrangler/e2e`. 
 
 ## Pubblicazione su Cloudflare
 
+La migrazione additiva `0022_account_language.sql` introduce la lingua dell’account con valore iniziale `it`. Va applicata prima di attivare il Worker multilingue. Le preferenze di invio dei singoli canali sono indipendenti.
+
+La migrazione `0023_stamp_completion_bonus.sql` aggiunge lo spazio per conservare i bonus quando si archivia un’edizione. Applica entrambe le migrazioni prima di pubblicare la versione 1.8.0.
+
 1. Accedere con `npx wrangler login`.
 2. Creare il database: `npx wrangler d1 create sotto-l-albero`.
 3. Verificare che il `database_id` in `wrangler.jsonc` corrisponda al database di destinazione. Per un primo deploy, inserire l’ID restituito dal comando precedente.
@@ -51,6 +59,8 @@ Le prove end-to-end creano gruppi fittizi nel database isolato `.wrangler/e2e`. 
 9. Verificare accesso via email, invito con un altro account, approvazione, accesso ai giochi e una prima estrazione.
 
 Non impostare `LOCAL_DEV=true` in produzione. Senza il servizio email l’app non apre sessioni di produzione. Gli inviti copiabili funzionano insieme all’accesso verificato via email.
+
+Per attivare l’affiliazione Amazon su una singola istanza, imposta nel Worker `AMAZON_AFFILIATE_SCOPE` a `site` e `AMAZON_AFFILIATE_EMAIL` all’account autorizzato. Quell’account salva e abilita il tracking ID per Amazon.it in **Profilo → Recapiti e avvisi → Opzioni avanzate · link Amazon**. Per ulteriori negozi configura nel segreto facoltativo `AMAZON_AFFILIATE_TAGS` una mappa JSON dal dominio del negozio al tracking ID registrato per quel mercato. Il sito applica il codice quando mostra il link in una lettera e conserva l’indirizzo originale nel database.
 
 Lo scheduler di Cloudflare controlla ogni minuto gli eventi in scadenza e gli invii in coda. La consegna dei messaggi dipende dal provider; lo stato non va confuso con l’accettazione dell’invito.
 
@@ -74,7 +84,7 @@ La sezione **Giochi** è dedicata all’allenamento. Nel tuo Secret Santa, apri 
 
 In **Giochi** trovi tutti i sette giochi a punti anche in allenamento: le partite libere non consumano tentativi e non cambiano i punti. Il **Tris sulla neve** aggiunge un allenamento contro il computer e partite amichevoli su una sola griglia condivisa tra due membri confermati dello stesso gruppo. Le mosse e i turni sono verificati dal server; una partita dura al massimo due giorni e non assegna punti. Le voci **Sfide** e **Nome segreto** nel menu aprono direttamente lo scambio, oppure chiedono quale scegliere se ne hai più di uno.
 
-La classifica mostra ogni partecipante confermato, anche a zero. I timbri personali della caccia valgono 5 punti ciascuno in ogni gruppo a cui partecipi, una sola volta per timbro. Quelli trovati dopo la chiusura non cambiano il risultato dell’edizione. I timbri di Quiz e Memory sono ricordi della partita. Chi organizza può correggere i punti, indicando il motivo. L’azzeramento mantiene i tentativi usati. Da telefono puoi scorrere le clessidre o scegliere la lista. L’album conserva le sorprese già scoperte.
+La classifica mostra ogni partecipante confermato, anche a zero. I timbri personali della caccia valgono 5 punti ciascuno in ogni gruppo a cui partecipi, una sola volta per timbro. I timbri di Quiz e Memory contano per il completamento dell’album. Dall’edizione 2026, completare i dodici timbri base vale 10 punti, completare i dieci timbri giornalieri vale altri 10 e raccoglierli tutti ne aggiunge 5. I risultati e i bonus si conservano alla chiusura dell’edizione. Chi organizza può correggere i punti, indicando il motivo. L’azzeramento mantiene i tentativi usati. Da telefono puoi scorrere le clessidre o scegliere la lista. L’album conserva le sorprese già scoperte.
 
 1. Crea un bot con [@BotFather](https://t.me/BotFather), poi apri una chat privata con il bot e premi **Avvia** dal tuo account Telegram.
 2. Su Cloudflare imposta `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME` senza `@` e `TELEGRAM_WEBHOOK_SECRET` casuale con `npx wrangler secret put NOME`. Per una prova locale con un bot di test usa `.dev.vars`.

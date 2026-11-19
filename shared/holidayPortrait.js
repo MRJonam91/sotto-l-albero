@@ -1,3 +1,4 @@
+import { interpolate } from "./languages.js";
 import { gameCatalog } from "./gameCatalog.js";
 import { holidayCharacters } from "./holidayCharacters.js";
 import { computeFestiveProgress } from "./festiveProgress.js";
@@ -521,6 +522,11 @@ export function parseHolidayProfile(raw) {
     quote: typeof parsed.quote === "string" ? parsed.quote.slice(0, 160) : "",
     activity:
       typeof parsed.activity === "string" ? parsed.activity.slice(0, 120) : "",
+    ...(typeof parsed.activity === "string" &&
+    parsed.activity.trim() &&
+    holidayActivities.includes(parsed.activityPreset)
+      ? { activityPreset: parsed.activityPreset }
+      : {}),
     iconMessage,
     iconCaption:
       typeof parsed.iconCaption === "string"
@@ -611,13 +617,49 @@ const averageTraits = (entries) => {
     : null;
 };
 
+export function formatPortraitDescription(parts, translate = interpolate) {
+  return parts
+    .map(({ key, values }) => {
+      const localized = { ...values };
+      for (const field of ["level", "mood", "preference"]) {
+        if (localized[field]) localized[field] = translate(localized[field]);
+      }
+      return translate(key, localized);
+    })
+    .join(" ");
+}
+
+export function formatPortraitSignals(parts, translate = interpolate) {
+  return parts.map(({ key, values }) => {
+    const localized = { ...values };
+    for (const field of [
+      "game",
+      "label",
+      "mood",
+      "preset",
+      "question",
+      "option",
+    ]) {
+      if (localized[field]) localized[field] = translate(localized[field]);
+    }
+    if (Array.isArray(localized.icons)) {
+      localized.icons = localized.icons
+        .map((icon) => translate(icon))
+        .join(", ");
+    }
+    return translate(key, localized);
+  });
+}
+
 export function computeHolidayPortrait(rawProfile, context = {}) {
   const profile = parseHolidayProfile(rawProfile);
   const displayName =
     String(context.nickname || context.name || "Partecipante").trim() ||
     "Partecipante";
   const today = context.today || romeToday();
-  const signals = [];
+  const privateSignalParts = [];
+  const addSignal = (key, values = {}) =>
+    privateSignalParts.push({ key, values });
   const activityEntries = [];
   const games = Array.isArray(context.activity?.games)
     ? context.activity.games
@@ -643,9 +685,29 @@ export function computeHolidayPortrait(rawProfile, context = {}) {
         ? "Curling dei regali"
         : gameCatalog.find((item) => item.id === game.game)?.name ||
           "Duello quiz";
-    signals.push(
-      `${label}: ${Math.max(0, Math.floor(Number(game.count) || 0))} partite completate (contano al massimo 3)${game.game === "curling" ? "; partecipazione dichiarata dal dispositivo, senza punteggi verificati" : typeof game.averageResult === "number" && Number.isFinite(game.averageResult) ? `; risultato medio ${Math.round(bounded(game.averageResult, 1) * 100)}% del massimo` : ""}.`,
-    );
+    const values = {
+      game: label,
+      count: Math.max(0, Math.floor(Number(game.count) || 0)),
+    };
+    if (game.game === "curling") {
+      addSignal(
+        "{game} · Partite completate: {count} (massimo 3 nel calcolo). Il dispositivo registra la partecipazione senza verificare il punteggio.",
+        values,
+      );
+    } else if (Number.isFinite(game.averageResult)) {
+      addSignal(
+        "{game} · Partite completate: {count} (massimo 3 nel calcolo). Risultato medio: {result}% del massimo.",
+        {
+          ...values,
+          result: Math.round(bounded(game.averageResult, 1) * 100),
+        },
+      );
+    } else {
+      addSignal(
+        "{game} · Partite completate: {count} (massimo 3 nel calcolo).",
+        values,
+      );
+    }
   }
   const stampsCount = bounded(
     context.activity?.stampsCount ?? context.stampsCount,
@@ -657,15 +719,18 @@ export function computeHolidayPortrait(rawProfile, context = {}) {
       traits: traitVector([84, 78, 58, 48, 74]),
       weight: stampsCount / 6,
     });
-    signals.push(`${stampsCount} timbri raccolti (contano al massimo 12).`);
+    addSignal("Timbri raccolti: {count} (massimo 12 nel calcolo).", {
+      count: stampsCount,
+    });
   }
   if (interactionsCount) {
     activityEntries.push({
       traits: traitVector([80, 60, 94, 48, 56]),
       weight: interactionsCount / 5,
     });
-    signals.push(
-      `${interactionsCount} interazioni inviate al gruppo (contano al massimo 5).`,
+    addSignal(
+      "Interazioni inviate al gruppo: {count} (massimo 5 nel calcolo).",
+      { count: interactionsCount },
     );
   }
   // Saved tool use is a small, saturated participation signal. We use counts
@@ -687,8 +752,9 @@ export function computeHolidayPortrait(rawProfile, context = {}) {
       traits: traitVector(values),
       weight: (count / cap) * maxWeight,
     });
-    signals.push(
-      `${count} ${label} (contano al massimo ${cap}; solo partecipazione, senza leggere i contenuti).`,
+    addSignal(
+      "Conteggio per «{label}»: {count} (massimo {cap}). Si considera solo la partecipazione, senza leggere i contenuti.",
+      { count, cap, label },
     );
   }
   // Legacy callers can still supply a completed-game count, without inventing a game type.
@@ -697,16 +763,17 @@ export function computeHolidayPortrait(rawProfile, context = {}) {
       traits: traitVector([70, 80, 65, 65, 60]),
       weight: bounded(context.gamesPlayed, 3),
     });
-    signals.push(
-      "Partite completate: tipo non disponibile nei dati precedenti.",
-    );
+    addSignal("Partite completate: tipo non disponibile nei dati precedenti.");
   }
 
   const expressedEntries = [];
   const mood = holidayMoods.find((item) => item.id === profile.dailyMood?.id);
   if (mood) {
     expressedEntries.push({ traits: mood.weights, weight: 3 });
-    signals.push(`Stato scelto: ${mood.label} (${profile.dailyMood.date}).`);
+    addSignal("Stato scelto: {mood} ({date}).", {
+      mood: mood.label,
+      date: profile.dailyMood.date,
+    });
   }
   const iconTraits = {
     puzzle: [55, 95, 52, 70, 52],
@@ -734,11 +801,13 @@ export function computeHolidayPortrait(rawProfile, context = {}) {
       });
   }
   if (profile.iconMessage.length)
-    signals.push(
-      `Icone scelte: ${profile.iconMessage.map((id) => holidayIconMap.get(id).label).join(", ")}.`,
-    );
+    addSignal("Icone scelte: {icons}.", {
+      icons: profile.iconMessage.map((id) => holidayIconMap.get(id).label),
+    });
   // Recognize only the app's explicit status presets; do not interpret arbitrary prose as personality.
-  const activityIndex = holidayActivities.indexOf(profile.activity);
+  const activityIndex = holidayActivities.indexOf(
+    profile.activityPreset || profile.activity,
+  );
   const presetTraits = [
     [64, 80, 88, 42, 62],
     [76, 52, 92, 48, 62],
@@ -754,7 +823,10 @@ export function computeHolidayPortrait(rawProfile, context = {}) {
       traits: traitVector(presetTraits[activityIndex]),
       weight: 1,
     });
-    signals.push(`Attività dichiarata: ${profile.activity}.`);
+    // Legacy profiles can contain the original Italian preset without an id.
+    addSignal("Attività dichiarata: {preset}.", {
+      preset: holidayActivities[activityIndex],
+    });
   }
 
   const chosen = holidayQuestions.flatMap((question) => {
@@ -764,7 +836,10 @@ export function computeHolidayPortrait(rawProfile, context = {}) {
     return option ? [{ question, option }] : [];
   });
   const questionEntries = chosen.map(({ question, option }) => {
-    signals.push(`${question.shortLabel}: ${option.label}.`);
+    addSignal("{question}: {option}.", {
+      question: question.shortLabel,
+      option: option.label,
+    });
     const max = Math.max(...Object.values(option.weights));
     return {
       traits: Object.fromEntries(
@@ -875,7 +950,7 @@ export function computeHolidayPortrait(rawProfile, context = {}) {
   const provisional = evidenceCount < 2;
   const matchingExplanation = {
     weights,
-    signals,
+    signals: formatPortraitSignals(privateSignalParts),
     festiveProgress,
     components: [
       { id: "personal", label: "Somiglianza dei tratti", weight: 65 },
@@ -885,41 +960,61 @@ export function computeHolidayPortrait(rawProfile, context = {}) {
       "Affinità = 65% somiglianza dei cinque tratti + 35% vicinanza fra coinvolgimento e fase natalizia del personaggio. I tratti usano la media delle fonti disponibili; il coinvolgimento cresce con attività diverse e conserva il massimo raggiunto. L’iscrizione da sola non conta. Senza attività il confronto parte dai personaggi scettici: non significa che tu lo sia. Ogni percentuale è indipendente, non è una probabilità né una valutazione psicologica. Le ripetizioni di ogni gioco contano al massimo tre volte; i quiz indicano attività e conoscenze, non gusti personali.",
     provisional,
   };
-  const parts = [];
+  // Keep user-supplied display names separate from authored phrases so each
+  // viewer can read the generated portrait without translating private text.
+  const descriptionParts = [];
+  const addDescription = (key, values = {}) =>
+    descriptionParts.push({ key, values });
   if (!availableWeight && festiveProgress.score > 0) {
-    parts.push(
-      `Il coinvolgimento conserva il livello “${festiveProgress.level.label}” già raggiunto.`,
+    addDescription(
+      "Il coinvolgimento conserva il livello “{level}” già raggiunto.",
+      { level: festiveProgress.level.label },
     );
-    parts.push(
+    addDescription(
       "Il confronto usa tratti neutri e la partecipazione registrata in precedenza; le domande restano facoltative.",
     );
   } else if (!availableWeight) {
-    parts.push(
+    addDescription(
       "Questo è un ritratto provvisorio: il percorso parte dai personaggi scettici del Natale, senza attribuirti il loro carattere.",
     );
-    parts.push(
+    addDescription(
       "I tratti restano neutri; il coinvolgimento cresce con giochi, timbri e attività salvate, anche senza domande.",
     );
   } else {
-    if (activityEntries.length)
-      parts.push(
-        `${displayName} ha già partecipato alle attività${mood ? ` e ha scelto “${mood.label}” come ultimo stato` : ""}.`,
+    if (activityEntries.length) {
+      if (mood)
+        addDescription(
+          "{name} ha già partecipato alle attività e ha scelto “{mood}” come ultimo stato.",
+          { name: displayName, mood: mood.label },
+        );
+      else
+        addDescription("{name} ha già partecipato alle attività.", {
+          name: displayName,
+        });
+    } else if (mood) {
+      addDescription("{name} ha scelto di sentirsi come {mood}.", {
+        name: displayName,
+        mood: mood.label,
+      });
+    } else if (chosen.length) {
+      addDescription("Durante le feste {name} {preference}.", {
+        name: displayName,
+        preference: chosen[0].option.summary,
+      });
+    } else {
+      addDescription(
+        "Il ritratto di {name} parte dalle icone e dalle attività scelte nel profilo.",
+        { name: displayName },
       );
-    else if (mood)
-      parts.push(`${displayName} ha scelto di sentirsi come ${mood.label}.`);
-    else if (chosen.length)
-      parts.push(
-        `Durante le feste ${displayName} ${chosen[0].option.summary}.`,
-      );
-    else
-      parts.push(
-        `Il ritratto di ${displayName} parte dalle icone e dalle attività scelte nel profilo.`,
-      );
-    parts.push(
-      `Al momento il ritratto ricorda soprattutto ${topCharacter.name}${provisional ? ": è ancora un primo confronto" : ""}.`,
+    }
+    addDescription(
+      provisional
+        ? "Al momento il ritratto ricorda soprattutto {character}: è ancora un primo confronto."
+        : "Al momento il ritratto ricorda soprattutto {character}.",
+      { character: topCharacter.name },
     );
   }
-  const generatedDescription = parts.join(" ");
+  const generatedDescription = formatPortraitDescription(descriptionParts);
   const completeness = evidenceCount
     ? Math.min(100, Math.round(35 + evidenceCount * 12))
     : 0;
@@ -940,7 +1035,9 @@ export function computeHolidayPortrait(rawProfile, context = {}) {
     characterMatches,
     topCharacter,
     matchingExplanation,
+    privateSignalParts,
     festiveProgress,
+    descriptionParts,
     generatedDescription,
     finalDescription: profile.customDescription.trim() || generatedDescription,
     spiritScene: {

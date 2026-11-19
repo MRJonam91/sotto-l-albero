@@ -1,3 +1,5 @@
+import { supportsLocale } from "../shared/languages.js";
+import { mailText } from "./mailText.js";
 import {
   id,
   token,
@@ -70,6 +72,7 @@ function publicUser(user) {
   return {
     id: user.id,
     name: user.name,
+    locale: user.locale,
     nickname: user.nickname || "",
     badge: user.badge || null,
     badgeText: user.badge_text || "nickname",
@@ -90,13 +93,21 @@ function publicUser(user) {
     organizer: !!user.organizer,
   };
 }
-export async function authRoute(request, env, path, body, user) {
+export async function authRoute(
+  request,
+  env,
+  path,
+  body,
+  user,
+  { amazonAffiliation } = {},
+) {
   const local = isLocalRequest(request, env);
   if (path === "/api/me")
     return json({
       user: publicUser(user),
       mailConfigured: !!(env.RESEND_API_KEY && env.MAIL_FROM),
       local,
+      ...(amazonAffiliation ? { amazonAffiliation: true } : {}),
     });
   if (path === "/api/auth/logout") {
     const raw = request.headers
@@ -152,7 +163,7 @@ export async function authRoute(request, env, path, body, user) {
       );
     const existing = await first(
       env.DB,
-      "SELECT name FROM users WHERE email=?",
+      "SELECT name,locale FROM users WHERE email=?",
       email,
     );
     const name = existing?.name ?? safeText(body.name, 80, true);
@@ -169,12 +180,15 @@ export async function authRoute(request, env, path, body, user) {
       now,
       phone,
     );
+    const locale = supportsLocale(body.locale)
+      ? body.locale
+      : existing?.locale || "it";
     if (!local)
       await sendMail(
         env,
         email,
-        "Il tuo codice per Sotto l’Albero",
-        `<p>Il tuo codice è <strong>${code}</strong>.</p><p>Vale per dieci minuti. Se non l’hai richiesto tu, puoi ignorare questa email.</p>`,
+        mailText(locale, "Il tuo codice per Sotto l’Albero"),
+        `<p>${mailText(locale, "Il tuo codice è {code}.", { code: `<strong>${code}</strong>` })}</p><p>${mailText(locale, "Vale per dieci minuti. Se non l’hai richiesto tu, puoi ignorare questa email.")}</p>`,
       );
     return json({ ok: true, ...(local ? { devCode: code } : {}) });
   }
@@ -226,6 +240,14 @@ export async function authRoute(request, env, path, body, user) {
         entry.name,
         organizer ? 1 : 0,
         entry.phone,
+      );
+    }
+    if (supportsLocale(body.locale)) {
+      await run(
+        env.DB,
+        "UPDATE users SET locale=? WHERE email=?",
+        body.locale,
+        email,
       );
     }
     if (organizer)

@@ -64,6 +64,128 @@
   color: var(--gold);
   font-size: 0.85rem;
 }
+
+.profile-dashboard {
+  width: min(100%, 1080px);
+  margin-inline: auto;
+  padding-block-start: clamp(18px, 4vw, 46px);
+}
+
+.profile-dashboard .profile-intro {
+  padding: clamp(14px, 3vw, 26px);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: linear-gradient(110deg, #254337, #142e27);
+}
+
+.profile-intro-copy h1 {
+  margin: 0;
+  font-size: clamp(35px, 5.7vw, 56px);
+  overflow-wrap: anywhere;
+}
+
+.profile-dashboard .profile-shortcuts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.profile-dashboard .profile-shortcuts a {
+  gap: 8px;
+  min-height: 48px;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  line-height: 1.35;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.profile-shortcuts svg {
+  flex: none;
+}
+
+.profile-shortcuts [aria-current] {
+  background: #275243;
+  border-color: var(--gold);
+  color: #fff0c5;
+}
+
+.profile-tab-content:not([hidden]) {
+  display: grid;
+  gap: 16px;
+}
+
+.holiday-summary-primary {
+  align-self: start;
+  min-width: 0;
+}
+
+.holiday-summary-primary .holiday-summary-actions {
+  margin-block: 4px;
+}
+
+.profile-portrait-details {
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.profile-portrait-details summary {
+  min-height: 44px;
+  padding: 10px 0;
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--gold);
+}
+
+.profile-account-email {
+  margin: 0;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.profile-account-actions {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+@media (min-width: 860px) {
+  .profile-dashboard .holiday-profile-summary {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+    column-gap: clamp(18px, 4vw, 42px);
+  }
+
+  .profile-dashboard .holiday-profile-summary > .holiday-summary-heading,
+  .profile-dashboard .profile-portrait-details {
+    grid-column: 1 / -1;
+  }
+
+  .profile-dashboard .holiday-summary-portrait {
+    grid-template-columns: minmax(100px, 0.85fr) minmax(0, 1fr);
+    align-items: start;
+    padding-inline-start: clamp(14px, 2.5vw, 30px);
+    border-inline-start: 1px solid var(--line);
+  }
+
+  .profile-dashboard .holiday-summary-portrait > .festive-progress {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 700px) {
+  .profile-dashboard .profile-shortcuts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .profile-dashboard .profile-intro .member-avatar {
+    width: 58px;
+    height: 58px;
+    min-width: 58px;
+    min-height: 58px;
+    flex-basis: 58px;
+  }
+}
 .holiday-profile-summary {
   gap: 16px;
   scroll-margin-top: 16px;
@@ -183,18 +305,13 @@
   margin-top: 0;
 }
 #profile-holiday-editor,
-#profile-avatar,
-#profile-identity,
-#profile-notifications {
+#profile-identity {
   scroll-margin-top: 16px;
 }
 .profile-intro p,
 .profile-heading p,
 .profile-heading h2 {
   margin-bottom: 0;
-}
-.profile-identity {
-  color: var(--gold);
 }
 .profile-heading {
   align-items: flex-start;
@@ -467,7 +584,7 @@
   display: block;
   accent-color: var(--gold);
 }
-.photo-range-controls output {
+.photo-range-controls .photo-zoom-value {
   color: var(--gold);
   margin-left: 5px;
 }

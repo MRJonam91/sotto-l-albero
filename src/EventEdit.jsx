@@ -1,3 +1,4 @@
+import { t } from "./i18n.js";
 import { useState } from "react";
 import { api } from "./api.js";
 import { Modal, Field, Notice, Button } from "./ui.jsx";
@@ -37,31 +38,32 @@ export default function EventEdit({ event: currentEvent, onClose, onSaved }) {
     }
   }
   return (
-    <Modal title="Rivediamo i preparativi" onClose={onClose} wide>
+    <Modal title={t("Rivediamo i preparativi")} onClose={onClose} wide>
       <p>
-        Puoi cambiare i dettagli fino all’estrazione. Se sposti una data, avvisa
-        il gruppo.
+        {t(
+          "Puoi cambiare i dettagli fino all’estrazione. Se sposti una data, avvisa il gruppo.",
+        )}
       </p>
       <form onSubmit={submit}>
         <div className="form-grid">
           <Field
-            label="Nome dell’evento"
+            label={t("Nome dell’evento")}
             name="name"
             defaultValue={event.name}
             maxLength={100}
             required
           />
           <Field
-            label="Nome del gruppo"
+            label={t("Nome del gruppo")}
             name="groupName"
             defaultValue={event.groupName || event.name}
             maxLength={100}
-            hint="Identifica il gruppo nelle varie edizioni."
+            hint={t("Identifica il gruppo nelle varie edizioni.")}
           />
         </div>
         <div className="form-grid">
           <Field
-            label="Budget a persona (€)"
+            label={t("Budget a persona (€)")}
             name="budget"
             type="number"
             min="0"
@@ -69,34 +71,36 @@ export default function EventEdit({ event: currentEvent, onClose, onSaved }) {
             defaultValue={event.budget}
             required
           />
-          <Field label="Abbinamenti da non ripetere">
+          <Field label={t("Abbinamenti da non ripetere")}>
             <select name="historyDepth" defaultValue={event.historyDepth ?? 1}>
-              <option value="0">Non considerare le edizioni precedenti</option>
-              <option value="1">L’ultima edizione</option>
-              <option value="2">Le ultime 2 edizioni</option>
-              <option value="3">Le ultime 3 edizioni</option>
-              <option value="5">Le ultime 5 edizioni</option>
-              <option value="10">Le ultime 10 edizioni</option>
+              <option value="0">
+                {t("Non considerare le edizioni precedenti")}
+              </option>
+              <option value="1">{t("L’ultima edizione")}</option>
+              <option value="2">{t("Le ultime 2 edizioni")}</option>
+              <option value="3">{t("Le ultime 3 edizioni")}</option>
+              <option value="5">{t("Le ultime 5 edizioni")}</option>
+              <option value="10">{t("Le ultime 10 edizioni")}</option>
             </select>
           </Field>
         </div>
         <div className="form-grid three">
           <Field
-            label="Iscrizioni fino al"
+            label={t("Iscrizioni fino al")}
             name="closeAt"
             type="datetime-local"
             defaultValue={localDate(event.closeAt)}
             required
           />
           <Field
-            label="Estraiamo i nomi il"
+            label={t("Estraiamo i nomi il")}
             name="drawAt"
             type="datetime-local"
             defaultValue={localDate(event.drawAt)}
             required
           />
           <Field
-            label="Ci scambiamo i regali il"
+            label={t("Ci scambiamo i regali il")}
             name="giftAt"
             type="datetime-local"
             defaultValue={localDate(event.giftAt)}
@@ -104,11 +108,12 @@ export default function EventEdit({ event: currentEvent, onClose, onSaved }) {
           />
         </div>
         <p className="quiet">
-          Gli orari seguono il fuso del tuo dispositivo (
-          {Intl.DateTimeFormat().resolvedOptions().timeZone}). Gli abbinamenti
-          che hai inserito a mano restano esclusi finché non li rimuovi.
+          {t(
+            "Gli orari seguono il fuso del tuo dispositivo ({zone}). Gli abbinamenti che hai inserito a mano restano esclusi finché non li rimuovi.",
+            { zone: Intl.DateTimeFormat().resolvedOptions().timeZone },
+          )}
         </p>
-        <Field label="Un messaggio per il gruppo">
+        <Field label={t("Un messaggio per il gruppo")}>
           <textarea
             name="description"
             rows={3}
@@ -119,9 +124,9 @@ export default function EventEdit({ event: currentEvent, onClose, onSaved }) {
         <Notice error>{error}</Notice>
         <div className="form-actions">
           <Button type="button" variant="ghost" onClick={onClose}>
-            Torna indietro
+            {t("Torna indietro")}
           </Button>
-          <Button busy={busy}>Salva le modifiche</Button>
+          <Button busy={busy}>{t("Salva le modifiche")}</Button>
         </div>
       </form>
     </Modal>

@@ -1,3 +1,4 @@
+import { t } from "./i18n.js";
 import { useEffect, useState } from "react";
 import { api } from "./api.js";
 
@@ -43,17 +44,17 @@ export default function InviteNotificationHint({ onConfigure, onDismiss }) {
     <aside
       className="invite-notification-hint paper"
       role="status"
-      aria-label="Avvisi del gruppo"
+      aria-label={t("Avvisi del gruppo")}
     >
-      <h2>Come vuoi ricevere gli avvisi?</h2>
-      <p>{email}</p>
-      <p>{telegram}</p>
+      <h2>{t("Come vuoi ricevere gli avvisi?")}</h2>
+      <p>{t(email)}</p>
+      <p>{t(telegram)}</p>
       <div className="button-row">
         <button type="button" className="button" onClick={onConfigure}>
-          Configura gli avvisi
+          {t("Configura gli avvisi")}
         </button>
         <button type="button" className="button outline" onClick={onDismiss}>
-          Più tardi
+          {t("Più tardi")}
         </button>
       </div>
     </aside>

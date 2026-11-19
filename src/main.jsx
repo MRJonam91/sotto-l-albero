@@ -8,9 +8,17 @@ import "@fontsource/manrope/latin-400.css";
 import "@fontsource/manrope/latin-500.css";
 import "@fontsource/manrope/latin-600.css";
 import "./styles.css";
+import "./navigation-layout.css";
 import App from "./App.jsx";
-createRoot(document.getElementById("root")).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
-);
+import { restoreLocale } from "./i18n.js";
+
+// A missing language chunk must never prevent access to an invitation.
+restoreLocale()
+  .catch(() => {})
+  .then(() =>
+    createRoot(document.getElementById("root")).render(
+      <React.StrictMode>
+        <App />
+      </React.StrictMode>,
+    ),
+  );

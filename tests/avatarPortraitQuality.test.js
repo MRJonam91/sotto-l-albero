@@ -65,6 +65,60 @@ it("keeps transparent RGB from darkening fine opaque hair during brushwork", () 
   ]);
 });
 
+it("reduces photographic grain as brush strength rises while keeping a fine dark feature", () => {
+  const size = 144;
+  const faceBox = { cx: 70, cy: 70, w: 103, h: 128 };
+  const photo = patch(size, size, [139, 98, 79]);
+  const index = (x, y) => (y * size + x) * 4;
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const grain = ((x * 971 + y * 619) % 17) - 8;
+      if (x >= 68 && x < 74 && y >= 68 && y < 76)
+        photo.set([42, 28, 23, 255], index(x, y));
+      else for (let c = 0; c < 3; c++) photo[index(x, y) + c] += grain;
+    }
+  }
+  const roughness = (data) => {
+    let total = 0;
+    for (let y = 22; y < 46; y++)
+      for (let x = 22; x < 46; x++)
+        total += Math.abs(data[index(x, y)] - data[index(x + 1, y)]);
+    return total;
+  };
+  const rendered = [0.35, 0.75, 1].map((paintStrength) =>
+    applyVintagePortraitGrade(photo.slice(), size, size, {
+      faceBox,
+      paintStrength,
+    }),
+  );
+  expect(roughness(rendered[1])).toBeLessThan(roughness(rendered[0]) * 0.7);
+  for (const result of rendered) {
+    expect(roughness(result)).toBeLessThan(roughness(photo) * 0.65);
+    expect(result[index(65, 72)] - result[index(71, 72)]).toBeGreaterThan(75);
+  }
+});
+
+it("follows the light direction in the painting and retains the original matte", () => {
+  const w = 80;
+  const original = patch(w, w, [125, 82, 65]);
+  for (let y = 0; y < w; y++)
+    for (let x = 0; x < 4; x++) original[(y * w + x) * 4 + 3] = x * 60;
+  const grade = (direction) =>
+    applyVintagePortraitGrade(original.slice(), w, w, {
+      paintStrength: 1,
+      faceBox: { cx: 40, cy: 40, w: 60, h: 70 },
+      lighting: { strength: 0.35, temperature: 0.15, direction },
+    });
+  const left = grade([-1, 0]),
+    right = grade([1, 0]);
+  const sample = (data, x) => data[(40 * w + x) * 4];
+  expect(sample(left, 20) - sample(right, 20)).toBeGreaterThan(10);
+  expect(sample(right, 60) - sample(left, 60)).toBeGreaterThan(10);
+  expect(left.filter((_, i) => i % 4 === 3)).toEqual(
+    original.filter((_, i) => i % 4 === 3),
+  );
+});
+
 it("extends edge colour only a few pixels and never fills a large missing face area", () => {
   const data = patch(17, 17, [0, 0, 0], 0);
   for (let y = 5; y < 12; y++)
