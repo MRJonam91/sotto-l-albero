@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
 
 test.use({ viewport: { width: 390, height: 844 }, reducedMotion: "reduce" });
 
@@ -61,6 +62,49 @@ test("le due viste mostrano gli stessi nove giochi e le azioni computer aprono i
   expect(standalone.map(({ name }) => name)).toEqual(names);
   await page.goto(`/sfide?event=${event.id}`);
   await expect(page.locator(".competition-game")).toHaveCount(9);
+  const ranking = page.getByRole("region", { name: "Classifica di gruppo" });
+  const tris = page.getByRole("region", {
+    name: "Tris sulla neve con il gruppo",
+  });
+  const rankedLink = page.getByRole("link", { name: "Gioca per punti" });
+  const trisLink = page.getByRole("link", {
+    name: "Tris sulla neve",
+    exact: true,
+  });
+  for (const width of [320, 768, 1440]) {
+    await page.setViewportSize({ width, height: 864 });
+    await expect(rankedLink).toBeInViewport();
+    await expect(trisLink).toBeInViewport();
+    expect((await ranking.boundingBox()).y).toBeLessThan(
+      (await tris.boundingBox()).y,
+    );
+    expect((await tris.boundingBox()).y).toBeLessThan(
+      (await page.locator("#competition-games").boundingBox()).y,
+    );
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth),
+    ).toBeLessThanOrEqual(width);
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page
+    .getByRole("link", { name: "Il tuo posto in classifica: 1° · 0 punti" })
+    .click();
+  await expect(page.locator("#competition-ranking")).toBeFocused();
+  await trisLink.click();
+  await expect(page.locator("#friends-tris")).toBeFocused();
+  await expect(tris).toBeInViewport();
+  await rankedLink.click();
+  await expect(page.locator("#competition-games")).toBeFocused();
+  await expect(
+    page.getByRole("heading", { name: "Scegli il gioco" }),
+  ).toBeInViewport();
+  const a11y = await new AxeBuilder({ page })
+    .include(".competition-header")
+    .include(".competition-quick-actions")
+    .include("#friends-tris")
+    .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+    .analyze();
+  expect(a11y.violations).toEqual([]);
   const group = await page.locator(".competition-game").evaluateAll((cards) =>
     cards.map((card) => ({
       name: card.querySelector("h4").textContent,

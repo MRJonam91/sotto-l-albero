@@ -8,6 +8,7 @@ import {
   Gift,
   Medal,
   Puzzle,
+  Snowflake,
   Swords,
 } from "lucide-react";
 import { api } from "./api.js";
@@ -551,12 +552,14 @@ export default function Competition({ event, user, members = [], onStamp }) {
       });
     });
   const memberById = new Map(members.map((member) => [member.userId, member]));
+  const myStanding = board?.leaderboard.find((row) => row.userId === user.id);
   const reviewTitle = attempt?.duelReviewView
     ? t("Duello con {name}", { name: attempt.review.opponent.name })
     : t(attempt?.name);
   const opponents = (board?.leaderboard ?? [])
     .filter((row) => row.userId !== user.id)
     .sort((a, b) => a.name.localeCompare(b.name, getLocale()));
+  const isPlaying = attempt && !attempt.reviewView;
 
   return (
     <section className="competition" aria-labelledby={headingId}>
@@ -573,6 +576,14 @@ export default function Competition({ event, user, members = [], onStamp }) {
             </p>
           )}
         </div>
+        {myStanding && !isPlaying && (
+          <a className="competition-standing-link" href="#competition-ranking">
+            {t("Il tuo posto in classifica: {rank}° · {score} punti", {
+              rank: myStanding.rank,
+              score: myStanding.score,
+            })}
+          </a>
+        )}
       </div>
       {(!attempt || attempt.reviewView) && !adjustment && (
         <Notice error>{error}</Notice>
@@ -593,22 +604,26 @@ export default function Competition({ event, user, members = [], onStamp }) {
       )}
       {board && (
         <>
-          {(!attempt || attempt.reviewView) && (
+          {!isPlaying && board.canPlay && (
             <nav
-              className="section-jump-links"
+              className="competition-quick-actions"
               aria-label={t("Giochi del gruppo")}
             >
-              {board.canPlay && (
-                <a href="#competition-games">
-                  {t(
-                    board.closed ? "Risultati delle sfide" : "Scegli il gioco",
-                  )}
+              <a className="button" href="#competition-games">
+                <Medal size={18} aria-hidden="true" />
+                {t(board.closed ? "Risultati delle sfide" : "Gioca per punti")}
+              </a>
+              {!board.closed && (
+                <a className="button outline" href="#friends-tris">
+                  <Snowflake size={18} aria-hidden="true" />
+                  {t("Tris sulla neve")}
                 </a>
               )}
               {!!board.duels.length && (
-                <a href="#competition-duels">{t("I tuoi duelli")}</a>
+                <a className="button outline" href="#competition-duels">
+                  {t("I tuoi duelli")}
+                </a>
               )}
-              <a href="#competition-ranking">{t("Classifica")}</a>
             </nav>
           )}
           {!board.canPlay && !board.closed && (
@@ -618,7 +633,7 @@ export default function Competition({ event, user, members = [], onStamp }) {
               )}
             </p>
           )}
-          {attempt && !attempt.reviewView ? (
+          {isPlaying && (
             <PlayCard
               attempt={attempt}
               title={board.games.find((game) => game.id === attempt.game)?.name}
@@ -627,221 +642,244 @@ export default function Competition({ event, user, members = [], onStamp }) {
               error={error}
               onClose={closeAttempt}
             />
-          ) : (
-            board.canPlay && (
-              <div className="competition-section" id="competition-games">
-                <h3>
-                  {board.closed
-                    ? t("Risultati delle sfide")
-                    : t("Scegli il gioco")}
-                </h3>
-                <p>
-                  {board.closed
-                    ? t(
-                        "Questa edizione è conclusa. Puoi rileggere i risultati delle tue partite.",
-                      )
-                    : t(
-                        "Gli stessi nove giochi della pagina Giochi di Natale. Scegli la modalità: allenamento, computer, sfida a punti o con un amico. Solo le sfide a punti consumano i tre tentativi del gruppo: 100%, 95%, 90%. In classifica resta il migliore.",
-                      )}
-                </p>
-                <ul className="competition-games">
-                  {(board.closed
-                    ? board.games.map((game) => ({
-                        ...gameCatalog.find((entry) => entry.id === game.id),
-                        ...game,
-                      }))
-                    : gameCatalog.map((entry) => ({
-                        ...entry,
-                        ...board.games.find((game) => game.id === entry.id),
-                      }))
-                  )
-                    .filter((game) => !board.closed || game.history?.length)
-                    .map((game) => {
-                      const active = board.active.find(
-                        (active) => active.game === game.id,
-                      );
-                      const legacy =
-                        active &&
-                        game.edition &&
-                        (active.challenge?.type !== game.type ||
-                          active.challenge?.edition !== game.edition);
-                      const playLabel = legacy
-                        ? t("Gioca la nuova prova")
-                        : active
-                          ? t("Riprendi la sfida")
-                          : t("Sfida a punti");
-                      const remaining = game.limit - game.attempts;
-                      const Icon =
-                        game.id === "quiz"
-                          ? BookOpen
-                          : game.id === "memory"
-                            ? Puzzle
-                            : game.id === "film"
-                              ? Clapperboard
-                              : Gift;
-                      return (
-                        <li
-                          key={game.id}
-                          id={`game-${game.id}`}
-                          tabIndex={-1}
-                          className="competition-game paper"
-                        >
-                          <Icon size={22} aria-hidden="true" />
-                          <h4>{t(game.name)}</h4>
-                          <p className="game-description">
-                            {t(game.description)}
-                          </p>
-                          {!board.closed && (
-                            <small className="game-modes">
-                              {game.modes
-                                .map((mode) => t(gameModeLabels[mode]))
-                                .join(" · ")}
-                              {game.ranked === false
-                                ? t(" · senza classifica")
-                                : ""}
-                            </small>
-                          )}
-                          {game.ranked !== false && (
-                            <p>
-                              {game.best === null
-                                ? t("Fino a {points} punti", {
-                                    points: game.points,
-                                  })
-                                : t("Miglior risultato: {best} punti", {
-                                    best: game.best,
-                                  })}
-                            </p>
-                          )}
-                          {game.ranked !== false && !board.closed && (
-                            <p>
-                              {remaining === 1
-                                ? t("1 tentativo nuovo")
-                                : t("{remaining} tentativi nuovi", {
-                                    remaining,
-                                  })}
-                            </p>
-                          )}
-                          {game.history?.length > 0 && (
-                            <QuizAttemptHistory
-                              history={game.history}
-                              gameName={game.name}
-                              onReview={openAttemptReview}
-                              busy={busy}
-                            />
-                          )}
-                          {game.ranked !== false && !board.closed && (
-                            <Button
-                              type="button"
-                              variant="outline"
-                              disabled={busy || (!active && remaining <= 0)}
-                              aria-label={`${playLabel}: ${t(game.name)}`}
-                              onClick={() =>
-                                start(
-                                  game.id,
-                                  undefined,
-                                  legacy ? active.id : undefined,
-                                )
-                              }
-                            >
-                              {playLabel}
-                            </Button>
-                          )}
-                          {!board.closed && (
-                            <a
-                              className="button outline"
-                              href={`/giochi?game=${game.id}`}
-                              aria-label={`${game.modes.includes("computer") ? t("Contro il computer") : t("Allenamento libero")}: ${t(game.name)}`}
-                            >
-                              {game.modes.includes("computer")
-                                ? t("Contro il computer")
-                                : t("Allenamento libero")}
-                            </a>
-                          )}
-                          {!board.closed && game.modes.includes("friends") && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              aria-label={t("Con un amico: {name}", {
-                                name: t(game.name),
-                              })}
-                              onClick={() => focusFriends(game.id)}
-                            >
-                              {t("Con un amico")}
-                            </Button>
-                          )}
-                          {!board.closed && game.id === "curling" && (
-                            <small>
-                              {t(
-                                "La partita conclusa contribuisce al ritratto, senza punti.",
-                              )}
-                            </small>
-                          )}
-                          {legacy && !board.closed && (
-                            <>
-                              <small>
-                                {t(
-                                  "Passare alla nuova prova usa lo stesso tentativo e sostituisce la partita in corso.",
-                                )}
-                              </small>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                disabled={busy}
-                                aria-label={t(
-                                  "Riprendi la prova precedente: {name}",
-                                  { name: t(game.name) },
-                                )}
-                                onClick={() => start(game.id)}
-                              >
-                                {t("Riprendi la prova precedente")}
-                              </Button>
-                            </>
-                          )}
-                        </li>
-                      );
-                    })}
-                </ul>
-              </div>
-            )
           )}
-          {board.canPlay && (!attempt || attempt.reviewView) && (
-            <div
-              id="friends-tris"
-              tabIndex={-1}
-              className="competition-friends"
-            >
-              <SnowDuelPanel
-                key={`${user.id}:${event.id}`}
-                eventId={event.id}
-                userId={user.id}
-                opponents={opponents}
-                closed={board.closed}
-              />
-            </div>
-          )}
-          {board.canPlay &&
-            !board.closed &&
-            (!attempt || attempt.reviewView) && (
+          <div id="competition-ranking" tabIndex={-1}>
+            <FestivalLeaderboard
+              rows={board.leaderboard}
+              memberById={memberById}
+              userId={user.id}
+              busy={busy}
+              onAdjust={
+                event.isAdmin && event.status !== "archived"
+                  ? (row) => {
+                      setError("");
+                      setAdjustment(row);
+                    }
+                  : undefined
+              }
+            />
+          </div>
+          {!isPlaying && board.canPlay && (
+            <div className="competition-social">
               <div
-                id="friends-quiz"
+                id="friends-tris"
                 tabIndex={-1}
                 className="competition-friends"
               >
-                <DuelInvitation
+                <SnowDuelPanel
+                  key={`${user.id}:${event.id}`}
+                  eventId={event.id}
+                  userId={user.id}
                   opponents={opponents}
-                  busy={busy}
-                  onInvite={(userId) =>
-                    perform(async () => {
-                      await api(`${path}/duels`, "POST", { userId });
-                      await refresh();
-                      setNotice("Duello lanciato.");
-                    })
-                  }
+                  closed={board.closed}
                 />
               </div>
-            )}
-          {(!attempt || attempt.reviewView) && !!board.duels.length && (
-            <section className="competition-section" id="competition-duels">
+              {!board.closed && (
+                <div
+                  id="friends-quiz"
+                  tabIndex={-1}
+                  className="competition-friends"
+                >
+                  <DuelInvitation
+                    opponents={opponents}
+                    busy={busy}
+                    onInvite={(userId) =>
+                      perform(async () => {
+                        await api(`${path}/duels`, "POST", { userId });
+                        await refresh();
+                        setNotice("Duello lanciato.");
+                      })
+                    }
+                  />
+                </div>
+              )}
+            </div>
+          )}
+          {!isPlaying && board.canPlay && (
+            <div
+              className="competition-section"
+              id="competition-games"
+              tabIndex={-1}
+            >
+              <h3>
+                {board.closed
+                  ? t("Risultati delle sfide")
+                  : t("Scegli il gioco")}
+              </h3>
+              <p>
+                {board.closed
+                  ? t(
+                      "Questa edizione è conclusa. Puoi rileggere i risultati delle tue partite.",
+                    )
+                  : t(
+                      "Gli stessi nove giochi della pagina Giochi di Natale. Scegli la modalità: allenamento, computer, sfida a punti o con un amico. Solo le sfide a punti consumano i tre tentativi del gruppo: 100%, 95%, 90%. In classifica resta il migliore.",
+                    )}
+              </p>
+              <ul className="competition-games">
+                {(board.closed
+                  ? board.games.map((game) => ({
+                      ...gameCatalog.find((entry) => entry.id === game.id),
+                      ...game,
+                    }))
+                  : gameCatalog.map((entry) => ({
+                      ...entry,
+                      ...board.games.find((game) => game.id === entry.id),
+                    }))
+                )
+                  .filter((game) => !board.closed || game.history?.length)
+                  .map((game) => {
+                    const active = board.active.find(
+                      (active) => active.game === game.id,
+                    );
+                    const legacy =
+                      active &&
+                      game.edition &&
+                      (active.challenge?.type !== game.type ||
+                        active.challenge?.edition !== game.edition);
+                    const playLabel = legacy
+                      ? t("Gioca la nuova prova")
+                      : active
+                        ? t("Riprendi la sfida")
+                        : t("Sfida a punti");
+                    const remaining = game.limit - game.attempts;
+                    const Icon =
+                      game.id === "quiz"
+                        ? BookOpen
+                        : game.id === "memory"
+                          ? Puzzle
+                          : game.id === "film"
+                            ? Clapperboard
+                            : Gift;
+                    return (
+                      <li
+                        key={game.id}
+                        id={`game-${game.id}`}
+                        tabIndex={-1}
+                        className="competition-game paper"
+                      >
+                        <Icon size={22} aria-hidden="true" />
+                        <h4>{t(game.name)}</h4>
+                        <p className="game-description">
+                          {t(game.description)}
+                        </p>
+                        {!board.closed && (
+                          <small className="game-modes">
+                            {game.modes
+                              .map((mode) => t(gameModeLabels[mode]))
+                              .join(" · ")}
+                            {game.ranked === false
+                              ? t(" · senza classifica")
+                              : ""}
+                          </small>
+                        )}
+                        {game.ranked !== false && (
+                          <p>
+                            {game.best === null
+                              ? t("Fino a {points} punti", {
+                                  points: game.points,
+                                })
+                              : t("Miglior risultato: {best} punti", {
+                                  best: game.best,
+                                })}
+                          </p>
+                        )}
+                        {game.ranked !== false && !board.closed && (
+                          <p>
+                            {remaining === 1
+                              ? t("1 tentativo nuovo")
+                              : t("{remaining} tentativi nuovi", {
+                                  remaining,
+                                })}
+                          </p>
+                        )}
+                        {game.history?.length > 0 && (
+                          <QuizAttemptHistory
+                            history={game.history}
+                            gameName={game.name}
+                            onReview={openAttemptReview}
+                            busy={busy}
+                          />
+                        )}
+                        {game.ranked !== false && !board.closed && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            disabled={busy || (!active && remaining <= 0)}
+                            aria-label={`${playLabel}: ${t(game.name)}`}
+                            onClick={() =>
+                              start(
+                                game.id,
+                                undefined,
+                                legacy ? active.id : undefined,
+                              )
+                            }
+                          >
+                            {playLabel}
+                          </Button>
+                        )}
+                        {!board.closed && (
+                          <a
+                            className="button outline"
+                            href={`/giochi?game=${game.id}`}
+                            aria-label={`${game.modes.includes("computer") ? t("Contro il computer") : t("Allenamento libero")}: ${t(game.name)}`}
+                          >
+                            {game.modes.includes("computer")
+                              ? t("Contro il computer")
+                              : t("Allenamento libero")}
+                          </a>
+                        )}
+                        {!board.closed && game.modes.includes("friends") && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            aria-label={t("Con un amico: {name}", {
+                              name: t(game.name),
+                            })}
+                            onClick={() => focusFriends(game.id)}
+                          >
+                            {t("Con un amico")}
+                          </Button>
+                        )}
+                        {!board.closed && game.id === "curling" && (
+                          <small>
+                            {t(
+                              "La partita conclusa contribuisce al ritratto, senza punti.",
+                            )}
+                          </small>
+                        )}
+                        {legacy && !board.closed && (
+                          <>
+                            <small>
+                              {t(
+                                "Passare alla nuova prova usa lo stesso tentativo e sostituisce la partita in corso.",
+                              )}
+                            </small>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              disabled={busy}
+                              aria-label={t(
+                                "Riprendi la prova precedente: {name}",
+                                { name: t(game.name) },
+                              )}
+                              onClick={() => start(game.id)}
+                            >
+                              {t("Riprendi la prova precedente")}
+                            </Button>
+                          </>
+                        )}
+                      </li>
+                    );
+                  })}
+              </ul>
+            </div>
+          )}
+          {!isPlaying && !!board.duels.length && (
+            <section
+              className="competition-section"
+              id="competition-duels"
+              tabIndex={-1}
+            >
               <h3>{t("I tuoi duelli")}</h3>
               <ul className="competition-duels" role="list">
                 {board.duels.map((duel) => (
@@ -912,22 +950,6 @@ export default function Competition({ event, user, members = [], onStamp }) {
               </ul>
             </section>
           )}
-          <div id="competition-ranking">
-            <FestivalLeaderboard
-              rows={board.leaderboard}
-              memberById={memberById}
-              userId={user.id}
-              busy={busy}
-              onAdjust={
-                event.isAdmin && event.status !== "archived"
-                  ? (row) => {
-                      setError("");
-                      setAdjustment(row);
-                    }
-                  : undefined
-              }
-            />
-          </div>
         </>
       )}
       {attempt?.reviewView && (

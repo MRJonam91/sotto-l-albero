@@ -66,7 +66,7 @@ export default function SnowDuelPanel({ eventId, userId, opponents, closed }) {
   }
   return (
     <section
-      className="competition-section snow-duel-panel"
+      className="competition-callout snow-duel-panel paper"
       aria-label={t("Tris sulla neve con il gruppo")}
     >
       <div className="competition-duel-title">
@@ -116,7 +116,7 @@ export default function SnowDuelPanel({ eventId, userId, opponents, closed }) {
       <Notice error>{error}</Notice>
       <Button
         type="button"
-        variant="ghost"
+        variant="outline"
         disabled={busy}
         onClick={() => reload.current?.()}
       >
@@ -125,7 +125,7 @@ export default function SnowDuelPanel({ eventId, userId, opponents, closed }) {
       {duels === null && !error && (
         <p role="status">{t("Cerchiamo le partite sulla neve…")}</p>
       )}
-      {duels?.length === 0 && (
+      {duels?.length === 0 && (closed || opponents.length > 0) && (
         <p>
           {t(
             closed

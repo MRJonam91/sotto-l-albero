@@ -1,8 +1,16 @@
 import { getLocale, t } from "./i18n.js";
 import { useEffect, useRef, useState } from "react";
-import { Check, ExternalLink, Plus, RefreshCw, Search } from "lucide-react";
+import {
+  Check,
+  ExternalLink,
+  MapPin,
+  Plus,
+  RefreshCw,
+  Search,
+} from "lucide-react";
 import { api } from "./api.js";
 import { Button, Field, Notice } from "./ui.jsx";
+import { productSearchLinks } from "../shared/amazonLinks.js";
 import "./gift-browser.css";
 
 const euro = (value) =>
@@ -88,6 +96,7 @@ export default function GiftBrowser({
   selectedUrls = [],
   disabled,
   onAdd,
+  onBrowseLocal,
 }) {
   const [category, setCategory] = useState("all");
   const [band, setBand] = useState("all");
@@ -106,6 +115,12 @@ export default function GiftBrowser({
   const maxBudget = Math.max(0, Number(budget) || 0);
   const min = band === "upper" ? Math.round(maxBudget * 50) / 100 : 0;
   const max = band === "small" ? Math.min(10, maxBudget) : maxBudget;
+  const shoppingQuery =
+    search.trim() ||
+    (category === "all"
+      ? "idee regalo"
+      : categories.find(([id]) => id === category)[1]);
+  const amazonUrl = productSearchLinks(shoppingQuery).amazon;
   async function load(append, currentGeneration) {
     setLoading(true);
     setError("");
@@ -250,6 +265,26 @@ export default function GiftBrowser({
           </Button>
         </form>
       </details>
+      <div className="gift-shopping-links">
+        <a
+          className="button outline"
+          href={amazonUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          {t("Cerca su Amazon.it")}{" "}
+          <ExternalLink size={15} aria-hidden="true" />
+        </a>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => onBrowseLocal(shoppingQuery)}
+        >
+          <MapPin size={17} aria-hidden="true" />
+          {t("Cerca negozi in città")}
+        </Button>
+        <p>{t("I filtri di prezzo si applicano al catalogo qui sotto.")}</p>
+      </div>
       <Notice error>{error}</Notice>
       <Notice>
         {addedTitle &&

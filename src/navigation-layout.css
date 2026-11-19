@@ -104,10 +104,6 @@
   scroll-margin-block-start: 12px;
 }
 
-#competition-ranking {
-  margin-top: clamp(24px, 4vw, 44px);
-}
-
 .site-affiliate-info,
 .site-affiliate-info p {
   display: none;

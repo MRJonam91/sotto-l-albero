@@ -87,6 +87,25 @@ details.wish-shopping[open] > summary {
   min-width: 0;
   margin: 0;
 }
+.gift-shopping-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+  margin-bottom: 1.1rem;
+  padding-block: 0.8rem;
+  border-block: 1px solid var(--line);
+}
+.gift-shopping-links .button {
+  min-height: 44px;
+  white-space: normal;
+  text-align: center;
+}
+.gift-shopping-links p {
+  flex-basis: 100%;
+  margin: 0.15rem 0 0;
+  font-size: 0.8rem;
+}
 .gift-product-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

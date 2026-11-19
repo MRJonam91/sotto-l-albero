@@ -1,5 +1,7 @@
 // Italian, English, French, German, Spanish, Portuguese.
 export default [
+  ["Gioca per punti","Play for points","Jouer pour des points","Um Punkte spielen","Jugar por puntos","Jogar a pontos"],
+  ["Il tuo posto in classifica: {rank}° · {score} punti","Your rank: {rank} · {score} points","Ta place au classement : {rank} · {score} points","Dein Platz: {rank} · {score} Punkte","Tu puesto: {rank} · {score} puntos","A tua posição: {rank} · {score} pontos"],
   ["Quiz di Natale","Christmas quiz","Quiz de Noël","Weihnachtsquiz","Quiz de Navidad","Quiz de Natal"],
   ["Domande natalizie, una alla volta.","Answer Christmas questions one at a time.","Réponds aux questions de Noël, une par une.","Beantworte eine Weihnachtsfrage nach der anderen.","Responde a las preguntas navideñas de una en una.","Responde a uma pergunta de Natal de cada vez."],
   ["Trova le otto coppie tra i ricordi di Natale.","Find the eight matching pairs among the Christmas keepsakes.","Retrouve les huit paires parmi les souvenirs de Noël.","Finde die acht Paare unter den Weihnachtserinnerungen.","Encuentra las ocho parejas entre los recuerdos de Navidad.","Encontra os oito pares entre as recordações de Natal."],

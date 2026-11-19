@@ -1,4 +1,7 @@
 export default [
+  ["Cerca su Amazon.it","Search Amazon.it","Chercher sur Amazon.it","Auf Amazon.it suchen","Buscar en Amazon.it","Procurar na Amazon.it"],
+  ["Cerca negozi in città","Find local shops","Chercher des commerces locaux","Geschäfte vor Ort finden","Buscar tiendas locales","Procurar lojas locais"],
+  ["I filtri di prezzo si applicano al catalogo qui sotto.","Price filters apply to the catalogue below.","Les filtres de prix s’appliquent au catalogue ci-dessous.","Die Preisfilter gelten für den Katalog unten.","Los filtros de precio se aplican al catálogo de abajo.","Os filtros de preço aplicam-se ao catálogo abaixo."],
   ["Solo chi ha un indovinello ({count})","Only people with a riddle ({count})","Seulement les personnes ayant une devinette ({count})","Nur Personen mit einem Rätsel ({count})","Solo quienes tengan una adivinanza ({count})","Só quem tem uma adivinha ({count})"],
   ["Invita una persona","Invite someone","Inviter quelqu’un","Jemanden einladen","Invitar a alguien","Convidar alguém"],
   ["Vedi l’indovinello e il ritratto di {name}","View {name}’s riddle and portrait","Voir la devinette et le portrait de {name}","Rätsel und Porträt von {name} ansehen","Ver la adivinanza y el retrato de {name}","Ver a adivinha e o retrato de {name}"],

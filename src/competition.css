@@ -20,6 +20,67 @@
   flex: none;
 }
 
+.competition-header {
+  row-gap: 0.15rem;
+}
+
+.competition-standing-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--gold);
+  font-size: 0.88rem;
+  text-underline-offset: 0.25em;
+}
+
+.competition-quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.competition-quick-actions .button {
+  min-height: 44px;
+  white-space: normal;
+  text-align: center;
+}
+
+@media (max-width: 480px) {
+  .competition-quick-actions .button {
+    gap: 0.35rem;
+    padding-inline: 0.55rem;
+  }
+}
+
+.competition-social {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 21rem), 1fr));
+  align-items: start;
+  gap: 0.9rem;
+}
+
+.competition-social .snow-duel-panel {
+  border-top: 3px solid #5e8c84;
+}
+
+.snow-duel-panel .competition-duel-title svg {
+  color: #285c53;
+}
+
+.snow-duel-panel .snow-duel-list {
+  width: 100%;
+  margin: 0;
+}
+
+.snow-duel-list:empty {
+  display: none;
+}
+
+#competition-games,
+#competition-duels {
+  scroll-margin-top: 1rem;
+}
+
 .competition :is(h2, h3, h4, p) {
   margin: 0;
 }

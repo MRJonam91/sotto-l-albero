@@ -18,7 +18,7 @@ test.use({
   reducedMotion: "reduce",
 });
 
-test("ritratti del gruppo, prodotti nel budget e ricerca esterna secondaria con ritiro esplicito", async ({
+test("ritratti del gruppo, prodotti nel budget, ricerca Amazon e ritiro esplicito", async ({
   page,
   browser,
   baseURL,
@@ -150,6 +150,31 @@ test("ritratti del gruppo, prodotti nel budget e ricerca esterna secondaria con 
     const external = page.locator("details.wish-shopping");
     await expect(external).not.toHaveAttribute("open", "");
     await expect(external.getByLabel("Cosa cerchi?")).not.toBeVisible();
+    const amazon = catalog.getByRole("link", { name: "Cerca su Amazon.it" });
+    await expect(amazon).toHaveAttribute(
+      "href",
+      "https://www.amazon.it/s?k=idee+regalo",
+    );
+    const localShops = catalog.getByRole("button", {
+      name: "Cerca negozi in città",
+    });
+    for (const width of [320, 768, 1440]) {
+      await page.setViewportSize({ width, height: 840 });
+      await amazon.scrollIntoViewIfNeeded();
+      await expect(localShops).toBeInViewport();
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth),
+      ).toBeLessThanOrEqual(width);
+    }
+    await page.setViewportSize({ width: 320, height: 840 });
+    await catalog
+      .getByText("Cerchi qualcosa di preciso?", { exact: true })
+      .click();
+    await catalog.getByLabel("Cerca nel catalogo").fill("Tazza & blu");
+    await expect(amazon).toHaveAttribute(
+      "href",
+      "https://www.amazon.it/s?k=Tazza+%26+blu",
+    );
     await catalog
       .getByRole("button", { name: "Sotto i 10 €", exact: true })
       .tap();
@@ -177,11 +202,14 @@ test("ritratti del gruppo, prodotti nel budget e ricerca esterna secondaria con 
       }),
     ).toBeDisabled();
     await expect(page.locator(".wish-editor")).toHaveCount(1);
-    await external
-      .getByText("Hai già un link o vuoi cercare in altri negozi?", {
-        exact: true,
-      })
-      .tap();
+    await expect(amazon).toHaveAttribute(
+      "href",
+      "https://www.amazon.it/s?k=Giochi",
+    );
+    await localShops.tap();
+    await expect(external.getByLabel("Cosa cerchi?")).toHaveValue("Giochi");
+    await expect(external.getByLabel("Cosa cerchi?")).toBeFocused();
+    await expect(external.getByLabel("Dove cercare")).toHaveValue("local");
     const shop = external;
     await shop.getByLabel("Cosa cerchi?").fill("Tazza blu");
     await shop.getByLabel("Dove cercare").selectOption("local");

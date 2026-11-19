@@ -586,6 +586,8 @@ function Wishlist({ initial, id, budget, onSaved }) {
   const [productError, setProductError] = useState("");
   const [amazonPreferences, setAmazonPreferences] = useState(null);
   const editor = useRef(null);
+  const shoppingOptions = useRef(null);
+  const shoppingQuery = useRef(null);
   const newWishIndex = useRef(null);
   useEffect(() => {
     if (newWishIndex.current === null) return;
@@ -864,6 +866,12 @@ function Wishlist({ initial, id, budget, onSaved }) {
           budget={budget}
           selectedUrls={items.map((item) => item.url)}
           disabled={busy || items.length >= 30}
+          onBrowseLocal={(search) => {
+            setProvider("local");
+            setQuery(search);
+            shoppingOptions.current.open = true;
+            shoppingQuery.current.focus();
+          }}
           onAdd={(product) => {
             if (
               items.length >= 30 ||
@@ -884,7 +892,7 @@ function Wishlist({ initial, id, budget, onSaved }) {
             return true;
           }}
         />
-        <details className="wish-shopping paper">
+        <details className="wish-shopping paper" ref={shoppingOptions}>
           <summary>
             {t("Hai già un link o vuoi cercare in altri negozi?")}
           </summary>
@@ -898,6 +906,7 @@ function Wishlist({ initial, id, budget, onSaved }) {
             <div className="wish-search-fields">
               <Field
                 label={t("Cosa cerchi?")}
+                ref={shoppingQuery}
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 maxLength={200}

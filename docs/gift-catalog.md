@@ -1,6 +1,6 @@
 # Catalogo idee regalo
 
-La lettera mostra schede di prodotti reali prima dei collegamenti di ricerca esterna. Ogni scheda riporta nome, foto del negozio, prezzo in euro, commerciante, collegamento al prodotto e pulsante per inserirlo nella propria bozza. La fascia iniziale va da zero al budget salvato dello scambio. Le categorie sono ricerche tematiche del catalogo, non una classificazione inventata dei prodotti. Su telefono le schede scorrono orizzontalmente; altri risultati si caricano solo premendo “Mostra altri prodotti”.
+La lettera mostra i filtri del catalogo, due accessi per cercare su Amazon.it o nei negozi di una città e le schede dei prodotti. I due accessi riprendono la ricerca scritta o la categoria scelta. I filtri di prezzo si applicano alle schede del catalogo. Ogni scheda riporta nome, foto del negozio, prezzo in euro, commerciante, collegamento al prodotto e pulsante per inserirlo nella propria bozza. La fascia iniziale va da zero al budget salvato dello scambio. Su telefono le schede scorrono orizzontalmente. Per caricare altri risultati, premi “Mostra altri prodotti”.
 
 ## Fonte e permessi
 

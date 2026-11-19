@@ -1,5 +1,11 @@
 # Sotto l’Albero
 
+## 1.8.1
+
+- Sfide con posizione personale, classifica del gruppo e accessi diretti ai giochi a punti e al Tris sulla neve. Il Tris tra partecipanti ha un riquadro dedicato.
+- Idee regalo con ricerca su Amazon.it e nei negozi della città a partire dal testo o dalla categoria scelta.
+- Group challenges now surface your rank and score, ranked games and a dedicated snow tic-tac-toe panel. Gift ideas offer direct searches on Amazon.it and for local shops.
+
 ## 1.8.0
 
 - Interfaccia, giochi e avvisi email e Telegram in italiano, inglese, francese, tedesco, spagnolo e portoghese.
