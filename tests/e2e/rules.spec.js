@@ -7,6 +7,38 @@ import { tmpdir } from "node:os";
 const output = process.env.ARTIFACT_DIR || join(tmpdir(), "sotto-l-albero-qa");
 mkdirSync(output, { recursive: true });
 
+test("Il footer dell’app apre la presentazione del progetto e indica il repository GitHub", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 820 });
+  await page.goto("/");
+  const footer = page.getByRole("contentinfo");
+  await expect(
+    footer.getByRole("link", { name: "GitHub", exact: true }),
+  ).toHaveAttribute("href", "https://github.com/MRJonam91/sotto-l-albero");
+  const project = footer.getByRole("link", { name: "Il progetto", exact: true });
+  await expect(project).toBeVisible();
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(320);
+  await project.click();
+  await expect(page).toHaveURL(/\/progetto\/$/);
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+    "href",
+    "https://sottolalbero.gifts/progetto/",
+  );
+
+  await page.addInitScript(() =>
+    localStorage.setItem("sotto-albero.language", "en"),
+  );
+  await page.goto("/");
+  await footer
+    .getByRole("link", { name: "About the project", exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/progetto\/en\/$/);
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+});
+
 test("Il regolamento illustrato si legge e si condivide anche senza account", async ({
   page,
 }) => {

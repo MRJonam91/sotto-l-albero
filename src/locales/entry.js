@@ -50,6 +50,7 @@ export default [
   ["Crea e condividi i tuoi gruppi. Giocate insieme e organizzate lo scambio.","Create a group and invite your friends. Play together and plan your gift exchange.","Crée tes groupes et invite tes proches. Jouez ensemble et préparez votre échange de cadeaux.","Gründe eine Gruppe und lade andere ein. Spielt zusammen und plant eure Bescherung.","Crea tus grupos y comparte la invitación. Jugad juntos y preparad el intercambio.","Cria os teus grupos e partilha o convite. Joguem juntos e preparem a troca de presentes."],
   ["Crea un Secret Santa","Create a Secret Santa","Créer un Secret Santa","Wichtelrunde erstellen","Crear un amigo invisible","Criar um amigo secreto"],
   ["Regolamento del Secret Santa","Secret Santa rules","Règles du Secret Santa","Wichtelregeln","Reglas del amigo invisible","Regras do amigo secreto"],
+  ["Il progetto","About the project","À propos du projet","Über das Projekt","Sobre el proyecto","Sobre o projeto"],
   ["Caccia al tesoro e album dei timbri","Treasure hunt and stamp album","Chasse au trésor et album de timbres","Schatzsuche und Briefmarkenalbum","Búsqueda del tesoro y álbum de sellos","Caça ao tesouro e álbum de selos"],
   ["Una stella da accendere","A star to light up","Une étoile à allumer","Ein Stern zum Anzünden","Una estrella por encender","Uma estrela para acender"],
   ["I Natali passati","Christmases past","Les Noëls passés","Vergangene Weihnachtsfeste","Navidades pasadas","Natais passados"],

@@ -6,7 +6,8 @@ import { copy } from "./copy.mjs";
 
 const source = fileURLToPath(new URL(".", import.meta.url));
 const output = resolve(process.argv[2] ?? ".wrangler/presentation-preview");
-const base = "https://mrjonam91.github.io/sotto-l-albero/";
+const githubPagesBase = "https://mrjonam91.github.io/sotto-l-albero/";
+const base = process.argv[3] ?? githubPagesBase;
 const app = "https://sottolalbero.gifts/";
 const github = "https://github.com/MRJonam91/sotto-l-albero";
 const brand = "Sotto l’Albero";
@@ -125,7 +126,10 @@ function render(code) {
       </div>
     </section>
   </main>
-  <footer class="wrap"><span>${brand}</span><a href="${github}">${escape(t.repository)}</a></footer>
+  <footer class="wrap">
+    <div><span>${brand}</span> · <a href="${github}">${escape(t.repository)}</a></div>
+    <div class="support"><span>${escape(t.support)}</span> <a href="https://ko-fi.com/mrjonam">Ko-fi</a> · <a href="https://buymeacoffee.com/mrjonam">Buy Me a Coffee</a> · <a href="https://paypal.me/manorollo">PayPal</a></div>
+  </footer>
 </body>
 </html>
 `;
@@ -143,11 +147,11 @@ await Promise.all([
     await mkdir(directory, { recursive: true });
     await writeFile(join(directory, "index.html"), render(code));
   }),
-  writeFile(join(output, ".nojekyll"), ""),
   writeFile(join(output, "sitemap.xml"), `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${codes.map((code) => `  <url><loc>${urlFor(code)}</loc></url>`).join("\n")}
 </urlset>
 `),
 ]);
+if (base === githubPagesBase) await writeFile(join(output, ".nojekyll"), "");
 console.log(`Built ${codes.length} language pages in ${output}`);

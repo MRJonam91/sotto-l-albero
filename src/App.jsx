@@ -1053,12 +1053,18 @@ export default function App() {
           <span>
             {t("Fatto per ritrovarsi. E per tenere un piccolo segreto.")}
           </span>
-          <a
-            href="/regolamento"
-            aria-current={section === "rules" ? "page" : undefined}
-          >
-            {t("Regolamento del Secret Santa")}
-          </a>
+          <div className="site-footer-links">
+            <a
+              href="/regolamento"
+              aria-current={section === "rules" ? "page" : undefined}
+            >
+              {t("Regolamento del Secret Santa")}
+            </a>
+            <a href={locale === "it" ? "/progetto/" : `/progetto/${locale}/`}>
+              {t("Il progetto")}
+            </a>
+            <a href="https://github.com/MRJonam91/sotto-l-albero">GitHub</a>
+          </div>
           <span>
             Sotto l’Albero · v{version} <Heart size={12} aria-hidden="true" />
           </span>

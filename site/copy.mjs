@@ -25,6 +25,7 @@ export const copy = {
     copied: "Link copiato",
     copyHelp: "Seleziona e copia questo indirizzo.",
     repository: "Progetto su GitHub",
+    support: "Ti piace il progetto? Puoi sostenerlo con una donazione:",
     skip: "Vai al contenuto",
   },
   en: {
@@ -53,6 +54,7 @@ export const copy = {
     copied: "Link copied",
     copyHelp: "Select and copy this address.",
     repository: "Project on GitHub",
+    support: "Enjoying the project? You can support it with a donation:",
     skip: "Skip to content",
   },
   fr: {
@@ -81,6 +83,7 @@ export const copy = {
     copied: "Lien copié",
     copyHelp: "Sélectionnez et copiez cette adresse.",
     repository: "Projet sur GitHub",
+    support: "Le projet vous plaît ? Vous pouvez le soutenir avec un don :",
     skip: "Aller au contenu",
   },
   de: {
@@ -109,6 +112,7 @@ export const copy = {
     copied: "Link kopiert",
     copyHelp: "Wähle diese Adresse aus und kopiere sie.",
     repository: "Projekt auf GitHub",
+    support: "Gefällt dir das Projekt? Du kannst es mit einer Spende unterstützen:",
     skip: "Zum Inhalt springen",
   },
   es: {
@@ -137,6 +141,7 @@ export const copy = {
     copied: "Enlace copiado",
     copyHelp: "Selecciona y copia esta dirección.",
     repository: "Proyecto en GitHub",
+    support: "¿Te gusta el proyecto? Puedes apoyarlo con una donación:",
     skip: "Ir al contenido",
   },
   pt: {
@@ -165,6 +170,7 @@ export const copy = {
     copied: "Ligação copiada",
     copyHelp: "Seleciona e copia este endereço.",
     repository: "Projeto no GitHub",
+    support: "Gostas do projeto? Podes apoiá-lo com um donativo:",
     skip: "Ir para o conteúdo",
   },
 };

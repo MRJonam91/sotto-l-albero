@@ -1,5 +1,10 @@
 # Sotto l’Albero
 
+## 1.8.4
+
+- Il footer dell’app collega la presentazione del progetto nella lingua scelta e il repository GitHub.
+- The app footer links to the project overview in the selected language and to the GitHub repository.
+
 ## 1.8.3
 
 - La Home torna a mostrare l’introduzione, i timbri da scoprire e il collegamento all’album anche quando hai già degli scambi. Sotto trovi la lista dei tuoi eventi.

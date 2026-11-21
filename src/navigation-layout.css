@@ -89,6 +89,12 @@
   scroll-margin-block-start: 12px;
 }
 
+.site-footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+}
+
 .site-affiliate-info,
 .site-affiliate-info p {
   display: none;

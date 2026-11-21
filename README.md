@@ -63,7 +63,7 @@ La migrazione `0023_stamp_completion_bonus.sql` aggiunge lo spazio per conservar
 3. Verificare che il `database_id` in `wrangler.jsonc` corrisponda al database di destinazione. Per un primo deploy, inserire l’ID restituito dal comando precedente.
 4. Salvare l’indirizzo del gestore con `npx wrangler secret put ADMIN_EMAILS` e configurare `APP_URL` con l’URL definitivo HTTPS. Per più organizzatori separare le email con una virgola.
 5. Configurare il mittente verificato secondo le indicazioni del servizio email. Salvare la chiave con `npx wrangler secret put RESEND_API_KEY`; configurare `MAIL_FROM` con il mittente autorizzato.
-6. Preparare e verificare il pacchetto con `npm run build` e `npx wrangler deploy --dry-run --outdir .wrangler/deploy-check`.
+6. Preparare il pacchetto con `npm run build`, che genera l’app e le sei pagine della presentazione in `dist/progetto`. Verificare il pacchetto con `npx wrangler deploy --dry-run --outdir .wrangler/deploy-check`.
 7. Dopo aver verificato il database di destinazione, conservare il punto di ripristino restituito da `npx wrangler d1 time-travel info DB --json`, oppure una copia privata autorizzata. Applicare lo schema con `npx wrangler d1 migrations apply DB --remote`.
 8. Pubblicare con `npm run deploy`.
 9. Verificare accesso via email, invito con un altro account, approvazione, accesso ai giochi e una prima estrazione.

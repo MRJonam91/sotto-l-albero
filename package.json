@@ -1,11 +1,11 @@
 {
   "name": "sotto-l-albero",
-  "version": "1.8.3",
+  "version": "1.8.4",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "build": "vite build",
+    "build": "vite build && node site/build.mjs dist/progetto https://sottolalbero.gifts/progetto/",
     "start": "wrangler dev --ip 127.0.0.1 --port 8787",
     "db:local": "wrangler d1 migrations apply DB --local",
     "test": "vitest run",
