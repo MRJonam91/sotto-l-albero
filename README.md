@@ -10,6 +10,8 @@
 
 [Italiano](https://mrjonam91.github.io/sotto-l-albero/) · [English](https://mrjonam91.github.io/sotto-l-albero/en/) · [Français](https://mrjonam91.github.io/sotto-l-albero/fr/) · [Deutsch](https://mrjonam91.github.io/sotto-l-albero/de/) · [Español](https://mrjonam91.github.io/sotto-l-albero/es/) · [Português](https://mrjonam91.github.io/sotto-l-albero/pt/)
 
+**Sostieni il progetto / Support the project** · [Ko-fi](https://ko-fi.com/mrjonam) · [Buy Me a Coffee](https://buymeacoffee.com/mrjonam) · [PayPal](https://paypal.me/manorollo)
+
 Ogni account può creare i propri eventi. Chi ha già aderito conserva l’accesso dopo la chiusura delle iscrizioni: dal vecchio invito basta accedere con la stessa email. La scadenza del link per nuove adesioni non elimina l’iscrizione. Dopo la prima apertura, la propria lettera mostra il nome direttamente; **Riapri la lettera** permette di rivedere la cerimonia. Il nome viene sempre recuperato dal server, senza salvarlo nel browser.
 
 Gli avvisi email sono attivi per i nuovi account e si possono disattivare dal profilo. Telegram resta facoltativo: dopo l’adesione il sito propone di collegarlo e attivarlo, senza bloccare la partecipazione e senza abilitare il canale automaticamente.
