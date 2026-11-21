@@ -1,6 +1,14 @@
 # Sotto l’Albero
 
-Una web app privata per organizzare il Secret Santa con amici, colleghi e famiglia. Eventi separati, desideri e indovinelli, inviti, esclusioni tra partecipanti e una lettera da aprire per scoprire a chi fare il regalo.
+**Il Secret Santa comincia prima del regalo.** Invita amici, familiari o colleghi a uno scambio privato. Con desideri e indovinelli scopri che cosa potrebbe far piacere agli altri. Tra un quiz, una sfida a Memory e una caccia ai timbri, il gruppo ha un motivo per ritrovarsi prima di aprire la lettera con il nome segreto.
+
+**Secret Santa starts before the gifts.** Invite friends, family or colleagues to a private exchange. Get to know what people like through wishlists and riddles. There’s time to play quizzes and Memory and go on a stamp hunt before you open your letter to find out who you’re buying for.
+
+[Apri l’app / Open the app](https://sottolalbero.gifts/) · [Testi e link da condividere / Social copy and links](docs/social.md) · [Versioni / Releases](https://github.com/MRJonam91/sotto-l-albero/releases)
+
+**Presentazione / Overview**
+
+[Italiano](https://mrjonam91.github.io/sotto-l-albero/) · [English](https://mrjonam91.github.io/sotto-l-albero/en/) · [Français](https://mrjonam91.github.io/sotto-l-albero/fr/) · [Deutsch](https://mrjonam91.github.io/sotto-l-albero/de/) · [Español](https://mrjonam91.github.io/sotto-l-albero/es/) · [Português](https://mrjonam91.github.io/sotto-l-albero/pt/)
 
 Ogni account può creare i propri eventi. Chi ha già aderito conserva l’accesso dopo la chiusura delle iscrizioni: dal vecchio invito basta accedere con la stessa email. La scadenza del link per nuove adesioni non elimina l’iscrizione. Dopo la prima apertura, la propria lettera mostra il nome direttamente; **Riapri la lettera** permette di rivedere la cerimonia. Il nome viene sempre recuperato dal server, senza salvarlo nel browser.
 
