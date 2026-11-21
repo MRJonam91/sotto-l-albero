@@ -785,7 +785,7 @@ export default function App() {
                 />
               ) : (
                 <>
-                  {section === "events" && eventsReady && !shown.length && (
+                  {section === "events" && (
                     <section className="hero">
                       <img
                         className="hero-image"
@@ -839,14 +839,11 @@ export default function App() {
                     </section>
                   )}
                   <section
-                    className={`events-section ${section !== "events" || !eventsReady || shown.length ? "events-standalone" : ""}`}
+                    className={`events-section${section === "events" ? "" : " events-standalone"}`}
                     id="my-groups"
                   >
                     <div className="section-title">
-                      {section === "events" &&
-                      (!eventsReady || shown.length) ? (
-                        <h1>{t("I tuoi Secret Santa")}</h1>
-                      ) : section === "events" ? (
+                      {section === "events" ? (
                         <h2>{t("I tuoi Secret Santa")}</h2>
                       ) : (
                         <h1>
@@ -890,29 +887,6 @@ export default function App() {
                         </small>
                       ) : null}
                     </div>
-                    {section === "events" && shown.length > 0 && (
-                      <div className="groups-toolbar">
-                        <Button onClick={() => setCreate(true)}>
-                          <Plus size={18} aria-hidden="true" />{" "}
-                          {t("Crea un Secret Santa")}
-                        </Button>
-                        <div className="groups-collectibles">
-                          <button
-                            type="button"
-                            className="hunt-object icon-button"
-                            aria-label={t("Una stella da accendere")}
-                            onClick={() => discover("star")}
-                          >
-                            <Star size={22} aria-hidden="true" />
-                          </button>
-                          <TimedTreasures
-                            section={section}
-                            collection={collection}
-                            onDiscover={discover}
-                          />
-                        </div>
-                      </div>
-                    )}
                     {section === "wishes" ? (
                       <p className="section-intro">
                         {t(

@@ -1,5 +1,10 @@
 # Sotto l’Albero
 
+## 1.8.3
+
+- La Home torna a mostrare l’introduzione, i timbri da scoprire e il collegamento all’album anche quando hai già degli scambi. Sotto trovi la lista dei tuoi eventi.
+- The home page shows the introduction, stamp discoveries and album link even when you already have exchanges. Your events remain listed below.
+
 ## 1.8.2
 
 - Ritratti illustrati con inquadratura calibrata per scena, pennellata Intensa predefinita e ritaglio del contorno del volto quando la segmentazione non è disponibile.

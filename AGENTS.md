@@ -1,0 +1,7 @@
+# Compatibilità di Home e timbri
+
+- Mantieni la schermata introduttiva alla Home (`/`) per ogni account connesso, con o senza eventi. Il logo e il ritorno agli eventi dal dettaglio devono riportare alla Home. Conserva sotto l’introduzione la lista degli eventi con la ricerca, e nella Home l’accesso diretto all’album e al regolamento.
+- Aggiungi i nuovi timbri alla raccolta esistente. Conserva gli ID salvati in `user_stamps`, i timbri base e i relativi indizi, i luoghi e gli orari di ritrovamento (ora di Roma), le condizioni di gioco e i punti. Chiedi conferma esplicita dell’utente prima di rimuovere o sostituire una funzione o un contenuto esistente.
+- Mantieni separate le condizioni dei timbri base dal calendario dei timbri aggiuntivi. Nell’album devono restare visibili i timbri già raccolti e rileggibili le sorprese associate, anche dopo il cambio di edizione o la disattivazione del calendario.
+- Per cambi alla Home, alla navigazione o ai timbri, esegui `npm test` e i test Playwright di `navigation.spec.js`, `rules.spec.js`, `holiday.spec.js` e `stamp-release.spec.js`. Verifica che sulla Home con eventi siano utilizzabili insieme la stella, un timbro a orario e un nuovo timbro disponibile anche a 320 px, e che l’album conservi la raccolta dopo il ricaricamento.
+- Nei rilasci Cloudflare, includi in `dist/progetto` la presentazione pubblica già online. Se il rilascio riguarda solo l’app, usa le pagine e gli asset del pacchetto di produzione verificato. Controlla dopo il deploy il manifest dell’app e tutte e sei le lingue di `/progetto/`.

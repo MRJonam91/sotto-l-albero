@@ -2368,7 +2368,9 @@ input[type="datetime-local"] {
     );
   }
   .hero .hidden-star {
-    bottom: 50px;
+    left: 20px;
+    right: auto;
+    bottom: 28px;
   }
   .row-action,
   .event-dates,
